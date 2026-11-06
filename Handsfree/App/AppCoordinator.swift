@@ -40,6 +40,7 @@ final class AppCoordinator {
     /// Asleep, waking and awake: opens the conversation on the wake phrase, closes it when idle.
     private var cycle: (any ListeningCycling)?
     private var hasStartedListening = false
+    private var showPanelObserver: NSObjectProtocol?
     /// Set when quitting starts, so a cycle still being started cannot open the microphone during quit.
     private var isShuttingDown = false
     /// The waking and sleeping sounds.
@@ -62,6 +63,7 @@ final class AppCoordinator {
         appModel.listening.language = AppWakeLanguage.describe(setting: settings.wakeLanguage)
         appModel.listening.alternatives = settings.wakeAlternatives
         appModel.listening.strictness = settings.wakeStrictness.lowercased()
+        appModel.listening.sleepAfterIdleSeconds = settings.sleepAfterIdleSeconds
     }
 
     func start() {
@@ -80,9 +82,14 @@ final class AppCoordinator {
         panel = MenuBarPanelManager(isCapturable: options.overlayIsCapturable, makePanelContent: { [unowned self] in
             AnyView(PanelView(
                 app: appModel, companion: companion,
-                onSetupAction: { [weak self] action in self?.perform(action) },
-                onPlayDemo: { [weak self] in self?.relaunchInDemoMode() }))
+                onSetupAction: { [weak self] action in self?.perform(action) }))
         })
+        // A second copy started while this one runs quits at once and asks this one to show its panel.
+        showPanelObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name(SingleInstance.showPanelNotification), object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.panel?.showPanel() }
+        }
 
         if options.isDemo {
             startDemo()
@@ -268,7 +275,7 @@ final class AppCoordinator {
         }
         cycle = newCycle
         // "That's all, thanks" reaches the cycle through the go_to_sleep tool.
-        parts.sleepRequests.setHandler { [weak newCycle] in newCycle?.requestSleep() }
+        parts.sleepRequests.setHandler { [weak newCycle] in await newCycle?.requestSleep() ?? .notAvailable }
         // A task's news arriving while asleep (rare: a task keeps it awake until its result is said)
         // wakes it with HFWake's wakeNow(), so the user hears it.
         CycleWiring.wakeForNews(voice: parts.voice, cycle: newCycle)
@@ -445,15 +452,6 @@ final class AppCoordinator {
         demoPlayer = player
         // Give the overlay a moment to appear before the first event.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { player.play() }
-    }
-
-    private func relaunchInDemoMode() {
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        configuration.arguments = ["--demo", "--show-panel"]
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
-            DispatchQueue.main.async { NSApp.terminate(nil) }
-        }
     }
 
     // MARK: - Click-through check

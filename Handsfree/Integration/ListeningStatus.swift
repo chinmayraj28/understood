@@ -68,6 +68,8 @@ struct ListeningStatus: Equatable {
     var conversationConnected = false
     var wakePhrase = "Hey Handsfree"
     var alwaysOpen = false
+    /// How long a conversation stays open with nobody speaking and no task, from SLEEP_AFTER_IDLE_S.
+    var sleepAfterIdleSeconds = 25.0
 
     // Counts since launch. Only counts and times: never what was said.
     private(set) var speechWithoutPhraseCount = 0
@@ -125,9 +127,15 @@ struct ListeningStatus: Equatable {
         return line
     }
 
+    /// When an open conversation closes: the first thing a new user wondered (6 Nov).
+    var whenItSleeps: String {
+        guard !alwaysOpen else { return " It stays open (WAKE_MODE=always)." }
+        return " Goes back to sleep after \(Int(sleepAfterIdleSeconds.rounded())) seconds of quiet, or when they say \u{201C}that\u{2019}s all\u{201D}, with a falling chime; never while a task is running or waiting for an answer."
+    }
+
     /// One line on the conversation, for the panel.
     var conversationLine: String {
-        if conversationConnected { return "Conversation: open, and the voice service can hear." }
+        if conversationConnected { return "Conversation: open, and the voice service can hear." + whenItSleeps }
         if conversationOpen { return "Conversation: opening or reconnecting\u{2026}" }
         return "Conversation: closed. Nothing said reaches the voice service."
     }

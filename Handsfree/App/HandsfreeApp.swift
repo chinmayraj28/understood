@@ -30,6 +30,16 @@ final class HandsfreeAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let options = LaunchOptions.parse(Array(CommandLine.arguments.dropFirst()))
+        // One copy only, checked before anything is created: no overlay, no wake listener, no status file.
+        if SingleInstance.applies(to: options), case .handOver(let processID) = Self.singleInstanceDecision() {
+            if !options.isDemo {
+                // Opening it again means "show me Handsfree": the running copy opens its panel.
+                DistributedNotificationCenter.default().postNotificationName(
+                    NSNotification.Name(SingleInstance.showPanelNotification), object: nil, userInfo: nil, deliverImmediately: true)
+            }
+            NSLog("Handsfree is already running (process \(processID)); this copy quits without starting.")
+            exit(0)
+        }
         let coordinator = AppCoordinator(options: options)
         self.coordinator = coordinator
         coordinator.start()
@@ -43,6 +53,16 @@ final class HandsfreeAppDelegate: NSObject, NSApplicationDelegate {
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    /// Every running process with our bundle identifier, from any path or build.
+    private static func singleInstanceDecision() -> SingleInstance.Decision {
+        let me = NSRunningApplication.current
+        guard let bundleID = Bundle.main.bundleIdentifier else { return .run }
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { !$0.isTerminated }
+            .map { RunningCopy(processID: $0.processIdentifier, launchDate: $0.launchDate) }
+        return SingleInstance.decide(me: RunningCopy(processID: me.processIdentifier, launchDate: me.launchDate), others: others)
     }
 
     /// Called when Handsfree is opened again while it is running.

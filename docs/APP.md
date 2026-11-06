@@ -7,7 +7,7 @@ Handsfree.app is the native macOS app that holds everything together. It lives i
 You need Xcode 26, XcodeGen (`brew install xcodegen`) and an Apple Development certificate in the keychain (Xcode > Settings > Accounts makes one for any Apple ID).
 
 ```bash
-scripts/build_app.sh            # Release build, signed, at build/Handsfree.app
+scripts/build_app.sh            # Release build, signed, at build/app.noindex/Handsfree.app
 scripts/build_app.sh --test     # also run the unit tests
 scripts/build_app.sh --debug    # Debug build
 scripts/build_app.sh --generate-only   # only write Handsfree.xcodeproj, to open it in Xcode
@@ -31,6 +31,12 @@ Moments for `--freeze`: asleep, waking, listening, speaking, heard, thinking, pr
 **Wake settings** (in `.env`, all optional): `WAKE_PHRASE` (default `Hey Handsfree`), `WAKE_MODE` (`phrase`, the default, or `always` to keep one conversation open as before, for demos and testing), `SLEEP_AFTER_IDLE_S` (default 25, at least 5).
 
 Quit the app from its panel ("Quit Handsfree"), or with `pkill -x Handsfree`. It never adds itself as a login item.
+
+**Only one copy runs (6 Nov).** On first use, two copies ran at once: the user's, and a demo copy started by the panel's old "Play demo" button. That means two overlays, two wake listeners on one microphone, and possibly two conversations. Now:
+- At launch, before anything is created, the app looks for another running process with its bundle identifier (`com.handsfree.Handsfree`), whatever its path, build configuration or how it was started, `open -n` included. If one was running first, the new copy posts a distributed notification asking it to show its panel (a demo launch doesn't) and quits. If two start in the same instant, the earlier launch date wins, then the lower process id. The rule is `Handsfree/App/SingleInstance.swift`, unit tested with fake process lists. Only `--render-states` is exempt: it shows nothing, uses no microphone and quits.
+- The panel no longer has "Play demo". The demo is for us (reviewing the look, recording), from the command line only.
+- `scripts/run_app.sh` never stops a running copy; it is the user's. A plain start then just brings up its panel. A demo or test launch (`--demo`, `--freeze`, `--quit-after`, ...) refuses with one line: "Handsfree is already running (process N), so this test or demo launch was not started. Quit it from its panel first."
+- `scripts/build_app.sh` keeps its app copies out of Spotlight. The build products go to `build/Products.noindex/` (Xcode's `SYMROOT`) and the finished app to `build/app.noindex/Handsfree.app`: Spotlight skips folders whose names end in `.noindex`, so it neither offers these copies nor gets macOS to register them again. A `.metadata_never_index` file was tried first and ignored. `lsregister -u` alone was undone within 40 s, because Spotlight kept indexing the copies and they were registered again. Each build also removes copies left at the old indexed places (`build/Handsfree.app` and DerivedData's products) and unregisters every copy it made. Only the installed copy (`scripts/install_app.sh`, `/Applications`) is found by Spotlight.
 
 **Measured on this Mac (5 Nov):** a clean Release build takes about 70 seconds; `--test` runs 44 unit tests in under a second once built.
 
@@ -165,7 +171,7 @@ The panel lists exactly what is still missing, in words written for whoever is h
 **Diagnosis: the panel's LISTENING section and `app-status.json` → `listening`.** They show:
 - which permissions are granted (one dot each);
 - the wake listener: not started (and what it is waiting for), listening on this Mac (with the recogniser's name), paused while a conversation has the microphone, or not running (with the reason);
-- the conversation: closed, opening or reconnecting, or open and able to hear;
+- the conversation: closed, opening or reconnecting, or open and able to hear. While open it also says when it will close: "Goes back to sleep after 25 seconds of quiet, or when they say “that’s all”, with a falling chime; never while a task is running or waiting for an answer.";
 - counts since launch: how many times it heard speech that was not the phrase, and how many times it woke, with how long ago. **What was said is never stored, logged or shown**, only counted. This is what lets the first real test tell "it cannot hear me" (no counts move while someone speaks) from "it heard me but did not recognise the phrase" (the "not the phrase" count goes up). While asleep the companion's hint also changes for 3 s to "Heard something. Say “Hey Handsfree”" each time.
 - `app-status.json` holds the same as `cycle_state`, `waiting_for`, `wake_listener` (`running`, `recognizer`, `problem`, `speech_without_phrase_count`, `phrase_heard_count`, `wake_count`, `restart_count`, seconds since the last of each) and `conversation` (`open`, `connected`). It is rewritten whenever any of these change.
 - The "speech that was not the phrase" count comes from HFWake's word-free `speechWithoutPhrase` diagnostic: once per final transcript with words and no phrase. `phraseHeard` carries only the configured phrase, and `woke`'s rest-of-sentence is dropped by the app, so nothing heard while asleep is kept.

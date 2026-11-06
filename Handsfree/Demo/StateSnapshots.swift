@@ -73,7 +73,7 @@ enum StateSnapshots {
             } else {
                 app.listening.waitingFor = needsSpeech ? "the Microphone permission and the Speech Recognition permission" : "the Microphone permission"
             }
-            let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in }, onPlayDemo: {})
+            let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in })
                 .frame(width: 372)
                 .environment(\.colorScheme, .dark)
             let url = folder.appendingPathComponent("\(name).png")

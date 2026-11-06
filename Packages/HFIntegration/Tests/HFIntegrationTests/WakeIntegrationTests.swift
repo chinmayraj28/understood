@@ -222,6 +222,8 @@ final class WakeRig {
             clock: { ProcessInfo.processInfo.systemUptime },
             sleep: { seconds in try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1e9)) },
             syncAgent: nil)
+        // As the app does whenever HFWake's cycle is in use: the cycle announces a failed wake, once.
+        session.announcesFailedOpens = false
         let session = session
         rig = Rig(activity: activity, gate: SafetyGate(classifier: Classifiers(client: nil)),
                   alsoSendEventsTo: { session.push($0) }, executor: executor)
@@ -255,9 +257,16 @@ final class WakeRig {
         self.cycle = cycle
 
         // The go_to_sleep tool, refusing while a task is active (PartAssembly + SleepTool).
+        // It waits for the cycle's answer, so the agent never says "Okay" while the app stays awake.
         let sleepTool = SleepTool.make(
             isTaskActive: { runner.isRunning || runner.isAwaitingAnswer },
-            onSleep: { Task { _ = await cycle.requestSleep() } })
+            requestSleep: {
+                switch await cycle.requestSleep() {
+                case .goingToSleep: return .goingToSleep
+                case .busy: return .busy
+                case .notAwake, .alwaysOn: return .notAvailable
+                }
+            })
         let watcher = watcher
         session.prepare(tools: Array(rig.tools.values) + [sleepTool], memorySummary: "") { sentence in
             watcher.heard(sentence)
@@ -549,13 +558,11 @@ func heldTask(_ gate: Gate, result: String = "Finished the long job.") -> Script
         #expect(await waitUntil { wake.conversation.userMessages.contains("open Mail") })
     }
 
-    @Test("KNOWN ISSUE: one failed wake shows one disconnection, not one per reconnect attempt")
+    @Test("One failed wake shows one disconnection, not one per reconnect attempt")
     func oneFailedWakeOneDisconnection() async throws {
-        // HFVoice's VoiceSession posts .voiceDisconnected("I can't reach the voice service.") on every
-        // failed connection attempt (connectionLost), and the cycle then posts its own sentence. So
-        // one failed wake puts several disconnections on the bus, with two different sentences: in the
-        // app (reconnect gaps 1, 2, 4 s; 4 s patience) about three, each a caption change and,
-        // while waking, the low double note. Not HFWake's to change: see the report.
+        // Was a known issue: VoiceSession posted .voiceDisconnected on every failed attempt, as well
+        // as the cycle's own sentence (7 in this test). With `announcesFailedOpens = false`, which the
+        // app sets whenever HFWake's cycle is in use, only the cycle announces it.
         let wake = await WakeRig { _ in ScriptedFlow({ _ in "Nothing." }) }
         defer { Task { await wake.finish() } }
         await wake.start()
@@ -563,9 +570,7 @@ func heldTask(_ gate: Gate, result: String = "Finished the long job.") -> Script
         wake.listener.hear("open Mail")
         #expect(await waitUntil(timeout: 3) { wake.listener.startCount == 2 })
         let shown = wake.activity.events.filter { if case .voiceDisconnected = $0 { true } else { false } }
-        withKnownIssue("VoiceSession posts .voiceDisconnected per failed attempt, as well as the cycle's one") {
-            #expect(shown.count == 1, "disconnections shown: \(shown)")
-        }
+        #expect(shown == [.voiceDisconnected(reason: WakeRig.couldNotConnect)], "disconnections shown: \(shown)")
     }
 
     @Test("Always mode: no listener, one conversation opened and kept open")

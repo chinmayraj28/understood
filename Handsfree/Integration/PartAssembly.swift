@@ -167,7 +167,7 @@ enum PartAssembly {
         let canSleep = settings.wakeMode == .phrase && RealParts.linkedPackages.contains("HFWake")
         let sleepTools = !canSleep ? [] : RealParts.makeSleepTool(
             isTaskActive: { [taskRunner] in CycleWiring.isTaskActive(taskRunner) },
-            onSleep: { [sleepRequests] in sleepRequests.request() }).map { [$0] } ?? []
+            requestSleep: { [sleepRequests] in await sleepRequests.request() }).map { [$0] } ?? []
 
         return AssembledParts(
             hands: hands, eyes: eyes, labels: labels, classifiers: classifiers, safetyGate: safetyGate,

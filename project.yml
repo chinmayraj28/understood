@@ -92,6 +92,7 @@ targets:
       - path: Handsfree/Setup/SetupCheck.swift
       - path: Handsfree/Demo/DemoScript.swift
       - path: Handsfree/App/LaunchOptions.swift
+      - path: Handsfree/App/SingleInstance.swift
       - path: Handsfree/Companion/SoundCues.swift
       - path: Handsfree/Integration/Parts.swift
       - path: Handsfree/Integration/CycleWiring.swift

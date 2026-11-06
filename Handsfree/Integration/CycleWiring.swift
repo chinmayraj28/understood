@@ -162,7 +162,7 @@ final class AlwaysOpenCycle: ListeningCycling {
         await hooks.close()
     }
 
-    func requestSleep() {}
+    func requestSleep() async -> SleepAnswer { .notAvailable }
     func wakeWithoutPhrase() {}
     func currentState() async -> String { isStarted ? "always open" : "stopped" }
     var isListenerRunning: Bool { false }

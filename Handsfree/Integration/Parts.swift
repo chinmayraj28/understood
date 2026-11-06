@@ -61,7 +61,7 @@ protocol ListeningCycling: AnyObject {
     /// On quit: stops listening and closes any conversation.
     func stop() async
     /// The user ended the conversation (the go_to_sleep tool): sleep as soon as nothing is going on.
-    func requestSleep()
+    func requestSleep() async -> SleepAnswer
     /// Something must be said while asleep: open a conversation as if the phrase had been heard.
     func wakeWithoutPhrase()
     /// For the panel and app-status.json: asleep, waking, awake, falling asleep, cannot listen, stopped.
@@ -70,20 +70,32 @@ protocol ListeningCycling: AnyObject {
     var isListenerRunning: Bool { get }
 }
 
+/// What the listening cycle did with "that's all, thanks". Returned to the go_to_sleep tool, so
+/// the agent's words match what really happens.
+enum SleepAnswer: Equatable, Sendable {
+    /// The conversation closes once the agent has finished its short reply.
+    case goingToSleep
+    /// A task is running or waiting for an answer, so it stays awake.
+    case busy
+    /// It cannot sleep now: it is not awake, or it is set to stay open.
+    case notAvailable
+}
+
 /// Lets the go_to_sleep tool, built with the other tools, reach the listening cycle,
 /// which is created later. Thread-safe.
 final class SleepRequestRelay: @unchecked Sendable {
     private let lock = NSLock()
-    private var handler: (@MainActor () -> Void)?
+    private var handler: (@MainActor () async -> SleepAnswer)?
 
-    func setHandler(_ handler: @escaping @MainActor () -> Void) {
+    func setHandler(_ handler: @escaping @MainActor () async -> SleepAnswer) {
         lock.lock(); self.handler = handler; lock.unlock()
     }
 
-    func request() {
-        lock.lock(); let handler = self.handler; lock.unlock()
-        guard let handler else { return }
-        Task { @MainActor in handler() }
+    /// Asks the cycle and waits for its answer. Before the cycle exists, it cannot sleep.
+    func request() async -> SleepAnswer {
+        let handler = lock.withLock { self.handler }
+        guard let handler else { return .notAvailable }
+        return await handler()
     }
 }
 

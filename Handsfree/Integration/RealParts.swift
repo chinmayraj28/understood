@@ -242,6 +242,8 @@ enum RealParts {
         // The always-open cycle is used in wake mode "always" and when HFWake is not linked;
         // the agent is then told there is no wake phrase and no go_to_sleep.
         session.keepsConversationOpen = settings.wakeMode == .always || !linkedPackages.contains("HFWake")
+        // With HFWake's cycle, a failed wake is announced once, by the cycle.
+        session.announcesFailedOpens = session.keepsConversationOpen
         return (session, { [weak session] in session?.isUserSpeaking ?? false })
         #else
         return nil
@@ -250,9 +252,15 @@ enum RealParts {
 
     /// The tool the agent calls when the user ends the conversation ("that's all, thanks").
     /// It refuses while a task is running or waiting for an answer.
-    static func makeSleepTool(isTaskActive: @escaping @Sendable () -> Bool, onSleep: @escaping @Sendable () -> Void) -> ToolSpec? {
+    static func makeSleepTool(isTaskActive: @escaping @Sendable () -> Bool, requestSleep: @escaping @Sendable () async -> SleepAnswer) -> ToolSpec? {
         #if canImport(HFVoice)
-        return SleepTool.make(isTaskActive: isTaskActive, onSleep: onSleep)
+        return SleepTool.make(isTaskActive: isTaskActive, requestSleep: {
+            switch await requestSleep() {
+            case .goingToSleep: return .goingToSleep
+            case .busy: return .busy
+            case .notAvailable: return .notAvailable
+            }
+        })
         #else
         return nil
         #endif
@@ -380,7 +388,9 @@ final class WakeCycleAdapter: ListeningCycling {
         let mirror = self.mirror
         // Recognition stays on the Mac. Permissions are asked for by the setup flow, not here,
         // so a restart in the background never pops up a dialog.
-        let listener = WakeListener(configuration: Self.listenerConfiguration(settings: settings))
+        // HFWake reads WAKE_PHRASE, WAKE_LANGUAGE (empty: the Mac's own), WAKE_ALTERNATIVES and WAKE_STRICTNESS
+        // itself, so there is one place that interprets them.
+        let listener = WakeListener(configuration: WakeListener.Configuration(settings: settings))
         // Counts only: `heardAs`, `restOfSentence` and transcripts are dropped here and never
         // stored, logged or shown (revealTranscripts stays off).
         listener.onDiagnostic = { diagnostic in
@@ -413,10 +423,15 @@ final class WakeCycleAdapter: ListeningCycling {
         mirror.stopRefreshing()
     }
 
-    func requestSleep() {
-        let cycle = self.cycle
-        Task { _ = await cycle.requestSleep() }
+    /// Waits for the cycle's answer, so the agent says "Okay" only when it really goes to sleep.
+    func requestSleep() async -> SleepAnswer {
+        switch await cycle.requestSleep() {
+        case .goingToSleep: return .goingToSleep
+        case .busy: return .busy
+        case .notAwake, .alwaysOn: return .notAvailable
+        }
     }
+
 
     /// A task question, confirmation or result must be said while asleep: wake as if the phrase had
     /// been heard. HFWake does nothing if it is already waking or awake, and wakes straight after
@@ -426,16 +441,6 @@ final class WakeCycleAdapter: ListeningCycling {
         Task { await cycle.wakeNow() }
     }
 
-    /// The listener's settings from WAKE_PHRASE, WAKE_LANGUAGE, WAKE_ALTERNATIVES and WAKE_STRICTNESS.
-    /// Built here rather than with `Configuration(settings:)`, so the app does not depend on
-    /// when HFWake starts reading the three newer settings.
-    nonisolated static func listenerConfiguration(settings: HFCore.Settings) -> WakeListener.Configuration {
-        WakeListener.Configuration(
-            phrase: settings.wakePhrase,
-            alternatives: settings.wakeAlternatives,
-            strictness: WakeStrictness(rawValue: settings.wakeStrictness.lowercased()) ?? .balanced,
-            locale: AppWakeLanguage.locale(for: settings.wakeLanguage))
-    }
 
     func currentState() async -> String { await cycle.state.rawValue }
     var isListenerRunning: Bool { listener.isListening }

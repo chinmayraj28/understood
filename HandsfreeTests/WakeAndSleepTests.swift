@@ -294,7 +294,7 @@ struct CycleWiringTests {
         await cycle.start()
         #expect(voice.opened.count == 1)
         #expect(voice.opened.first?.firstUtterance == "")
-        cycle.requestSleep()
+        #expect(await cycle.requestSleep() == .notAvailable, "nothing to sleep in wake mode always")
         cycle.wakeWithoutPhrase()
         #expect(voice.closes == 0)
         await cycle.stop()
@@ -314,16 +314,16 @@ struct CycleWiringTests {
         mirror.stopRefreshing()
     }
 
-    @Test("The sleep tool's request reaches the cycle, and a task blocks it")
+    @Test("The sleep tool gets the cycle's real answer, and a task blocks it")
     func sleepRelay() async {
         let relay = SleepRequestRelay()
-        relay.request()  // before the cycle exists: nothing happens, nothing crashes
-        var requests = 0
-        relay.setHandler { requests += 1 }
-        relay.request()
-        for _ in 0..<5 { await Task.yield() }
-        try? await Task.sleep(nanoseconds: 20_000_000)
-        #expect(requests == 1)
+        #expect(await relay.request() == .notAvailable, "before the cycle exists it cannot sleep, and nothing crashes")
+        let cycle = FakeCycle()
+        relay.setHandler { await cycle.requestSleep() }
+        #expect(await relay.request() == .goingToSleep)
+        cycle.answer = .busy
+        #expect(await relay.request() == .busy, "the agent is told it stays awake, so it never says Okay wrongly")
+        #expect(cycle.sleeps == 2)
         let runner = FakeRunner()
         #expect(!CycleWiring.isTaskActive(runner))
         runner.isAwaitingAnswer = true
@@ -371,7 +371,8 @@ struct ListeningStatusTests {
         #expect(status.listenerLine.contains("paused while the conversation has the microphone"))
         #expect(status.conversationLine.contains("opening"))
         status.conversationConnected = true
-        #expect(status.conversationLine == "Conversation: open, and the voice service can hear.")
+        #expect(status.conversationLine.hasPrefix("Conversation: open, and the voice service can hear. Goes back to sleep after 25 seconds of quiet"))
+        #expect(status.conversationLine.contains("never while a task is running"))
         status.conversationOpen = false; status.conversationConnected = false
         #expect(status.conversationLine.contains("Nothing said reaches the voice service"))
         status.alwaysOpen = true
@@ -411,7 +412,8 @@ final class FakeCycle: ListeningCycling {
     var sleeps = 0
     func start() async {}
     func stop() async {}
-    func requestSleep() { sleeps += 1 }
+    var answer = SleepAnswer.goingToSleep
+    func requestSleep() async -> SleepAnswer { sleeps += 1; return answer }
     func wakeWithoutPhrase() { wakes += 1 }
     func currentState() async -> String { "asleep" }
     var isListenerRunning: Bool { true }
@@ -448,5 +450,53 @@ struct WakeLanguageTests {
         #expect(status.statusDictionary(now: Date())["wake_language"] as? String == status.language)
         status.alwaysOpen = true
         #expect(status.languageLine.isEmpty)
+    }
+}
+
+@Suite("One copy only")
+struct SingleInstanceTests {
+    let base = Date(timeIntervalSince1970: 1_000_000)
+    func copy(_ pid: Int32, _ seconds: Double?) -> RunningCopy {
+        RunningCopy(processID: pid, launchDate: seconds.map { base.addingTimeInterval($0) })
+    }
+
+    @Test("Alone, it runs; macOS lists the app itself too")
+    func alone() {
+        let me = copy(500, 10)
+        #expect(SingleInstance.decide(me: me, others: []) == .run)
+        #expect(SingleInstance.decide(me: me, others: [me]) == .run)
+    }
+
+    @Test("A copy started later hands over to the one already running, whatever its path or build")
+    func later() {
+        let running = copy(300, 0)  // e.g. /Applications/Handsfree.app
+        let second = copy(700, 9)  // e.g. a `open -n` of build/Handsfree.app with --demo
+        #expect(SingleInstance.decide(me: second, others: [running, second]) == .handOver(to: 300))
+        #expect(SingleInstance.decide(me: running, others: [running, second]) == .run, "the first copy keeps running")
+    }
+
+    @Test("Three copies: only the first stays")
+    func three() {
+        let copies = [copy(300, 0), copy(400, 1), copy(450, 2)]
+        let decisions = copies.map { SingleInstance.decide(me: $0, others: copies) }
+        #expect(decisions == [.run, .handOver(to: 300), .handOver(to: 300)])
+    }
+
+    @Test("Two started in the same instant, or with no launch date: exactly one stays")
+    func tie() {
+        let a = copy(800, 5), b = copy(801, 5)
+        #expect(SingleInstance.decide(me: a, others: [a, b]) == .run)
+        #expect(SingleInstance.decide(me: b, others: [a, b]) == .handOver(to: 800))
+        let c = copy(900, nil), d = copy(901, nil)
+        #expect(SingleInstance.decide(me: c, others: [c, d]) == .run)
+        #expect(SingleInstance.decide(me: d, others: [c, d]) == .handOver(to: 900))
+    }
+
+    @Test("Only drawing images to files is exempt; the demo is not")
+    func exemptions() {
+        #expect(SingleInstance.applies(to: LaunchOptions.parse([])))
+        #expect(SingleInstance.applies(to: LaunchOptions.parse(["--demo", "--show-panel"])))
+        #expect(SingleInstance.applies(to: LaunchOptions.parse(["--quit-after", "6"])))
+        #expect(!SingleInstance.applies(to: LaunchOptions.parse(["--render-states", "/tmp/x"])))
     }
 }

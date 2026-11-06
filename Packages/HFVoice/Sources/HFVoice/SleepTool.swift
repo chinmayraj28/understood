@@ -8,17 +8,28 @@ import HFCore
 /// the user who wants it to stop listening now. It never ends a conversation while a
 /// task is running or waiting for the user's answer: that check is in code here, not
 /// only in the description, because a task left waiting with no conversation open
-/// could never be answered.
+/// could never be answered. The tool waits for the app's real answer, so the agent
+/// never says "Okay" when the app is in fact staying awake.
 public enum SleepTool {
     public static let name = "go_to_sleep"
 
+    /// What the app did with the request.
+    public enum Answer: Sendable, Equatable {
+        /// The conversation closes once the agent has finished its short reply.
+        case goingToSleep
+        /// A task is running or waiting for an answer, so it stays awake.
+        case busy
+        /// It cannot sleep now (it is not awake, or it is set to stay open).
+        case notAvailable
+    }
+
     /// - Parameters:
     ///   - isTaskActive: true while a task is running or waiting for the user's answer.
-    ///   - onSleep: asks the app to close the conversation once the agent has finished its
-    ///     short reply. Called at most once per call, and never while a task is active.
+    ///   - requestSleep: asks the app to close the conversation once the agent has finished its
+    ///     short reply, and returns what the app will do. Never called while a task is active.
     public static func make(
         isTaskActive: @escaping @Sendable () -> Bool,
-        onSleep: @escaping @Sendable () -> Void
+        requestSleep: @escaping @Sendable () async -> Answer
     ) -> ToolSpec {
         ToolSpec(
             name: name,
@@ -37,8 +48,14 @@ public enum SleepTool {
             if isTaskActive() {
                 return ToolResult.failure("A task is still going, so I'll keep listening.")
             }
-            onSleep()
-            return ToolResult.ok(["note": "Going to sleep once you finish. Say at most one short word, or nothing."])
+            switch await requestSleep() {
+            case .goingToSleep:
+                return ToolResult.ok(["note": "Going to sleep once you finish. Say at most one short word, or nothing."])
+            case .busy:
+                return ToolResult.failure("A task is still going, so I'll keep listening.")
+            case .notAvailable:
+                return ToolResult.failure("I'll keep listening for now.")
+            }
         }
     }
 }

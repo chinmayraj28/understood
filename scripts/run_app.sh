@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launches build/Handsfree.app. Any options are passed to the app:
+# Launches build/app.noindex/Handsfree.app (see scripts/build_app.sh). Any options are passed to the app:
 #
 #   scripts/run_app.sh                         normal start (voice, overlay, menu bar)
 #   scripts/run_app.sh --demo                  play the scripted demo once, no network, no permissions
@@ -11,6 +11,11 @@
 #   scripts/run_app.sh --request-permissions   ask macOS for Microphone, Accessibility and Screen Recording
 #   scripts/run_app.sh --capturable            let screenshots include the overlay (design review only)
 #   scripts/run_app.sh --wait ...              block until the app quits
+#   scripts/run_app.sh --wait --render-states DIR   draw the companion's states to PNGs and quit
+#
+# Only one copy runs. If Handsfree is already running, it is never stopped from here: a plain
+# start asks it to show its panel; a demo or test launch refuses with one line; --render-states
+# (which shows nothing and uses no microphone) still runs.
 #
 # The app is started with `open`, not by running the binary from this shell.
 # That matters: a program started directly from a terminal counts, for macOS
@@ -19,10 +24,10 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_PATH="$REPO_ROOT/build/Handsfree.app"
+APP_PATH="$REPO_ROOT/build/app.noindex/Handsfree.app"
 
 if [ ! -d "$APP_PATH" ]; then
-  echo "build/Handsfree.app does not exist yet. Run scripts/build_app.sh first." >&2
+  echo "build/app.noindex/Handsfree.app does not exist yet. Run scripts/build_app.sh first." >&2
   exit 1
 fi
 
@@ -32,10 +37,28 @@ for argument in "$@"; do
   if [ "$argument" = "--wait" ]; then WAIT_FLAG=(-W); else APP_ARGUMENTS+=("$argument"); fi
 done
 
-# Only one copy at a time: two overlays would draw two companions.
-if pgrep -x Handsfree >/dev/null 2>&1; then
-  pkill -x Handsfree || true
-  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x Handsfree >/dev/null 2>&1 || break; sleep 0.2; done
+# Only one copy of Handsfree may run (the app enforces it too: a second copy asks the first to
+# show its panel and quits). A copy already running is the user's: it is never stopped from here.
+RENDERS_ONLY=0
+TEST_MODE=0
+for argument in ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"}; do
+  case "$argument" in
+    --render-states) RENDERS_ONLY=1 ;;
+    --demo|--freeze|--loop|--backdrop|--capturable|--quit-after|--moment-log|--request-permissions) TEST_MODE=1 ;;
+  esac
+done
+running_pid="$(pgrep -x Handsfree | head -n 1 || true)"
+if [ -n "$running_pid" ] && [ "$RENDERS_ONLY" -eq 0 ]; then
+  if [ "$TEST_MODE" -eq 1 ]; then
+    echo "Handsfree is already running (process $running_pid), so this test or demo launch was not started. Quit it from its panel first." >&2
+    exit 1
+  fi
+  echo "Handsfree is already running (process $running_pid); asking it to show its panel."
 fi
 
+# `open -n` starts a new process, so the options reach the app; if a copy is running, that new
+# process hands over to it at once (see Handsfree/App/SingleInstance.swift).
 open -n ${WAIT_FLAG[@]+"${WAIT_FLAG[@]}"} "$APP_PATH" --args ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"}
+if [ ${#WAIT_FLAG[@]} -eq 0 ] && [ "$TEST_MODE" -eq 1 ] && ! printf '%s\n' ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"} | grep -qx -- '--quit-after'; then
+  echo "Started without --quit-after: it keeps running until you quit it from its panel (or: pkill -x Handsfree)."
+fi

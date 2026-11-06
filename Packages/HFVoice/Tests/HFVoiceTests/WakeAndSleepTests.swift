@@ -520,26 +520,70 @@ import Testing
 }
 
 @Suite struct SleepToolTests {
-    @Test func itSleepsOnlyWhenNoTaskIsActive() async {
-        let sleeps = Recorder<Int>()
+    @Test func itSleepsOnlyWhenNoTaskIsActiveAndSaysWhatReallyHappened() async {
+        let asks = Recorder<Int>()
         let taskActive = Recorder<Bool>()
+        let answer = Recorder<SleepTool.Answer>()
         taskActive.add(true)
-        let tool = SleepTool.make(isTaskActive: { taskActive.all.last ?? false }, onSleep: { sleeps.add(1) })
+        let tool = SleepTool.make(isTaskActive: { taskActive.all.last ?? false }, requestSleep: {
+            asks.add(1)
+            return answer.all.last ?? .goingToSleep
+        })
         #expect(tool.name == "go_to_sleep")
         let refused = await tool.handler([:])
         #expect(refused["ok"]?.boolValue == false)
-        #expect(sleeps.all.isEmpty, "never while a task is running or waiting for an answer")
+        #expect(asks.all.isEmpty, "never asked while a task is running or waiting for an answer")
         taskActive.add(false)
         let accepted = await tool.handler([:])
         #expect(accepted["ok"]?.boolValue == true)
-        #expect(sleeps.all.count == 1)
+        answer.add(.busy)
+        let busy = await tool.handler([:])
+        #expect(busy["ok"]?.boolValue == false, "the app stays awake, so the agent must not say Okay")
+        answer.add(.notAvailable)
+        let notAvailable = await tool.handler([:])
+        #expect(notAvailable["ok"]?.boolValue == false)
+        #expect(asks.all.count == 3)
     }
 
     @Test func itsDescriptionSaysWhenNotToUseIt() {
-        let description = SleepTool.make(isTaskActive: { false }, onSleep: {}).description
+        let description = SleepTool.make(isTaskActive: { false }, requestSleep: { .goingToSleep }).description
         #expect(description.contains("that's all"))
         #expect(description.contains("Never use it while a task is running"))
         #expect(description.contains("never because the user is silent"))
         #expect(description.contains("\"stop\""))
+    }
+}
+
+@Suite(.serialized) @MainActor struct FailedWakeAnnouncementTests {
+    private func disconnections(_ posted: [ActivityEvent]) -> Int {
+        posted.filter { if case .voiceDisconnected = $0 { return true } else { return false } }.count
+    }
+
+    @Test func withTheListeningCycleAFailedOpenIsNotAnnouncedPerAttempt() async {
+        let harness = Harness(mode: .text)
+        harness.session.announcesFailedOpens = false
+        harness.failNextStarts = 3
+        harness.session.prepare(tools: [], memorySummary: "")
+        await harness.session.open()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        await harness.settle()
+        #expect(harness.drivers.count >= 3, "it kept retrying")
+        #expect(disconnections(harness.posted.all) == 0, "the cycle announces a failed wake once, not the session per attempt")
+        // Once connected, a real drop is still announced.
+        #expect(harness.session.isConnected)
+        harness.driver.emit(.disconnected(reason: "The voice connection dropped."))
+        await harness.settle()
+        #expect(disconnections(harness.posted.all) == 1)
+        await harness.session.close()
+    }
+
+    @Test func withoutTheCycleFailedOpensAreStillAnnounced() async {
+        let harness = Harness(mode: .text)
+        harness.failNextStarts = 1
+        harness.session.prepare(tools: [], memorySummary: "")
+        await harness.session.open()
+        await harness.settle()
+        #expect(disconnections(harness.posted.all) == 1, "wake mode always: nobody else would say it")
+        await harness.session.close()
     }
 }

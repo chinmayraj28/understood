@@ -3,10 +3,10 @@
 # folder, Launchpad or Spotlight like any other app, with no terminal.
 #
 #   scripts/install_app.sh            build it, then install it
-#   scripts/install_app.sh --no-build install the app that is already in build/
+#   scripts/install_app.sh --no-build install the app that is already built
 #
 # What it does:
-#   1. Builds build/Handsfree.app (signed), unless --no-build is given.
+#   1. Builds build/app.noindex/Handsfree.app (signed), unless --no-build is given.
 #   2. Copies it to /Applications/Handsfree.app, replacing an older copy.
 #   3. Makes your keys findable by the installed app. An app opened from Finder does not
 #      know where this repo is, so it looks for its settings in
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-BUILT_APP="$REPO/build/Handsfree.app"
+BUILT_APP="$REPO/build/app.noindex/Handsfree.app"
 INSTALLED_APP="/Applications/Handsfree.app"
 SUPPORT_DIR="$HOME/Library/Application Support/Handsfree"
 

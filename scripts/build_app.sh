@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds Handsfree.app from a clean checkout, with no manual Xcode steps.
 #
-#   scripts/build_app.sh             Release build, signed, at build/Handsfree.app
+#   scripts/build_app.sh             Release build, signed, at build/app.noindex/Handsfree.app
 #   scripts/build_app.sh --debug     Debug build instead
 #   scripts/build_app.sh --test      Also run the unit tests (HandsfreeTests)
 #   scripts/build_app.sh --generate-only   Only write Handsfree.xcodeproj (to open it in Xcode)
@@ -36,6 +36,13 @@ BUILD_DIR="$REPO_ROOT/build"
 GENERATED_DIR="$BUILD_DIR/generated"
 LOG_DIR="$BUILD_DIR/logs"
 mkdir -p "$GENERATED_DIR" "$LOG_DIR"
+# Everything that holds an app bundle lives in a folder whose name ends in ".noindex": Spotlight
+# skips such folders, so it neither offers these copies nor has LaunchServices register them again.
+# (On 6 Nov macOS knew six copies and Spotlight opened one from DerivedData. A ".metadata_never_index"
+# file was tried and ignored; `lsregister -u` alone was undone within 40 s by Spotlight.)
+PRODUCTS_DIR="$BUILD_DIR/Products.noindex"
+FINAL_DIR="$BUILD_DIR/app.noindex"
+rm -f "$BUILD_DIR/.metadata_never_index"
 
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
@@ -108,9 +115,9 @@ done < "$REPO_ROOT/Handsfree/LinkedPackages.txt"
 linked_list_file="$GENERATED_DIR/linked-packages.txt"
 current_linked_list="${LINKED_PACKAGES[*]:-}"
 if [ ! -f "$linked_list_file" ] || [ "$(cat "$linked_list_file")" != "$current_linked_list" ]; then
-  if [ -d "$BUILD_DIR/DerivedData/Build" ]; then
+  if [ -d "$BUILD_DIR/DerivedData/Build" ] || [ -d "$PRODUCTS_DIR" ]; then
     note "Linked packages changed since the last build: clearing old build products"
-    rm -rf "$BUILD_DIR/DerivedData/Build"
+    rm -rf "$BUILD_DIR/DerivedData/Build" "$PRODUCTS_DIR"
   fi
   echo "$current_linked_list" > "$linked_list_file"
 fi
@@ -178,6 +185,7 @@ if ! xcodebuild build \
       -configuration "$CONFIGURATION" \
       -destination 'platform=macOS,arch=arm64' \
       -derivedDataPath "$BUILD_DIR/DerivedData" \
+      "SYMROOT=$PRODUCTS_DIR" \
       ONLY_ACTIVE_ARCH=YES \
       "${SIGNING_SETTINGS[@]}" \
       >"$build_log" 2>&1; then
@@ -197,6 +205,7 @@ if [ "$RUN_TESTS" -eq 1 ]; then
         -scheme Handsfree \
         -destination 'platform=macOS,arch=arm64' \
         -derivedDataPath "$BUILD_DIR/DerivedData" \
+        "SYMROOT=$PRODUCTS_DIR" \
         -only-testing:HandsfreeTests \
         "${SIGNING_SETTINGS[@]}" \
         >"$test_log" 2>&1; then
@@ -224,8 +233,9 @@ for check_dir in "$BUILD_DIR"/package-check/*; do
   fi
 done
 
-built_app="$BUILD_DIR/DerivedData/Build/Products/$CONFIGURATION/Handsfree.app"
-final_app="$BUILD_DIR/Handsfree.app"
+built_app="$PRODUCTS_DIR/$CONFIGURATION/Handsfree.app"
+final_app="$FINAL_DIR/Handsfree.app"
+mkdir -p "$FINAL_DIR"
 rm -rf "$final_app"
 ditto "$built_app" "$final_app"
 
@@ -235,4 +245,27 @@ note "Signature valid."
 note "Designated requirement (what macOS remembers permissions against):"
 codesign -d -r- "$final_app" 2>&1 | sed -n 's/^designated => /      /p'
 note "Linked packages: HFCore ${LINKED_PACKAGES[*]:-}"
-say "Done: build/Handsfree.app   (launch it with scripts/run_app.sh)"
+# ---------------------------------------------------------------------------
+# 6. Keep build copies out of Spotlight and LaunchServices
+# ---------------------------------------------------------------------------
+# Only the installed copy (/Applications, by scripts/install_app.sh) should be found by Spotlight.
+# This build's copies are in .noindex folders (see the top). Copies left where older builds put
+# them (still indexed, so Spotlight could open an old build) are removed, and every copy the
+# build made is unregistered from LaunchServices. scripts/run_app.sh launches the app by its path.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister
+old_copies=("$BUILD_DIR/Handsfree.app" "$BUILD_DIR/DerivedData/Build/Products/Debug/Handsfree.app" "$BUILD_DIR/DerivedData/Build/Products/Release/Handsfree.app")
+for old in "${old_copies[@]}"; do
+  if [ -d "$old" ]; then
+    [ -x "$LSREGISTER" ] && "$LSREGISTER" -u "$old" >/dev/null 2>&1 || true
+    rm -rf "$old"
+    note "Removed an old indexed copy: ${old#$REPO_ROOT/}"
+  fi
+done
+if [ -x "$LSREGISTER" ]; then
+  for copy in "$PRODUCTS_DIR/Debug/Handsfree.app" "$PRODUCTS_DIR/Release/Handsfree.app" "$final_app"; do
+    if [ -d "$copy" ]; then "$LSREGISTER" -u "$copy" >/dev/null 2>&1 || true; fi
+  done
+  note "Unregistered the build's copies from LaunchServices; they are in .noindex folders, so Spotlight skips them."
+fi
+
+say "Done: build/app.noindex/Handsfree.app   (launch it with scripts/run_app.sh)"

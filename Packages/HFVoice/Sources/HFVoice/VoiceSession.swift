@@ -171,6 +171,11 @@ public final class VoiceSession {
     /// go_to_sleep. Each conversation is told so, because the prompt describes waking and sleeping.
     public var keepsConversationOpen = false
 
+    /// Whether failed attempts to open a conversation are posted as `.voiceDisconnected`. True by
+    /// default (and in wake mode "always"); the app sets it false when HFWake's cycle reports a failed
+    /// wake itself. A drop after the conversation has connected is posted either way.
+    public var announcesFailedOpens = true
+
     /// Called, on the main actor, when a question, confirmation or result is pushed while no
     /// conversation is open, so the app can wake to say it if its listening cycle can do that.
     /// Either way the event stays queued and is said in the next conversation.
@@ -638,7 +643,12 @@ public final class VoiceSession {
         let lost = driver
         driver = nil
         if let lost { Task { await lost.end() } }
-        bus.post(.voiceDisconnected(reason: reason))
+        // A drop in a conversation that was connected is always announced. Failed attempts to open one
+        // are announced only if no one else will: with the listening cycle, the cycle says once that
+        // the wake failed, instead of the companion showing (and chiming) every retry.
+        if hasConnectedThisConversation || announcesFailedOpens {
+            bus.post(.voiceDisconnected(reason: reason))
+        }
         guard wantsToRun, reconnectTask == nil else { return }
         let delays = tuning.reconnectDelays
         let delay = delays.isEmpty ? 1 : delays[min(reconnectAttempt, delays.count - 1)]

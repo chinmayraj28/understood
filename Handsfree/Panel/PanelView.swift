@@ -23,7 +23,6 @@ struct PanelView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var companion: CompanionModel
     let onSetupAction: (SetupItem.Action) -> Void
-    let onPlayDemo: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -366,15 +365,8 @@ struct PanelView: View {
             }
             .buttonStyle(DSTextButtonStyle())
             Spacer()
-            Button {
-                onPlayDemo()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "play.circle").font(.system(size: 11, weight: .medium))
-                    Text("Play demo")
-                }
-            }
-            .buttonStyle(DSTextButtonStyle())
+            // No "Play demo" here: the demo is a tool for reviewing and recording, started from the
+            // command line only (scripts/run_app.sh --demo), and must never start a second copy.
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
