@@ -76,7 +76,7 @@ One sentence and one confirmation.
 
 **Built on:** Clicky's open-source app shell (the menu bar panel and the overlay beside the pointer, MIT licence, credited), ElevenLabs Agents (voice and conversation), Claude's computer use (seeing the screen and choosing actions), Jev (fast decisions) and macOS's own pointer, keyboard and accessibility interfaces. The new work is everything that makes a screen agent usable by voice alone: tasks that run in the background of a conversation and can ask questions, a stop that freezes the hands, a safety gate that checks the real button about to be clicked, and memory. Full plan in [BUILD_PLAN.md](BUILD_PLAN.md).
 
-**Why Jev (a classifier) and not the LLM for these decisions:** they're picks from a fixed list, and the stop check runs on every sentence. Jev answers with a typed label and a confidence score. I measured it from my laptop on 5 Nov: **200 to 320ms per decision, at about $0.00002 each**. It also gets the tricky ones right. In my first test it labelled "stop" as cancel, "stop the music" as a command, "hang on" as cancel, "Click Send in WhatsApp" as needing confirmation and "Open Google Calendar" as safe.
+**Why Jev (a classifier) and not the LLM for these decisions:** they're picks from a fixed list, and the stop check runs on every sentence. Jev answers with a typed label and a confidence score. I measured it from my laptop on 5 Nov: **about 200ms for a typical decision (the slowest one in twenty take about 300ms), at about $0.00002 each**. It also gets the tricky ones right. In my first test it labelled "stop" as cancel, "stop the music" as a command, "hang on" as cancel, "Click Send in WhatsApp" as needing confirmation and "Open Google Calendar" as safe.
 
 **It learns the user.** The first time, the agent asks "Priya Shah or Priya Patel?". It remembers the answer, and after seeing it twice it stops asking. The user can say "remember that Mum is Amma on WhatsApp", "what do you know about me?" or "forget that". Memory is stored on the laptop only, never holds passwords, and can never make a risky action skip its spoken confirmation. This matters for this audience in particular: every repeated question costs a user who can only speak, and voice fatigue is real.
 
@@ -93,7 +93,7 @@ One sentence and one confirmation.
 
 - A native Swift macOS app that lives in the menu bar, with a companion beside the pointer that shows what it is doing. Its shell is built on Clicky's open-source code.
 - Hands-free activation: a wake phrase ("Hey Handsfree"), with no button and no push-to-talk. The phrase is listened for on the laptop itself, so nothing is sent anywhere, and no ElevenLabs minutes are used, until the user speaks to it. The conversation closes again after a short silence.
-- Fast path: about 15 core commands (open app, scroll, switch window, type this, volume and so on).
+- Fast path: 13 quick commands (open an app, scroll, switch window, type this, volume, keyboard shortcuts and so on), each done with the real keyboard and pointer.
 - Smart path: works reliably on **3 demo tasks**:
   1. "WhatsApp Mum: running late, ten minutes." The agent drafts it, reads it back, and sends only after a spoken yes.
   2. "Set up a Google Meet with Priya tomorrow at 3." The agent asks which Priya, then confirms before sending the invite.
@@ -152,7 +152,7 @@ In principle, yes: if it's on screen, the agent can see it and click it, the sam
 Three reasons. It works on any app with no integration. The user can watch what it's doing, which is how they trust it and how they know when to say stop. And the safety check can read the actual button about to be clicked, so "confirm before sending" is enforced by code, not by hoping the model remembers. The cost is speed, and I say so.
 
 **"Why Jev?"**
-Three decisions in the loop are picks from a short list: is this a cancel? Is this action risky? Was that reply a yes? A classifier does each in about 200ms (measured) with a typed answer and a confidence score, and handles cases a keyword list gets wrong ("stop the music" isn't a cancel). On 245 labelled examples run live it missed no risky action and never read a reply as yes by mistake, at the cost of asking needlessly about one safe action in ten. The ElevenLabs LLM handles the conversation; Jev handles fast yes/no calls. If Jev is down or unsure, keyword rules take over, and the safety check always falls back to asking.
+Three decisions in the loop are picks from a short list: is this a cancel? Is this action risky? Was that reply a yes? A classifier does each in about 200ms (measured) with a typed answer and a confidence score, and handles cases a keyword list gets wrong ("stop the music" isn't a cancel). On 306 labelled examples, each run live three times, it missed no risky action and never read a reply as yes by mistake, at the cost of asking needlessly about one safe action in fourteen. Three quarters of the safety checks are settled by a fixed rule on the laptop with no network call at all. The ElevenLabs LLM handles the conversation; Jev handles fast yes/no calls. If Jev is down or unsure, keyword rules take over, and the safety check always falls back to asking.
 
 **"What if it does something destructive?"**
 Irreversible actions always need a spoken yes, and "stop" always works.
