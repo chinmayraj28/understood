@@ -16,6 +16,7 @@ let package = Package(
         .package(path: "../HFHands"),
         .package(path: "../HFScreenAgent"),
         .package(path: "../HFVoice"),
+        .package(path: "../HFWake"),
     ],
     targets: [
         .testTarget(
@@ -29,6 +30,7 @@ let package = Package(
                 .product(name: "HFHands", package: "HFHands"),
                 .product(name: "HFScreenAgent", package: "HFScreenAgent"),
                 .product(name: "HFVoice", package: "HFVoice"),
+                .product(name: "HFWake", package: "HFWake"),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )

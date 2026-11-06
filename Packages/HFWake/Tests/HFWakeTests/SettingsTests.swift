@@ -78,6 +78,14 @@ import Testing
         #expect(LanguageChoice.code(chosen) == "fr_FR")
     }
 
+    @Test func theMacsOwnLanguagePassedExplicitlyStillGetsTheNearest() throws {
+        // How the app wires it: an empty WAKE_LANGUAGE becomes Locale.current, not nil.
+        let nearest = Locale(identifier: "en_US")
+        let chosen = try LanguageChoice.resolve(
+            requested: .current, supported: [nearest, Locale(identifier: "fr_FR")], nearestToMac: nearest)
+        #expect(LanguageChoice.code(chosen) == "en_US")
+    }
+
     @Test func aMacLanguageWithNoMatchFailsClearly() {
         #expect(throws: SpeakableError.self) {
             try LanguageChoice.resolve(requested: nil, supported: supported, nearestToMac: nil)

@@ -232,13 +232,16 @@ struct InviteFlowExecutor: TaskExecuting {
 
 /// The app's wiring, in miniature.
 final class Rig: @unchecked Sendable {
-    let activity = ActivityLog()
+    let activity: ActivityLog
     let recorder = EventRecorder()
     let hands: FakeHands
     let runner: TaskRunner
     let tools: [String: ToolSpec]
 
+    /// - Parameter activity: the bus to share with other parts (the voice session, the listening
+    ///   cycle), as the app shares one. A fresh one by default.
     init(
+        activity: ActivityLog? = nil,
         gate: any SafetyGating = KeywordGate(),
         classifier: (any AnswerClassifying)? = nil,
         memory: (any MemoryProviding)? = nil,
@@ -246,6 +249,8 @@ final class Rig: @unchecked Sendable {
         alsoSendEventsTo extraSink: TaskEventSink? = nil,
         executor: (FakeHands) -> any TaskExecuting
     ) {
+        let activity = activity ?? ActivityLog()
+        self.activity = activity
         hands = FakeHands(bus: activity.bus)
         var configuration = TaskRunner.Configuration()
         configuration.tick = 0.01

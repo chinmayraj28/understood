@@ -14,7 +14,10 @@ enum LanguageChoice {
     ///   - supported: what the recogniser supports on this Mac.
     ///   - nearestToMac: the recogniser's own nearest match for the Mac's language, if any.
     static func resolve(requested: Locale?, supported: [Locale], nearestToMac: Locale?) throws -> Locale {
-        guard let requested else {
+        // The Mac's own language passed in explicitly (the app does this when WAKE_LANGUAGE is
+        // empty) is still "the Mac's language": the nearest supported one is fine, so a Mac set to
+        // English with, say, a German region still listens in English.
+        guard let requested, code(requested) != code(.current) else {
             if let nearestToMac { return nearestToMac }
             throw SpeakableError(
                 "On-device speech recognition doesn't support this Mac's language, \(code(Locale.current)), so set "
