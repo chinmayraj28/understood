@@ -22,7 +22,7 @@ public enum WakeRecognizer: String, Sendable, CaseIterable {
 
 /// Builds the engine for a choice, or explains why there is none.
 enum RecognitionEngines {
-    static func make(_ choice: WakeRecognizer, locale: Locale, contextualStrings: [String]) throws -> RecognitionEngine {
+    static func make(_ choice: WakeRecognizer, locale: Locale?, contextualStrings: [String]) throws -> RecognitionEngine {
         switch choice {
         case .automatic:
             if #available(macOS 26.0, *), SpeechTranscriber.isAvailable {
@@ -44,17 +44,20 @@ enum RecognitionEngines {
 
 @available(macOS 26.0, *)
 final class AnalyzerEngine: RecognitionEngine, @unchecked Sendable {
-    let requestedLocale: Locale
+    /// The chosen language, or nil for the Mac's.
+    let requestedLocale: Locale?
     let contextualStrings: [String]
     private let lock = NSLock()
     private var resolvedLocale: Locale?
 
-    init(locale: Locale, contextualStrings: [String]) {
+    init(locale: Locale?, contextualStrings: [String]) {
         self.requestedLocale = locale
         self.contextualStrings = contextualStrings
     }
 
-    var name: String { "SpeechAnalyzer (\(lock.withLock { resolvedLocale ?? requestedLocale }.identifier))" }
+    var name: String {
+        "SpeechAnalyzer (\(LanguageChoice.code(lock.withLock { resolvedLocale ?? requestedLocale ?? .current })))"
+    }
     /// SpeechAnalyzer is made for long audio; a session is still renewed every ten minutes, at a
     /// quiet moment, so that nothing it keeps can grow over a day of listening.
     var preferredSessionSeconds: Double { 600 }
@@ -71,11 +74,11 @@ final class AnalyzerEngine: RecognitionEngine, @unchecked Sendable {
         guard SpeechTranscriber.isAvailable else {
             throw SpeakableError("On-device speech recognition isn't available on this Mac, so I can't listen for the wake phrase.")
         }
-        // The Mac's language, or the nearest one Apple supports ("en_IN" stays "en_IN").
-        guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: requestedLocale) else {
-            let language = Locale.current.localizedString(forIdentifier: requestedLocale.identifier) ?? requestedLocale.identifier
-            throw SpeakableError("On-device speech recognition doesn't support \(language), so I can't listen for the wake phrase.")
-        }
+        // The chosen language exactly, or the Mac's language or the nearest one Apple supports
+        // ("en_IN" stays "en_IN").
+        let locale = try LanguageChoice.resolve(
+            requested: requestedLocale, supported: await SpeechTranscriber.supportedLocales,
+            nearestToMac: await SpeechTranscriber.supportedLocale(equivalentTo: .current))
         let transcriber = Self.makeTranscriber(locale: locale)
         // The speech model is a system download. Fetching it sends no audio anywhere.
         switch await AssetInventory.status(forModules: [transcriber]) {
@@ -98,7 +101,9 @@ final class AnalyzerEngine: RecognitionEngine, @unchecked Sendable {
     }
 
     func makeSession(inputFormat: AVAudioFormat, callbacks: RecognitionCallbacks) async throws -> RecognitionSession {
-        let locale = lock.withLock { resolvedLocale ?? requestedLocale }
+        guard let locale = lock.withLock({ resolvedLocale }) else {
+            throw SpeakableError("The speech recogniser wasn't ready.")
+        }
         return try await AnalyzerSession.make(
             locale: locale, contextualStrings: contextualStrings, inputFormat: inputFormat, callbacks: callbacks)
     }
@@ -212,23 +217,31 @@ final class AudioConverter: @unchecked Sendable {
 // MARK: - SFSpeechRecognizer, forced on-device
 
 final class OnDeviceRecognizerEngine: RecognitionEngine, @unchecked Sendable {
-    let locale: Locale
+    /// The chosen language, or nil for the Mac's.
+    let locale: Locale?
     let contextualStrings: [String]
     private let lock = NSLock()
     private var recognizer: SFSpeechRecognizer?
 
-    init(locale: Locale, contextualStrings: [String]) {
+    init(locale: Locale?, contextualStrings: [String]) {
         self.locale = locale
         self.contextualStrings = contextualStrings
     }
 
-    var name: String { "SFSpeechRecognizer on-device (\(lock.withLock { recognizer?.locale ?? locale }.identifier))" }
+    var name: String {
+        "SFSpeechRecognizer on-device (\(LanguageChoice.code(lock.withLock { recognizer?.locale ?? locale ?? .current })))"
+    }
     /// Apple's guidance for this recogniser is to plan for a one-minute limit per task.
     var preferredSessionSeconds: Double { 50 }
 
     func prepare(requestPermission: Bool) async throws {
         try await WakePermissions.requireSpeechRecognition(request: requestPermission)
-        let recognizer = SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+        // The same rule as SpeechAnalyzer: the chosen language exactly, never a quiet substitute.
+        let supported = Array(SFSpeechRecognizer.supportedLocales())
+        let nearestToMac = supported.first { LanguageChoice.code($0) == LanguageChoice.code(.current) }
+            ?? supported.first { $0.language.languageCode == Locale.current.language.languageCode }
+        let chosen = try LanguageChoice.resolve(requested: locale, supported: supported, nearestToMac: nearestToMac)
+        let recognizer = SFSpeechRecognizer(locale: chosen)
         guard let recognizer, recognizer.supportsOnDeviceRecognition else {
             // Never fall back to Apple's servers: audio heard while asleep stays on the Mac.
             throw SpeakableError("Speech recognition on this Mac can't run offline for this language, so I won't listen for the wake phrase.")

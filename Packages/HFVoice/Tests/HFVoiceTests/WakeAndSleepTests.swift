@@ -437,6 +437,37 @@ import Testing
         await harness.session.close()
     }
 
+    @Test func alwaysOpenModeTellsTheAgentThereIsNoWakePhrase() async {
+        let harness = Harness(mode: .text)
+        harness.session.keepsConversationOpen = true
+        harness.session.prepare(tools: [], memorySummary: "")
+        await harness.session.open()
+        let context = harness.driver.request?.dynamicVariables["session_context"] ?? ""
+        #expect(context.contains("no wake phrase and no go_to_sleep"))
+        #expect(context.contains(AgentConfiguration.dynamicVariableDefaults["session_context"]!))
+        await harness.session.close()
+    }
+
+    @Test func aFirstUtteranceKeptForAReconnectIsNotHeardTwice() async {
+        let harness = Harness(mode: .text)
+        let heard = Recorder<String>()
+        harness.session.prepare(tools: [], memorySummary: "", onUserSentence: { heard.add($0) })
+        // Connects, but both sends fail and the connection then drops: the sentence waits for the reconnect.
+        let session: VoiceSession = harness.session
+        let opening = Task { @MainActor in await session.open(firstUtterance: "open Spotify") }
+        await harness.settle()
+        harness.drivers.first?.failSends = true
+        await opening.value
+        await harness.settle()
+        if harness.driver.userMessages.isEmpty {
+            harness.driver.emit(.disconnected(reason: "dropped"))
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            await harness.settle()
+        }
+        #expect(heard.all == ["open Spotify"], "the stop watcher hears it once, however many times it is sent")
+        await harness.session.close()
+    }
+
     @Test func theFirstUtteranceIsHeardByTheListenersBeforeItIsSent() async {
         let harness = Harness(mode: .text)
         let order = Recorder<String>()

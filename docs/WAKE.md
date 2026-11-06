@@ -109,12 +109,22 @@ The strictness is a setting (`WakeStrictness`):
 
 ### Changing the phrase
 
-Many people this is for have slow, quiet or atypical speech, and Apple's recogniser may do worse on it. So the phrase can be anything the user says reliably:
+Many people this is for have slow, quiet or atypical speech, and Apple's recogniser may do worse on it. Four settings in `.env` change what wakes it. All four are read through `Settings` and mapped by `WakeListener.Configuration(settings:)`.
 
-- Set `WAKE_PHRASE` (read through `Settings.wakePhrase`).
-- `WakeListener.Configuration` also takes `alternatives`, a list of extra phrases that wake it too.
-- The phrase's words are passed to the recogniser as contextual strings, which nudges it to write "Handsfree" as a word.
-- A two-word phrase with a greeting first works best. A single common word such as "Computer" has no lead-in to separate addressing it from talking about it, so it will wake on ordinary speech.
+| Setting | Example | What it does |
+|---|---|---|
+| `WAKE_PHRASE` | `Hey Handsfree` | The main phrase. |
+| `WAKE_LANGUAGE` | `en_GB` | The language the recogniser listens in. Empty means the Mac's own. |
+| `WAKE_ALTERNATIVES` | `Hello Sam's Mac, Computer listen` | Extra phrases that also wake it, separated by commas. |
+| `WAKE_STRICTNESS` | `lenient` | `strict`, `balanced` (the default) or `lenient`. |
+
+**When the phrase is not being heard, try these in this order**, restarting Handsfree after each change. The panel's count of "heard speech that was not the phrase" shows whether the Mac is hearing the person at all. If that count goes up when they say the phrase, it is hearing them but not recognising the phrase, and these steps help. If it stays at zero, look at the microphone instead.
+
+1. **The language.** Set `WAKE_LANGUAGE` to the speaker's own English: `en_GB`, `en_US`, `en_IN`, `en_AU`, `en_IE`, `en_ZA`, `en_CA`, `en_NZ` or `en_SG` on this Mac. This comes first because it changes how *every* word is heard, and it made the biggest difference in testing. A language this Mac does not support stops listening with one sentence naming the supported ones. It never quietly listens in a different language.
+2. **An alternative phrase.** Add a phrase the person can say clearly and the recogniser writes reliably to `WAKE_ALTERNATIVES`, such as "Hello Sam's Mac". The main phrase keeps working. A two-word phrase with a greeting first works best. A single common word such as "Computer" has no lead-in to separate addressing it from talking about it, so it will wake on ordinary speech.
+3. **The strictness.** Set `WAKE_STRICTNESS=lenient` last. It accepts more mishearings and may drop the lead-in, so it also wakes by mistake more often.
+
+The phrase's words are also passed to the recogniser as contextual strings, which nudges it to write "Handsfree" as a word.
 
 ## When exactly it wakes
 
@@ -219,9 +229,11 @@ On macOS 26 no System Settings step is needed. Apple's speech model comes throug
 
 ## Choosing the recogniser's language
 
-The recogniser's language does not have to be the Mac's. `WakeListener.Configuration.locale` sets it; the default is `Locale.current`, which on this Mac is Indian English (`en_IN`). Apple's on-device recogniser here supports `en_AU`, `en_CA`, `en_GB`, `en_IE`, `en_IN`, `en_NZ`, `en_SG`, `en_US` and `en_ZA`.
+The recogniser's language does not have to be the Mac's. It is set by `WAKE_LANGUAGE`, which becomes `WakeListener.Configuration.locale`. The command-line tool also takes `--locale en_GB`. Left empty, it is the Mac's own language, or the nearest the recogniser supports; this Mac is Indian English (`en_IN`). Apple's on-device recogniser here supports `en_AU`, `en_CA`, `en_GB`, `en_IE`, `en_IN`, `en_NZ`, `en_SG`, `en_US` and `en_ZA`.
 
-This can decide whether the phrase works for a given speaker. A British synthetic voice was misheard far more than US or Indian ones while the recogniser was set to `en_IN`. Before two matcher fixes it missed 7 of 9. For the app it should become a setting (a `WAKE_LANGUAGE` value has been asked for in `Settings`). Until then the app can pass `.init(phrase: settings.wakePhrase, locale: Locale(identifier: "en_GB"))`, and the command-line tool takes `--locale en_GB`.
+A language that is set must be supported exactly. If it is not, `start()` fails, and the cycle shows and says one sentence. On this Mac, with `WAKE_LANGUAGE=en_JM`, the sentence is: "The wake language en_JM isn't supported by on-device speech recognition on this Mac, so set WAKE_LANGUAGE to one of en_AU, en_CA, en_GB, en_IE, en_IN, en_NZ, en_SG, en_US, en_ZA."
+
+This can decide whether the phrase works for a given speaker. A British synthetic voice was misheard far more than US or Indian ones while the recogniser was set to `en_IN`; before two matcher fixes it missed 7 of 9. The user and the Hiya reviewer may not share an accent setting with this Mac, so set `WAKE_LANGUAGE` for whoever is speaking.
 
 ## Checklist for the first real run (in Handsfree.app)
 
@@ -271,7 +283,7 @@ The cycle also watches the activity bus. Anything the user, the agent or a task 
 
 ```
 cd Packages/HFWake
-swift test                                             # 88 unit tests, no microphone
+swift test                                             # 99 tests, no microphone
 HF_LIVE=1 swift test --filter Live                     # the real recogniser on synthetic speech files
 swift run hf-wake status                               # permissions and the Mac's language
 echo "Hey hands free, open Spotify" | swift run hf-wake match

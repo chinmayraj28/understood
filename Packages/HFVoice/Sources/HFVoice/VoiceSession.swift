@@ -167,6 +167,10 @@ public final class VoiceSession {
     private var lastTaskNote: String?
     private var lastTaskNoteAt: TimeInterval = -.infinity
 
+    /// True in wake mode "always": the conversation is kept open, there is no wake phrase and no
+    /// go_to_sleep. Each conversation is told so, because the prompt describes waking and sleeping.
+    public var keepsConversationOpen = false
+
     /// Called, on the main actor, when a question, confirmation or result is pushed while no
     /// conversation is open, so the app can wake to say it if its listening cycle can do that.
     /// Either way the event stays queued and is said in the next conversation.
@@ -650,6 +654,9 @@ public final class VoiceSession {
     /// What a fresh session needs to carry on: a new session starts with no memory of the old one.
     private func sessionContext() -> String {
         var parts: [String] = []
+        if keepsConversationOpen {
+            parts.append("The Mac keeps this conversation open all the time: there is no wake phrase and no go_to_sleep.")
+        }
         let isReconnect = hasConnectedThisConversation
         if isReconnect, !recentTurns.isEmpty {
             parts.append("The connection to the Mac dropped and came back. The last things said were: " + recentTurns.joined(separator: " | "))
@@ -663,7 +670,9 @@ public final class VoiceSession {
         }
         let waiting = withQueue { $0.pendingSummaries }
         if !waiting.isEmpty { parts.append("Not yet told to the user: " + waiting.joined(separator: " | ")) }
-        return parts.isEmpty ? AgentConfiguration.dynamicVariableDefaults["session_context"]! : parts.joined(separator: "\n")
+        let defaultContext = AgentConfiguration.dynamicVariableDefaults["session_context"]!
+        if parts.count == (keepsConversationOpen ? 1 : 0) { parts.append(defaultContext) }
+        return parts.joined(separator: "\n")
     }
 
     private func remember(_ turn: String) {

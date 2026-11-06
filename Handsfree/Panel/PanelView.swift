@@ -194,7 +194,7 @@ struct PanelView: View {
         let status = app.listening
         return VStack(alignment: .leading, spacing: 6) {
             permissionSummary
-            ForEach([status.listenerLine, status.conversationLine, status.heardLine(now: Date())].filter { !$0.isEmpty }, id: \.self) { line in
+            ForEach([status.listenerLine, status.languageLine, status.conversationLine, status.heardLine(now: Date())].filter { !$0.isEmpty }, id: \.self) { line in
                 Text(line)
                     .font(.system(size: 12))
                     .foregroundColor(DS.Colors.textSecondary)

@@ -430,3 +430,23 @@ struct NewsWakesTests {
         voice.onNewsWhileClosed?()  // the cycle is gone (quitting): nothing happens, nothing crashes
     }
 }
+
+@Suite("Wake language shown for diagnosis")
+struct WakeLanguageTests {
+    @Test("The language in use is named, with where it came from")
+    func language() {
+        #expect(AppWakeLanguage.locale(for: "en-GB").identifier == "en_GB")
+        #expect(AppWakeLanguage.describe(setting: "en_GB").contains("en_GB (set by WAKE_LANGUAGE)"))
+        #expect(AppWakeLanguage.describe(setting: "").contains("the Mac's own language; set WAKE_LANGUAGE to change it"))
+        var status = ListeningStatus()
+        status.language = AppWakeLanguage.describe(setting: "en_GB")
+        status.alternatives = ["Okay computer"]
+        status.strictness = "lenient"
+        #expect(status.languageLine.hasPrefix("Listening in English (United Kingdom), en_GB"))
+        #expect(status.languageLine.contains("Also wakes on \u{201C}Okay computer\u{201D}."))
+        #expect(status.languageLine.contains("Matching: lenient."))
+        #expect(status.statusDictionary(now: Date())["wake_language"] as? String == status.language)
+        status.alwaysOpen = true
+        #expect(status.languageLine.isEmpty)
+    }
+}

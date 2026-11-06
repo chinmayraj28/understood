@@ -32,7 +32,29 @@ enum WakeListenerEvent: Equatable {
     case cannotListen(reason: String)
 }
 
+/// The language the wake phrase is listened for in: WAKE_LANGUAGE, or the Mac's own when empty.
+/// Accent matters a great deal to the recogniser, so it is shown in the panel and the status file.
+enum AppWakeLanguage {
+    static func locale(for setting: String) -> Locale {
+        let trimmed = setting.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? Locale.current : Locale(identifier: trimmed.replacingOccurrences(of: "-", with: "_"))
+    }
+
+    /// For example "English (India), en_IN, the Mac's own language".
+    static func describe(setting: String) -> String {
+        let locale = locale(for: setting)
+        let name = Locale(identifier: "en").localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+        let source = setting.trimmingCharacters(in: .whitespaces).isEmpty ? "the Mac's own language; set WAKE_LANGUAGE to change it" : "set by WAKE_LANGUAGE"
+        return "\(name), \(locale.identifier) (\(source))"
+    }
+}
+
 struct ListeningStatus: Equatable {
+    /// The language the phrase is listened for in, described for people.
+    var language = ""
+    /// Phrases other than the main one that also wake it, and how sure the matcher must be.
+    var alternatives: [String] = []
+    var strictness = "balanced"
     /// Where the cycle is: asleep, waking, awake, falling asleep, cannot listen, stopped, or not started.
     var cycleState = "not started"
     /// What is keeping the cycle from starting, in plain words, if anything.
@@ -92,6 +114,17 @@ struct ListeningStatus: Equatable {
         return "Wake listener: not running (\(cycleState))."
     }
 
+    /// What it listens for and how, for the panel: the first thing to check if the phrase is not heard.
+    var languageLine: String {
+        guard !alwaysOpen else { return "" }
+        var line = "Listening in \(language)."
+        if !alternatives.isEmpty {
+            line += " Also wakes on " + alternatives.map { "\u{201C}\($0)\u{201D}" }.joined(separator: ", ") + "."
+        }
+        if strictness != "balanced" { line += " Matching: \(strictness)." }
+        return line
+    }
+
     /// One line on the conversation, for the panel.
     var conversationLine: String {
         if conversationConnected { return "Conversation: open, and the voice service can hear." }
@@ -136,6 +169,9 @@ struct ListeningStatus: Equatable {
         if let lastWakeAt { listener["last_wake_seconds_ago"] = Int(now.timeIntervalSince(lastWakeAt)) }
         return [
             "cycle_state": cycleState,
+            "wake_language": language,
+            "wake_alternatives": alternatives,
+            "wake_strictness": strictness,
             "waiting_for": waitingFor ?? "",
             "wake_listener": listener,
             "conversation": ["open": conversationOpen, "connected": conversationConnected],

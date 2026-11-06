@@ -239,6 +239,9 @@ enum RealParts {
     static func makeVoice(settings: HFCore.Settings, bus: ActivityBus) -> (voice: any VoiceConnecting, isUserSpeaking: @Sendable () -> Bool)? {
         #if canImport(HFVoice)
         let session = VoiceSession(settings: settings, mode: .voice, bus: bus)
+        // The always-open cycle is used in wake mode "always" and when HFWake is not linked;
+        // the agent is then told there is no wake phrase and no go_to_sleep.
+        session.keepsConversationOpen = settings.wakeMode == .always || !linkedPackages.contains("HFWake")
         return (session, { [weak session] in session?.isUserSpeaking ?? false })
         #else
         return nil
@@ -377,7 +380,7 @@ final class WakeCycleAdapter: ListeningCycling {
         let mirror = self.mirror
         // Recognition stays on the Mac. Permissions are asked for by the setup flow, not here,
         // so a restart in the background never pops up a dialog.
-        let listener = WakeListener(configuration: WakeListener.Configuration(settings: settings))
+        let listener = WakeListener(configuration: Self.listenerConfiguration(settings: settings))
         // Counts only: `heardAs`, `restOfSentence` and transcripts are dropped here and never
         // stored, logged or shown (revealTranscripts stays off).
         listener.onDiagnostic = { diagnostic in
@@ -421,6 +424,17 @@ final class WakeCycleAdapter: ListeningCycling {
     func wakeWithoutPhrase() {
         let cycle = self.cycle
         Task { await cycle.wakeNow() }
+    }
+
+    /// The listener's settings from WAKE_PHRASE, WAKE_LANGUAGE, WAKE_ALTERNATIVES and WAKE_STRICTNESS.
+    /// Built here rather than with `Configuration(settings:)`, so the app does not depend on
+    /// when HFWake starts reading the three newer settings.
+    nonisolated static func listenerConfiguration(settings: HFCore.Settings) -> WakeListener.Configuration {
+        WakeListener.Configuration(
+            phrase: settings.wakePhrase,
+            alternatives: settings.wakeAlternatives,
+            strictness: WakeStrictness(rawValue: settings.wakeStrictness.lowercased()) ?? .balanced,
+            locale: AppWakeLanguage.locale(for: settings.wakeLanguage))
     }
 
     func currentState() async -> String { await cycle.state.rawValue }

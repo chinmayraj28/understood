@@ -59,6 +59,9 @@ final class AppCoordinator {
         appModel.isAlwaysOpen = settings.wakeMode == .always && !options.isDemo
         appModel.listening.wakePhrase = settings.wakePhrase
         appModel.listening.alwaysOpen = settings.wakeMode == .always
+        appModel.listening.language = AppWakeLanguage.describe(setting: settings.wakeLanguage)
+        appModel.listening.alternatives = settings.wakeAlternatives
+        appModel.listening.strictness = settings.wakeStrictness.lowercased()
     }
 
     func start() {

@@ -59,7 +59,7 @@ struct Options {
     var file: String?
     var timing = WakeTiming()
     var leadSilence = 1.0
-    var locale = Locale.current
+    var locale: Locale? = Settings.load().wakeLanguage.isEmpty ? nil : Locale(identifier: Settings.load().wakeLanguage)
 
     init(_ arguments: [String]) {
         var iterator = arguments.makeIterator()

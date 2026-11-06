@@ -42,8 +42,11 @@ public final class WakeListener: WakeListening, @unchecked Sendable {
         public var alternatives: [String]
         public var strictness: WakeStrictness
         public var timing: WakeTiming
-        /// The language to recognise. Defaults to the Mac's own.
-        public var locale: Locale
+        /// The language to recognise, e.g. `Locale(identifier: "en_GB")`. nil (the default) means
+        /// the Mac's own language, or the nearest one the recogniser supports. A language given
+        /// here must be supported as it is: `start()` fails with a sentence naming the supported
+        /// ones rather than listen in a different language.
+        public var locale: Locale?
         public var recognizer: WakeRecognizer
         /// When a permission has never been asked for, ask (the system shows a prompt) instead of
         /// failing with a message. The first-run flow wants this; a background restart does not.
@@ -54,7 +57,7 @@ public final class WakeListener: WakeListening, @unchecked Sendable {
             alternatives: [String] = [],
             strictness: WakeStrictness = .balanced,
             timing: WakeTiming = WakeTiming(),
-            locale: Locale = .current,
+            locale: Locale? = nil,
             recognizer: WakeRecognizer = .automatic,
             requestPermissions: Bool = false
         ) {
@@ -67,9 +70,16 @@ public final class WakeListener: WakeListening, @unchecked Sendable {
             self.requestPermissions = requestPermissions
         }
 
-        /// The phrase from `Settings.wakePhrase`, everything else at its default.
+        /// From `Settings`: `WAKE_PHRASE`, `WAKE_ALTERNATIVES`, `WAKE_STRICTNESS` and
+        /// `WAKE_LANGUAGE` (empty means the Mac's language). Everything else at its default.
         public init(settings: Settings) {
-            self.init(phrase: settings.wakePhrase)
+            let language = settings.wakeLanguage.trimmingCharacters(in: .whitespaces)
+            self.init(
+                phrase: settings.wakePhrase,
+                alternatives: settings.wakeAlternatives,
+                strictness: WakeStrictness(rawValue: settings.wakeStrictness) ?? .balanced,
+                // "en-GB" and "en_GB" are both accepted.
+                locale: language.isEmpty ? nil : Locale(identifier: language.replacingOccurrences(of: "-", with: "_")))
         }
 
         /// Words the recogniser is told to expect, so the name is written as one word.
