@@ -27,10 +27,12 @@ public enum WakeMode: String, Sendable {
 ///
 /// The audio it hears must never leave the laptop: recognition runs on the device.
 public protocol WakeListening: AnyObject, Sendable {
-    /// Starts listening. `onWake` is called each time the phrase is heard, with whatever the
-    /// user said after it in the same breath ("open Spotify"), or an empty string when they
-    /// said only the phrase. The rest of the sentence is handed to the conversation as its
-    /// first message, so "Hey Handsfree, open Spotify" works in one go.
+    /// Starts listening. `onWake` is called once, the first time the phrase is heard, with
+    /// whatever the user said after it in the same breath ("open Spotify"), or an empty string
+    /// when they said only the phrase. The listener then stays quiet until the caller calls
+    /// `stop()` and `start()` again, which it does when the conversation ends. The rest of the
+    /// sentence is handed to the conversation as its first message, so "Hey Handsfree, open
+    /// Spotify" works in one go.
     ///
     /// Throws a `SpeakableError` when it cannot listen (no microphone or speech permission,
     /// no on-device recognition for the language).

@@ -70,6 +70,7 @@ import Testing
         ("Hey hands-free... what's the time?", "what's the time?"),
         ("Hey Handsfree", ""),
         ("Hey Handsfree.", ""),
+        ("Hey hands-free?", ""),  // seen on this Mac: the question mark is not the rest
         ("so I said hey handsfree turn the volume up", "turn the volume up"),
         ("Hey Handsfree, hey Handsfree, open Mail", "open Mail"),
         ("Hey handsfree. Reply to Mark's email", "Reply to Mark's email"),

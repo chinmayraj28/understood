@@ -318,3 +318,20 @@ private struct LabelsWithBundleIdentifier: Labels {
     #expect(bad.wakeMode == .phrase)
     #expect(bad.sleepAfterIdleSeconds == 5)
 }
+
+@Test func wakeLanguageAlternativesAndStrictnessCanBeSet() {
+    let defaults = Settings.load(environment: [:], envFileCandidates: [])
+    #expect(defaults.wakeLanguage == "")
+    #expect(defaults.wakeAlternatives == [])
+    #expect(defaults.wakeStrictness == "balanced")
+
+    let custom = Settings.load(
+        environment: ["WAKE_LANGUAGE": "en_GB", "WAKE_ALTERNATIVES": " Okay computer , hello laptop,, ", "WAKE_STRICTNESS": "Lenient"],
+        envFileCandidates: [])
+    #expect(custom.wakeLanguage == "en_GB")
+    #expect(custom.wakeAlternatives == ["Okay computer", "hello laptop"])
+    #expect(custom.wakeStrictness == "lenient")
+
+    // An unknown strictness falls back to the default rather than switching the matcher off.
+    #expect(Settings.load(environment: ["WAKE_STRICTNESS": "whatever"], envFileCandidates: []).wakeStrictness == "balanced")
+}

@@ -278,7 +278,8 @@ public struct WakePhraseMatcher: Sendable {
         var text = rest.trimmingCharacters(in: .whitespacesAndNewlines)
         let edge = CharacterSet(charactersIn: ",.;:!-\u{2013}\u{2014}\u{2026}").union(.whitespacesAndNewlines)
         text = text.trimmingCharacters(in: edge)
-        return text
+        // A lone "?" after "Hey hands-free?" is punctuation, not something the user said.
+        return text.contains(where: { $0.isLetter || $0.isNumber }) ? text : ""
     }
 
     /// A rough key for how a word sounds, so that spellings of the same sound compare equal and

@@ -404,3 +404,29 @@ struct ListeningStartTests {
         #expect(status.listenerLine == "Wake listener: listening on this Mac for \u{201C}Hey Handsfree\u{201D}, using SpeechAnalyzer (en_IN).")
     }
 }
+
+@MainActor
+final class FakeCycle: ListeningCycling {
+    var wakes = 0
+    var sleeps = 0
+    func start() async {}
+    func stop() async {}
+    func requestSleep() { sleeps += 1 }
+    func wakeWithoutPhrase() { wakes += 1 }
+    func currentState() async -> String { "asleep" }
+    var isListenerRunning: Bool { true }
+}
+
+@Suite("Task news while asleep") @MainActor
+struct NewsWakesTests {
+    @Test("News the user must hear, arriving while asleep, wakes the cycle")
+    func newsWakes() {
+        let voice = FakeVoice()
+        var cycle: FakeCycle? = FakeCycle()
+        CycleWiring.wakeForNews(voice: voice, cycle: cycle!)
+        voice.onNewsWhileClosed?()
+        #expect(cycle?.wakes == 1)
+        cycle = nil
+        voice.onNewsWhileClosed?()  // the cycle is gone (quitting): nothing happens, nothing crashes
+    }
+}

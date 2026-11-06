@@ -13,6 +13,7 @@
 
 import Foundation
 import HFCore
+import os
 
 #if canImport(HFHands)
 import HFHands
@@ -365,6 +366,7 @@ final class GateQuickActionGuard: QuickActionGuarding, @unchecked Sendable {
 /// HFWake's listening cycle as the app's ListeningCycling, with its on-device wake listener.
 @MainActor
 final class WakeCycleAdapter: ListeningCycling {
+    nonisolated static let logger = Logger(subsystem: "com.handsfree", category: "wake")
     private let cycle: ListeningCycle
     private let listener: WakeListener
     private let mirror = ActivityMirror()
@@ -393,8 +395,9 @@ final class WakeCycleAdapter: ListeningCycling {
                     someoneSpeaking: now.someoneSpeaking, taskRunning: now.taskRunning, awaitingAnswer: now.awaitingAnswer)
             },
             bus: bus,
-            // Shown on the companion and in the panel. The cycle reports each problem once.
-            onProblem: { problem in bus.post(.voiceDisconnected(reason: problem.spokenMessage)) })
+            // The cycle posts each problem itself as `.voiceDisconnected` (once per distinct problem), which the
+            // companion and panel show; posting it here too would show it twice. This only logs it.
+            onProblem: { problem in WakeCycleAdapter.logger.notice("Listening cycle problem: \(problem.spokenMessage, privacy: .public)") })
     }
 
     func start() async {
@@ -412,9 +415,13 @@ final class WakeCycleAdapter: ListeningCycling {
         Task { _ = await cycle.requestSleep() }
     }
 
-    /// HFWake's cycle has no way yet to wake without the phrase. Task news that arrives while
-    /// asleep waits in the voice session's queue and is said in the next conversation.
-    func wakeWithoutPhrase() {}
+    /// A task question, confirmation or result must be said while asleep: wake as if the phrase had
+    /// been heard. HFWake does nothing if it is already waking or awake, and wakes straight after
+    /// a close that is in progress.
+    func wakeWithoutPhrase() {
+        let cycle = self.cycle
+        Task { await cycle.wakeNow() }
+    }
 
     func currentState() async -> String { await cycle.state.rawValue }
     var isListenerRunning: Bool { listener.isListening }
@@ -427,7 +434,8 @@ final class WakeCycleAdapter: ListeningCycling {
         case .woke: return .woke
         case .restarting: return .restarting
         case .restartFailed(let problem, _): return .cannotListen(reason: problem.spokenMessage)
-        // `.speechWithoutPhrase` is requested from HFWake; until it exists nothing else maps.
+        case .speechWithoutPhrase: return .speechWithoutPhrase
+        // `.transcript` is only sent when revealTranscripts is on, which the app never does.
         default: return nil
         }
     }

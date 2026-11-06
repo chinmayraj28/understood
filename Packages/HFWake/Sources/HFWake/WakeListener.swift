@@ -9,8 +9,13 @@ import HFCore
 public enum WakeDiagnostic: Sendable, Equatable {
     /// Listening started, with this recogniser.
     case started(recognizer: String)
-    /// The phrase was seen in a transcript; waiting for the rest of the sentence.
+    /// The phrase was seen in a transcript; waiting for the rest of the sentence. `heardAs` is
+    /// the configured phrase, or, only when `revealTranscripts` is on, the words taken as it.
     case phraseHeard(heardAs: String)
+    /// The recogniser finished an utterance that had words in it but not the phrase. Carries
+    /// nothing of what was said, so the app can tell "it can't hear me" from "it heard me but
+    /// not the phrase" without keeping anyone's words.
+    case speechWithoutPhrase
     /// Woke. Times are seconds from the phrase first being seen, and from the last new words.
     case woke(restOfSentence: String, afterPhraseSeen: Double, afterLastWords: Double)
     /// The microphone or recogniser stopped by itself and listening is being restarted.
@@ -244,19 +249,26 @@ public final class WakeListener: WakeListening, @unchecked Sendable {
     // MARK: Transcripts, on `queue`
 
     private func handle(_ update: TranscriptUpdate, generation: Int) {
-        let (wake, reveal, announce): (WakeDetector.Wake?, Bool, String?) = lock.withLock {
-            guard self.generation == generation, wanted else { return (nil, false, nil) }
+        let (wake, reveal, announce, noPhrase): (WakeDetector.Wake?, Bool, String?, Bool) = lock.withLock {
+            guard self.generation == generation, wanted else { return (nil, false, nil, false) }
+            let wasWoken = detector.hasWoken
             let wake = detector.receive(update, at: now())
             var announce: String?
             if detector.isWaitingForRestOfSentence, !phraseAnnounced {
                 phraseAnnounced = true
-                announce = detector.matcher.match(update.text)?.heardAs ?? configuration.phrase
+                announce = self.reveal ? (detector.matcher.match(update.text)?.heardAs ?? configuration.phrase) : configuration.phrase
             }
+            // A finished utterance with words, and no phrase in it or waiting on it.
+            let noPhrase =
+                update.isFinal && wake == nil && !wasWoken && !detector.hasWoken
+                && !detector.isWaitingForRestOfSentence
+                && update.text.contains(where: { $0.isLetter || $0.isNumber })
             scheduleDeadline(generation: generation)
-            return (wake, self.reveal, announce)
+            return (wake, self.reveal, announce, noPhrase)
         }
         if reveal { diagnose(.transcript(update.text, isFinal: update.isFinal)) }
         if let announce { diagnose(.phraseHeard(heardAs: announce)) }
+        if noPhrase { diagnose(.speechWithoutPhrase) }
         if let wake { deliver(wake, generation: generation) }
     }
 

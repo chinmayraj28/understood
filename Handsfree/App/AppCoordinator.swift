@@ -266,9 +266,9 @@ final class AppCoordinator {
         cycle = newCycle
         // "That's all, thanks" reaches the cycle through the go_to_sleep tool.
         parts.sleepRequests.setHandler { [weak newCycle] in newCycle?.requestSleep() }
-        // A task's news arriving while asleep (it should not happen: a task keeps it awake). HFWake cannot
-        // wake without the phrase yet, so this does nothing for now; the news is said in the next conversation.
-        parts.voice.onNewsWhileClosed = { [weak newCycle] in newCycle?.wakeWithoutPhrase() }
+        // A task's news arriving while asleep (rare: a task keeps it awake until its result is said)
+        // wakes it with HFWake's wakeNow(), so the user hears it.
+        CycleWiring.wakeForNews(voice: parts.voice, cycle: newCycle)
 
         let stopWatcher = parts.stopWatcher
         Task {

@@ -88,6 +88,13 @@ enum CycleWiring {
             lastActivityAt: { [weak voice] in voice?.conversationActivity.lastActivityAt ?? -.infinity })
     }
 
+    /// A task's question, confirmation or result pushed while no conversation is open wakes the
+    /// cycle, as if the phrase had been heard, so the user hears it (HFWake's `wakeNow()`).
+    /// The event itself waits in the voice session's queue and is said once connected.
+    static func wakeForNews(voice: any VoiceConnecting, cycle: any ListeningCycling) {
+        voice.onNewsWhileClosed = { [weak cycle] in cycle?.wakeWithoutPhrase() }
+    }
+
     /// The go_to_sleep tool must refuse while a task is running or waiting for an answer.
     nonisolated static func isTaskActive(_ runner: any TaskRunnerPart) -> Bool {
         runner.isRunning || runner.isAwaitingAnswer

@@ -288,3 +288,24 @@ import Testing
         #expect(!input.running.value)
     }
 }
+
+@Suite struct ListenerSpeechWithoutPhrase {
+    @Test func countsFinishedUtterancesThatWereNotThePhraseWithoutTheirWords() async throws {
+        let source = FakeTranscriptSource()
+        let listener = WakeListener(configuration: .init()) { source }
+        let diagnostics = Locked<[WakeDiagnostic]>([])
+        listener.onDiagnostic = { diagnostic in diagnostics.update { $0.append(diagnostic) } }
+        try await listener.start { _ in }
+        source.say("what time is", segment: 1)  // a guess: not counted
+        source.say("What time is it?", segment: 1, final: true)  // counted
+        source.say("?", segment: 2, final: true)  // no words: not counted
+        source.say("hey hands free", segment: 3, final: false)  // the phrase: not counted
+        _ = await eventually { diagnostics.value.contains { if case .phraseHeard = $0 { return true } else { return false } } }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let count = diagnostics.value.filter { $0 == .speechWithoutPhrase }.count
+        #expect(count == 1)
+        // The phrase diagnostic names the configured phrase, not what the recogniser wrote.
+        #expect(diagnostics.value.contains(.phraseHeard(heardAs: "Hey Handsfree")))
+        await listener.stop()
+    }
+}

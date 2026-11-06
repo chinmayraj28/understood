@@ -36,6 +36,15 @@ public struct Settings: Sendable {
     /// How long a conversation stays open with nobody speaking and no task running before
     /// the app goes back to sleep.
     public var sleepAfterIdleSeconds: Double
+    /// The language the wake phrase is listened for in, such as "en_GB" or "en_IN".
+    /// Empty means the Mac's own language. Accent matters a great deal to the recogniser,
+    /// so this is the first thing to change when the phrase is not being heard.
+    public var wakeLanguage: String
+    /// Other phrases that also wake it, for a user who finds the main one hard to say.
+    public var wakeAlternatives: [String]
+    /// How sure the matcher must be: "strict", "balanced" (the default) or "lenient".
+    /// Stricter means fewer false wakes and more missed ones.
+    public var wakeStrictness: String
 
     /// Memory database and logs. Never inside the repo.
     public var dataDirectory: URL
@@ -111,6 +120,11 @@ public struct Settings: Sendable {
             wakePhrase: string("WAKE_PHRASE", "Hey Handsfree"),
             wakeMode: WakeMode(rawValue: string("WAKE_MODE", "phrase").lowercased()) ?? .phrase,
             sleepAfterIdleSeconds: max(5, Double(string("SLEEP_AFTER_IDLE_S", "25")) ?? 25),
+            wakeLanguage: string("WAKE_LANGUAGE"),
+            wakeAlternatives: string("WAKE_ALTERNATIVES").split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
+            wakeStrictness: ["strict", "balanced", "lenient"].contains(string("WAKE_STRICTNESS", "balanced").lowercased())
+                ? string("WAKE_STRICTNESS", "balanced").lowercased() : "balanced",
             dataDirectory: dataDirectory,
             testWhatsAppContact: string("TEST_WHATSAPP_CONTACT"),
             testInviteEmail: string("TEST_INVITE_EMAIL")

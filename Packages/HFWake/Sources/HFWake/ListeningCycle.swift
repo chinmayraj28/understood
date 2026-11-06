@@ -107,6 +107,8 @@ public actor ListeningCycle {
     private var retryIndex = 0
     private var loops: [Task<Void, Never>] = []
     private var busWatcher: Task<Void, Never>?
+    /// wakeNow() was called while the conversation was closing.
+    private var wakeWhenClosed = false
 
     /// - Parameters:
     ///   - listener: the wake listener (in the app, `WakeListener`).
@@ -171,6 +173,7 @@ public actor ListeningCycle {
         epoch += 1
         let previous = state
         state = .stopped
+        wakeWhenClosed = false
         cancelLoops()
         busWatcher?.cancel()
         busWatcher = nil
@@ -194,6 +197,45 @@ public actor ListeningCycle {
     /// Something happened in the conversation that the bus does not show. Restarts the idle wait.
     public func noteActivity() {
         if state == .awake { lastActivityAt = now() }
+    }
+
+    /// What `wakeNow()` did.
+    public enum WakeNowOutcome: String, Sendable {
+        /// It was asleep (or could not listen): it is waking now.
+        case waking
+        /// A conversation is already open or opening. Nothing was done.
+        case alreadyAwake
+        /// It was closing the conversation: it will wake as soon as the close has finished.
+        case afterFallingAsleep
+        /// The cycle is stopped.
+        case notRunning
+    }
+
+    /// Wakes as if the phrase had been heard, with nothing said yet: posts `.waking`, stops the
+    /// listener and opens the conversation with an empty first utterance.
+    ///
+    /// For news that must be spoken while asleep, such as a task's question or result that
+    /// arrived just as the app was going to sleep. Returns at once; the waking carries on in the
+    /// background. Call it from anywhere with `Task { await cycle.wakeNow() }`. Calling it while
+    /// awake does nothing; calling it while falling asleep lets the close finish and then wakes,
+    /// so a sleep is never left half done.
+    @discardableResult
+    public func wakeNow() -> WakeNowOutcome {
+        switch state {
+        case .stopped:
+            return .notRunning
+        case .waking, .awake:
+            return .alreadyAwake
+        case .fallingAsleep:
+            wakeWhenClosed = true
+            return .afterFallingAsleep
+        case .asleep, .cannotListen:
+            let epoch = self.epoch
+            // Claim the state now, so a second call (or the phrase) in the meantime does nothing.
+            state = .waking
+            Task { await self.wake(firstUtterance: "", epoch: epoch) }
+            return .waking
+        }
     }
 
     // MARK: Asleep
@@ -254,6 +296,13 @@ public actor ListeningCycle {
     private func heard(restOfSentence: String, epoch: Int) async {
         guard epoch == self.epoch, state == .asleep else { return }
         state = .waking
+        await wake(firstUtterance: restOfSentence, epoch: epoch)
+    }
+
+    /// The one way to wake, for the phrase and for `wakeNow()`. The caller has set `.waking`.
+    private func wake(firstUtterance restOfSentence: String, epoch: Int) async {
+        guard epoch == self.epoch, state == .waking else { return }
+        wakeWhenClosed = false
         cancelLoops()
         bus.post(.waking)
         // Release the microphone before the conversation opens it with voice processing.
@@ -329,6 +378,12 @@ public actor ListeningCycle {
         cancelLoops()
         await closeConversation()
         guard epoch == self.epoch, state == .fallingAsleep else { return }
+        if wakeWhenClosed {
+            // wakeNow() was called while closing: the close is done, so wake at once.
+            state = .waking
+            await wake(firstUtterance: "", epoch: epoch)
+            return
+        }
         await enterSleep(epoch: epoch)
     }
 
@@ -396,10 +451,14 @@ public actor ListeningCycle {
         loops = []
     }
 
-    /// Reports a problem once, not again every retry while it is the same problem.
+    /// Reports a problem once, not again every retry while it is the same problem: to `onProblem`
+    /// (for the app to say it) and to the bus as `.voiceDisconnected(reason:)` (for the companion
+    /// and the panel to show it). Every problem means the app is, at least for now, neither awake
+    /// nor listening; `.asleep` follows once the listener really runs again.
     private func report(_ error: SpeakableError) {
         guard problem != error else { return }
         problem = error
+        bus.post(.voiceDisconnected(reason: error.spokenMessage))
         onProblem(error)
     }
 

@@ -12,6 +12,8 @@ final class CycleHarness: @unchecked Sendable {
     let recorder: BusRecorder
     let opened = Locked<[String]>([])
     let closes = Locked(0)
+    /// Real seconds that closing the conversation takes.
+    let closeDelay = Locked(0.0)
     let openErrors = Locked<[Error]>([])
     let activity = Locked(ConversationActivity.idle)
     let problems = Locked<[SpeakableError]>([])
@@ -31,7 +33,10 @@ final class CycleHarness: @unchecked Sendable {
                 if let error { throw error }
                 opened.update { $0.append(first) }
             },
-            closeConversation: { closes.update { $0 += 1 } },
+            closeConversation: { [closeDelay] in
+                if closeDelay.value > 0 { try? await Task.sleep(nanoseconds: UInt64(closeDelay.value * 1_000_000_000)) }
+                closes.update { $0 += 1 }
+            },
             currentActivity: { activity.value },
             now: { clock.now },
             sleep: { seconds in try await clock.sleep(seconds) },
@@ -306,6 +311,106 @@ final class CycleHarness: @unchecked Sendable {
         await harness.clock.advance(by: 2.1)
         #expect(await harness.waitFor(.awake))
         #expect(harness.opened.value == [""])
+        await harness.cycle.stop()
+    }
+}
+
+@Suite struct CycleWakeNow {
+    @Test func wakeNowWhileAsleepOpensWithNothingSaid() async {
+        let harness = CycleHarness()
+        await harness.cycle.start()
+        #expect(await harness.cycle.wakeNow() == .waking)
+        #expect(await harness.waitFor(.awake))
+        #expect(harness.opened.value == [""])
+        #expect(!harness.listener.isListening)
+        #expect(await eventually { harness.recorder.events.value.contains(.waking) })
+        await harness.cycle.stop()
+    }
+
+    @Test func wakeNowWhileAwakeDoesNothing() async {
+        let harness = CycleHarness()
+        #expect(await harness.wake(saying: "open Mail"))
+        #expect(await harness.cycle.wakeNow() == .alreadyAwake)
+        await settle()
+        #expect(harness.opened.value == ["open Mail"])
+        await harness.cycle.stop()
+    }
+
+    @Test func wakeNowWhileFallingAsleepWakesRightAfterTheClose() async {
+        let harness = CycleHarness(idle: 25)
+        #expect(await harness.wake(saying: "first"))
+        harness.closeDelay.value = 0.3
+        await harness.clock.advance(by: 26)
+        #expect(await harness.waitFor(.fallingAsleep))
+        #expect(await harness.cycle.wakeNow() == .afterFallingAsleep)
+        #expect(await harness.waitFor(.awake))
+        #expect(harness.closes.value == 1)  // the close was finished, not abandoned half way
+        #expect(harness.opened.value == ["first", ""])
+        #expect(harness.listener.starts.value == 1)  // it did not go back to listening in between
+        await harness.cycle.stop()
+    }
+
+    @Test func wakeNowWhenTheListenerCannotStart() async {
+        let harness = CycleHarness()
+        harness.listener.startErrors.value = [SpeakableError("No microphone.")]
+        await harness.cycle.start()
+        #expect(await harness.state() == .cannotListen)
+        #expect(await harness.cycle.wakeNow() == .waking)
+        #expect(await harness.waitFor(.awake))
+        #expect(harness.opened.value == [""])
+        await harness.cycle.stop()
+    }
+
+    @Test func wakeNowFromManyTasksAtOnceOpensOneConversation() async {
+        let harness = CycleHarness()
+        await harness.cycle.start()
+        let cycle = harness.cycle
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<10 { group.addTask { await cycle.wakeNow() } }
+            group.addTask { harness.listener.hear("open Mail") }  // and the phrase, at the same time
+        }
+        #expect(await harness.waitFor(.awake))
+        await settle()
+        #expect(harness.opened.value.count == 1)
+        await harness.cycle.stop()
+    }
+
+    @Test func wakeNowWhenStoppedDoesNothing() async {
+        let harness = CycleHarness()
+        #expect(await harness.cycle.wakeNow() == .notRunning)
+        #expect(harness.opened.value.isEmpty)
+    }
+}
+
+@Suite struct CycleProblemsOnTheBus {
+    @Test func aListenerThatCannotStartIsShownOnTheBusAndAsleepOnlyOnceItRuns() async {
+        let harness = CycleHarness()
+        let problem = SpeakableError("I can't listen for the wake phrase.")
+        harness.listener.startErrors.value = [problem]
+        await harness.cycle.start()
+        #expect(await eventually { harness.recorder.events.value.contains(.voiceDisconnected(reason: problem.spokenMessage)) })
+        #expect(!harness.recorder.events.value.contains(.asleep(wakePhrase: "Hey Handsfree")))
+        await harness.clock.advance(by: 2.1)
+        #expect(await harness.waitFor(.asleep))
+        #expect(await eventually { harness.recorder.events.value.last == .asleep(wakePhrase: "Hey Handsfree") })
+        await harness.cycle.stop()
+    }
+
+    @Test func aFailedWakeFollowedByAListenerFailureIsShown() async {
+        let harness = CycleHarness()
+        await harness.cycle.start()
+        _ = await harness.waitFor(.asleep)
+        harness.openErrors.value = [SpeakableError("I couldn't reach the voice service.")]
+        harness.listener.startErrors.value = [SpeakableError("The microphone is busy.")]
+        harness.listener.hear("open Mail")
+        #expect(await harness.waitFor(.cannotListen))
+        let shown = harness.recorder.events.value.compactMap { event -> String? in
+            if case .voiceDisconnected(let reason) = event { return reason } else { return nil }
+        }
+        #expect(await eventually {
+            harness.recorder.events.value.contains(.voiceDisconnected(reason: "The microphone is busy."))
+        })
+        #expect(shown.contains("I couldn't reach the voice service."))
         await harness.cycle.stop()
     }
 }

@@ -187,6 +187,7 @@ func listen() async {
         case .restarting(let reason): print("  restarting: \(reason)")
         case .restartFailed(let error, let retry): print("  couldn't restart (\(error.spokenMessage)); retrying in \(format(retry))")
         case .transcript(let text, let isFinal): print("    recogniser\(isFinal ? " (final)" : ""): \(text)")
+        case .speechWithoutPhrase: print("  heard speech that was not the phrase")
         }
     }
 
