@@ -110,7 +110,7 @@ struct CompanionStack: View {
     var body: some View {
         VStack(alignment: alignsTrailing ? .trailing : .leading, spacing: 8) {
             if state.sleepHint != nil {
-                SleepHintPill(wakePhrase: state.wakePhrase)
+                SleepHintPill(wakePhrase: state.wakePhrase, heardOtherSpeech: state.sleepHintHeardOtherSpeech)
                     .transition(.opacity)
             }
             if let caption = state.caption {
@@ -136,9 +136,11 @@ struct CompanionStack: View {
 /// because it stays up all the time the app is asleep, beside a pointer the user cannot move away.
 struct SleepHintPill: View {
     let wakePhrase: String
+    /// For a moment after it heard speech that was not the phrase: proof that it can hear.
+    var heardOtherSpeech = false
 
     var body: some View {
-        (Text("Asleep. ").foregroundColor(DS.Colors.textTertiary)
+        (Text(heardOtherSpeech ? "Heard something. " : "Asleep. ").foregroundColor(heardOtherSpeech ? DS.Colors.textSecondary : DS.Colors.textTertiary)
             + Text("Say ").foregroundColor(DS.Colors.textSecondary)
             + Text("\u{201C}\(wakePhrase)\u{201D}").foregroundColor(DS.Colors.textPrimary))
             .font(DS.Companion.sleepHintFont)

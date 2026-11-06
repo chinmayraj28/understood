@@ -145,6 +145,8 @@ public final class VoiceSession {
     // This conversation.
     /// The rest of the wake sentence, said as the user's first turn as soon as the conversation is ready.
     private var pendingFirstUtterance: String?
+    /// True when a restored first utterance was already given to the transcript listeners.
+    private var firstUtteranceAlreadyHeard = false
     /// False until this conversation has connected once; a later connect is a reconnect.
     private var hasConnectedThisConversation = false
     private var openRequestedAt: TimeInterval = 0
@@ -329,6 +331,7 @@ public final class VoiceSession {
         reconnectAttempt = 0
         let text = firstUtterance.trimmingCharacters(in: .whitespacesAndNewlines)
         pendingFirstUtterance = text.isEmpty ? nil : text
+        firstUtteranceAlreadyHeard = false
 
         // The agent should have this run's tools before the first conversation, so the first
         // wake waits for the launch-time update, but at most `firstSyncPatience`: someone who
@@ -533,7 +536,7 @@ public final class VoiceSession {
                 self.syncingFingerprint = nil
                 self.syncTask = nil
                 // On failure the agent keeps its last definition; the next open tries again.
-                if succeeded { self.syncedFingerprint = fingerprint }
+                if succeeded { self.syncedFingerprint = fingerprint } else { self.hasWaitedForFirstSync = true }  // after a failure, wakes never wait
             }
             return succeeded
         }
@@ -581,7 +584,7 @@ public final class VoiceSession {
             bus.post(.listening)
             if let first = pendingFirstUtterance {
                 pendingFirstUtterance = nil
-                await sendFirstUtterance(first, generation: myGeneration)
+                await sendFirstUtterance(first, generation: myGeneration, alreadyHeard: firstUtteranceAlreadyHeard)
             }
             await deliverIfReady()
         } catch {
@@ -596,11 +599,11 @@ public final class VoiceSession {
     /// Says the rest of the wake sentence on this connection. One quick retry if the send fails
     /// while still connected; if the connection dropped, it is kept for the reconnect. It is never
     /// carried into a different conversation (the generation check).
-    private func sendFirstUtterance(_ text: String, generation connectionGeneration: Int) async {
+    private func sendFirstUtterance(_ text: String, generation connectionGeneration: Int, alreadyHeard: Bool = false) async {
         for attempt in 0..<2 {
             guard connectionGeneration == generation, wantsToRun else { return }
             do {
-                try await sayAsUser(text, tellListeners: attempt == 0)
+                try await sayAsUser(text, tellListeners: attempt == 0 && !alreadyHeard)
                 return
             } catch {
                 if attempt == 0, isConnected { await sleep(0.3) } else { break }
@@ -608,6 +611,7 @@ public final class VoiceSession {
         }
         if connectionGeneration == generation, wantsToRun, pendingFirstUtterance == nil {
             pendingFirstUtterance = text
+            firstUtteranceAlreadyHeard = true  // the stop watcher has heard it; do not tell it again
         }
     }
 

@@ -100,10 +100,10 @@ struct ListeningStatus: Equatable {
         guard !alwaysOpen else { return "" }
         var parts: [String] = []
         parts.append(speechWithoutPhraseCount == 0
-            ? "No other speech heard yet"
-            : "Heard speech \(times(speechWithoutPhraseCount)) that was not \u{201C}\(wakePhrase)\u{201D}"
+            ? "no other speech heard yet"
+            : "heard speech \(times(speechWithoutPhraseCount)) that was not \u{201C}\(wakePhrase)\u{201D}"
                 + (lastSpeechWithoutPhraseAt.map { ", last \(ago($0, now: now))" } ?? ""))
-        parts.append("woke \(times(wakeCount))" + (lastWakeAt.map { ", last \(ago($0, now: now))" } ?? ""))
+        parts.append(wakeCount == 0 ? "not woken yet" : "woke \(times(wakeCount))" + (lastWakeAt.map { ", last \(ago($0, now: now))" } ?? ""))
         return "Since launch: " + parts.joined(separator: "; ") + ". What was said is never kept."
     }
 

@@ -95,6 +95,7 @@ targets:
       - path: Handsfree/Companion/SoundCues.swift
       - path: Handsfree/Integration/Parts.swift
       - path: Handsfree/Integration/CycleWiring.swift
+      - path: Handsfree/Integration/ListeningStatus.swift
     dependencies:
       - package: HFCore
     settings:

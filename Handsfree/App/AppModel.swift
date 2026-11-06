@@ -22,6 +22,8 @@ final class AppModel: ObservableObject {
     @Published var sleepAfterIdleSeconds = 25.0
     /// WAKE_MODE=always: a conversation is kept open and no phrase is needed.
     @Published var isAlwaysOpen = false
+    /// The wake listener, the conversation, and what has been heard (counts only).
+    @Published var listening = ListeningStatus()
 
     var setupItems: [SetupItem] { SetupCheck.items(for: setupFacts) }
     var isReady: Bool { SetupCheck.isReady(setupFacts) }

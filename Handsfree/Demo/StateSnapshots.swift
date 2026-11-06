@@ -22,6 +22,8 @@ enum StateSnapshots {
         ("21-waking", [.asleep(wakePhrase: "Hey Handsfree"), .waking]),
         ("22-awake", [.asleep(wakePhrase: "Hey Handsfree"), .waking, .listening]),
         ("23-woken-with-request", [.asleep(wakePhrase: "Hey Handsfree"), .waking, .listening, .userSaid("open Spotify")]),
+        // Drawn with `heardSpeechWithoutPhrase` applied after the events (see `render`).
+        ("25-asleep-heard-something", [.asleep(wakePhrase: "Hey Handsfree")]),
         // Existing states, for comparison in the same frame.
         ("cmp-resting", [.listening]),
         ("cmp-disconnected", [.voiceDisconnected(reason: "dropped")]),
@@ -41,6 +43,7 @@ enum StateSnapshots {
         for scene in scenes {
             var state = CompanionState()
             for event in scene.events { state.apply(event, now: start) }
+            if scene.name.hasSuffix("heard-something") { state.heardSpeechWithoutPhrase(now: start) }
             for (suffix, background) in [("light", Color.white), ("dark", Color(hex: "#1D1C22"))] {
                 let url = folder.appendingPathComponent("\(scene.name)-\(suffix).png")
                 if write(SnapshotCanvas(state: state, background: background, stackSize: measureStack(state)), to: url) {
@@ -54,6 +57,7 @@ enum StateSnapshots {
             microphone: .granted, accessibility: .granted, screenRecording: .granted,
             speechRecognition: .notAsked, needsSpeechRecognition: true, keysFilePath: "~/Library/Application Support/Handsfree/.env")
         let app = AppModel(setupFacts: facts)
+        app.listening.waitingFor = "the Speech Recognition permission"
         let companion = CompanionModel(bus: ActivityBus())
         companion.handle(.asleep(wakePhrase: "Hey Handsfree"))
         let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in }, onPlayDemo: {})

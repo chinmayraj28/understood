@@ -156,6 +156,16 @@ What still has to happen: the user grants the four permissions, then one spoken 
 5. System Settings > Privacy & Security > **Screen & System Audio Recording**: switch **Handsfree** on, and choose **Quit & Reopen** if offered (macOS applies this one only after a restart).
 The panel lists exactly what is still missing, in words written for whoever is helping, with an "Ask macOS" or "Open Settings" button for each. Speech Recognition is asked for only in wake mode "phrase" (the default). Its usage text is `NSSpeechRecognitionUsageDescription` in `project.yml`.
 
+**Granting them one at a time is fine.** The app checks every 2 s. The listening cycle starts the moment the Microphone permission, the Speech Recognition permission and the ElevenLabs key are all in place, and until then the companion and the panel say exactly which are still missing ("Waiting for the Microphone permission and the Speech Recognition permission."). Voice works without Accessibility and Screen Recording; tasks then fail with a sentence saying why.
+
+**Diagnosis: the panel's LISTENING section and `app-status.json` → `listening`.** They show:
+- which permissions are granted (one dot each);
+- the wake listener: not started (and what it is waiting for), listening on this Mac (with the recogniser's name), paused while a conversation has the microphone, or not running (with the reason);
+- the conversation: closed, opening or reconnecting, or open and able to hear;
+- counts since launch: how many times it heard speech that was not the phrase, and how many times it woke, with how long ago. **What was said is never stored, logged or shown**, only counted. This is what lets the first real test tell "it cannot hear me" (no counts move while someone speaks) from "it heard me but did not recognise the phrase" (the "not the phrase" count goes up). While asleep the companion's hint also changes for 3 s to "Heard something. Say “Hey Handsfree”" each time.
+- `app-status.json` holds the same as `cycle_state`, `waiting_for`, `wake_listener` (`running`, `recognizer`, `problem`, `speech_without_phrase_count`, `phrase_heard_count`, `wake_count`, `restart_count`, seconds since the last of each) and `conversation` (`open`, `connected`). It is rewritten whenever any of these change.
+- The "speech that was not the phrase" count needs a content-free diagnostic from HFWake (`speechWithoutPhrase`), requested from its owner on 6 Nov; until it lands that count stays at 0 and the hint does not change. Everything else above works now.
+
 The panel's **TO START** section tells the helper how it is used: "The person says “Hey Handsfree”, then what they want, in one go: “Hey Handsfree, open Spotify”. A rising chime means it is listening. A falling chime means it has gone back to sleep, after about 25 seconds of quiet or when they say “that’s all”. Until the phrase is heard, nothing they say leaves this Mac."
 
 Caveats: if the signing certificate is ever replaced by one with a different name, the grants will be asked for again. On a crowded menu bar, macOS can hide a new status item behind the MacBook's notch; on this Mac the Handsfree icon appears to land there. The panel opens by itself at launch while setup is incomplete, and `--show-panel` opens it any time.

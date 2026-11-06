@@ -57,6 +57,8 @@ final class AppCoordinator {
         appModel.wakePhrase = settings.wakePhrase
         appModel.sleepAfterIdleSeconds = settings.sleepAfterIdleSeconds
         appModel.isAlwaysOpen = settings.wakeMode == .always && !options.isDemo
+        appModel.listening.wakePhrase = settings.wakePhrase
+        appModel.listening.alwaysOpen = settings.wakeMode == .always
     }
 
     func start() {
@@ -227,23 +229,32 @@ final class AppCoordinator {
         guard !hasStartedListening, !isShuttingDown, let parts else { return }
         let facts = appModel.setupFacts
         let needsSpeech = facts.needsSpeechRecognition
-        guard facts.microphone == .granted, facts.hasElevenLabsKey, !needsSpeech || facts.speechRecognition == .granted else {
-            let reason: String
-            if facts.microphone != .granted {
-                reason = "Waiting for the Microphone permission."
-            } else if !facts.hasElevenLabsKey {
-                reason = "Waiting for the ElevenLabs key."
-            } else {
-                reason = "Waiting for the Speech Recognition permission."
+        // Permissions may be granted one at a time, in any order: this runs again on every change
+        // (the setup refresh, every 2 s), says exactly what is still missing, and starts as soon
+        // as nothing is.
+        var missing: [String] = []
+        if facts.microphone != .granted { missing.append("the Microphone permission") }
+        if needsSpeech && facts.speechRecognition != .granted { missing.append("the Speech Recognition permission") }
+        if !facts.hasElevenLabsKey { missing.append("the ElevenLabs key") }
+        guard missing.isEmpty else {
+            let waitingFor = Self.joinedList(missing)
+            if appModel.listening.waitingFor != waitingFor {
+                appModel.listening.waitingFor = waitingFor
+                bus.post(.voiceDisconnected(reason: "Waiting for \(waitingFor)."))
             }
-            bus.post(.voiceDisconnected(reason: reason))
             return
         }
+        appModel.listening.waitingFor = nil
         hasStartedListening = true
 
         let hooks = CycleWiring.hooks(voice: parts.voice, runner: parts.taskRunner, memory: parts.memory)
         let newCycle: any ListeningCycling
-        if Self.usesWakePhrase(settings: settings), let real = RealParts.makeListeningCycle(settings: settings, hooks: hooks, bus: bus) {
+        let onListenerEvent: @Sendable (WakeListenerEvent) -> Void = { [weak self] event in
+            Task { @MainActor in self?.listenerReported(event) }
+        }
+        if Self.usesWakePhrase(settings: settings),
+            let real = RealParts.makeListeningCycle(settings: settings, hooks: hooks, bus: bus, onListenerEvent: onListenerEvent)
+        {
             newCycle = real
             recordCycle(real: true, note: "ListeningCycle with the on-device wake listener: asleep until \u{201C}\(settings.wakePhrase)\u{201D}, asleep again after \(Int(settings.sleepAfterIdleSeconds)) s of quiet")
         } else {
@@ -255,7 +266,8 @@ final class AppCoordinator {
         cycle = newCycle
         // "That's all, thanks" reaches the cycle through the go_to_sleep tool.
         parts.sleepRequests.setHandler { [weak newCycle] in newCycle?.requestSleep() }
-        // A task's news arriving while asleep (it should not happen: a task keeps it awake) wakes it to say it.
+        // A task's news arriving while asleep (it should not happen: a task keeps it awake). HFWake cannot
+        // wake without the phrase yet, so this does nothing for now; the news is said in the next conversation.
         parts.voice.onNewsWhileClosed = { [weak newCycle] in newCycle?.wakeWithoutPhrase() }
 
         let stopWatcher = parts.stopWatcher
@@ -272,6 +284,38 @@ final class AppCoordinator {
             // And if quitting started while the cycle was starting, stop it again at once.
             if self.isShuttingDown { await newCycle.stop() }
         }
+    }
+
+    /// "A and B", "A, B and C".
+    static func joinedList(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + items.last!
+    }
+
+    /// The wake listener did something. Counts only: no words arrive here.
+    private func listenerReported(_ event: WakeListenerEvent) {
+        appModel.listening.record(event, at: Date())
+        if event == .speechWithoutPhrase { companion.heardSpeechWithoutPhrase() }
+        Task { await refreshListening() }
+    }
+
+    /// Reads where the cycle, the wake listener and the conversation are, for the panel and the
+    /// status file. Runs every 2 s with the setup refresh, and after every listener event.
+    private func refreshListening() async {
+        var status = appModel.listening
+        if let cycle {
+            status.cycleState = await cycle.currentState()
+            status.listenerRunning = cycle.isListenerRunning
+            if status.listenerRunning { status.listenerProblem = nil }
+        }
+        if let voice = parts?.voice {
+            status.conversationOpen = voice.conversationActivity.isOpen
+            status.conversationConnected = voice.isConversationConnected
+        }
+        guard status != appModel.listening else { return }
+        appModel.listening = status
+        panel?.refitPanel()
+        writeStatusFile()
     }
 
     private func recordCycle(real: Bool, note: String) {
@@ -319,6 +363,8 @@ final class AppCoordinator {
             MainActor.assumeIsolated {
                 self?.refreshSetup()
                 self?.panel?.refitPanel()
+                guard let self, !self.options.isDemo else { return }
+                Task { await self.refreshListening() }
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -449,7 +495,7 @@ final class AppCoordinator {
             case .notGranted: return "not granted"
             }
         }
-        let status: [String: Any] = [
+        var status: [String: Any] = [
             "written_at": ISO8601DateFormatter().string(from: Date()),
             "bundle_path": Bundle.main.bundlePath,
             "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
@@ -471,6 +517,10 @@ final class AppCoordinator {
             "overlay_click_through_check": overlayLetsClicksThrough.map { $0 ? "passed" : "FAILED" } ?? "not run yet",
             "parts": appModel.wiring.map { ["part": $0.part, "real": $0.isReal, "note": $0.note] },
         ]
+        // Is the wake listener running, is a conversation open, and what has been heard (counts only).
+        if !options.isDemo {
+            status["listening"] = appModel.listening.statusDictionary(now: Date())
+        }
         do {
             try FileManager.default.createDirectory(at: settings.dataDirectory, withIntermediateDirectories: true)
             let data = try JSONSerialization.data(withJSONObject: status, options: [.prettyPrinted, .sortedKeys])

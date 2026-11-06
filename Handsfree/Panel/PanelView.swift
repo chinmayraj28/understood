@@ -35,6 +35,11 @@ struct PanelView: View {
                 hairline
             }
 
+            if !app.isDemo {
+                section("LISTENING") { listeningSection }
+                hairline
+            }
+
             section("TO START") {
                 Text(SetupCheck.howToStart(wakePhrase: app.wakePhrase, sleepAfterSeconds: app.sleepAfterIdleSeconds, alwaysOpen: app.isAlwaysOpen))
                     .font(.system(size: 12))
@@ -176,11 +181,26 @@ struct PanelView: View {
                     }
                 }
             }
-            permissionSummary
             Text(SetupCheck.whereToFindIt)
                 .font(.system(size: 11))
                 .foregroundColor(DS.Colors.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// For whoever is checking why it does not respond: which permissions it has, whether the
+    /// wake listener runs, whether a conversation is open, and what it has heard (counts only).
+    private var listeningSection: some View {
+        let status = app.listening
+        return VStack(alignment: .leading, spacing: 6) {
+            permissionSummary
+            ForEach([status.listenerLine, status.conversationLine, status.heardLine(now: Date())].filter { !$0.isEmpty }, id: \.self) { line in
+                Text(line)
+                    .font(.system(size: 12))
+                    .foregroundColor(DS.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 

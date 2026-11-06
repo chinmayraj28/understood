@@ -65,6 +65,11 @@ final class CompanionModel: ObservableObject {
         afterEvent?(event)
     }
 
+    /// The wake listener heard speech that was not the phrase (no words are passed).
+    func heardSpeechWithoutPhrase() {
+        state.heardSpeechWithoutPhrase(now: Date())
+    }
+
     private func expireOldItems() {
         guard !isFrozen else { return }
         var updated = state

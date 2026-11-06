@@ -330,3 +330,64 @@ struct CycleWiringTests {
         #expect(CycleWiring.isTaskActive(runner))
     }
 }
+
+@Suite("Listening status for diagnosis")
+struct ListeningStatusTests {
+    let start = Date(timeIntervalSince1970: 1_000_000)
+
+    @Test("Speech that is not the phrase is counted, never stored")
+    func counts() {
+        var status = ListeningStatus()
+        status.listenerRunning = true
+        status.record(.started(recognizer: "SpeechAnalyzer"), at: start)
+        #expect(status.heardLine(now: start).contains("no other speech heard yet"), "all zero: it cannot hear, or nobody spoke")
+        status.record(.speechWithoutPhrase, at: start)
+        status.record(.speechWithoutPhrase, at: start.addingTimeInterval(5))
+        status.record(.phraseHeard, at: start.addingTimeInterval(6))
+        status.record(.woke, at: start.addingTimeInterval(6))
+        let line = status.heardLine(now: start.addingTimeInterval(10))
+        #expect(line.contains("heard speech 2 times that was not \u{201C}Hey Handsfree\u{201D}, last 5 s ago"))
+        #expect(line.contains("woke once, last 4 s ago"))
+        #expect(line.contains("never kept"))
+        #expect(status.listenerLine.contains("listening on this Mac") && status.listenerLine.contains("SpeechAnalyzer"))
+        let file = status.statusDictionary(now: start.addingTimeInterval(10))
+        let listener = file["wake_listener"] as? [String: Any]
+        #expect(listener?["speech_without_phrase_count"] as? Int == 2)
+        #expect(listener?["wake_count"] as? Int == 1)
+        #expect(listener?["running"] as? Bool == true)
+    }
+
+    @Test("Each state says plainly what is happening")
+    func lines() {
+        var status = ListeningStatus()
+        status.waitingFor = "the Speech Recognition permission"
+        #expect(status.listenerLine == "Wake listener: not started. Waiting for the Speech Recognition permission.")
+        status.waitingFor = nil
+        status.record(.cannotListen(reason: "Speech Recognition is off for Handsfree."), at: start)
+        #expect(status.listenerLine.contains("not running. Speech Recognition is off"))
+        status.record(.started(recognizer: "SFSpeechRecognizer"), at: start)
+        #expect(status.listenerProblem == nil, "a restart that works clears the problem")
+        status.conversationOpen = true
+        #expect(status.listenerLine.contains("paused while the conversation has the microphone"))
+        #expect(status.conversationLine.contains("opening"))
+        status.conversationConnected = true
+        #expect(status.conversationLine == "Conversation: open, and the voice service can hear.")
+        status.conversationOpen = false; status.conversationConnected = false
+        #expect(status.conversationLine.contains("Nothing said reaches the voice service"))
+        status.alwaysOpen = true
+        #expect(status.listenerLine.contains("WAKE_MODE=always"))
+    }
+
+    @Test("While asleep, speech that is not the phrase briefly changes the hint")
+    func companionHint() {
+        var state = CompanionState()
+        state.heardSpeechWithoutPhrase(now: start)
+        #expect(!state.sleepHintHeardOtherSpeech, "only while asleep")
+        state.apply(.asleep(wakePhrase: "Hey Handsfree"), now: start)
+        state.heardSpeechWithoutPhrase(now: start)
+        #expect(state.sleepHintHeardOtherSpeech)
+        #expect(state.sleepHint != nil)
+        state.expire(now: start.addingTimeInterval(CompanionTiming.heardOtherSpeechSeconds + 0.01))
+        #expect(!state.sleepHintHeardOtherSpeech)
+    }
+}

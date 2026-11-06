@@ -30,6 +30,8 @@ enum CompanionTiming {
     static let reconnectedCaptionSeconds = 2.5
     /// "Listening", shown when a conversation has opened after the wake phrase.
     static let awakeCaptionSeconds = 2.5
+    /// While asleep, how long the hint says it heard speech that was not the phrase.
+    static let heardOtherSpeechSeconds = 3.0
     /// No new microphone level for this long means the user has stopped talking.
     static let userSpeakingSilenceSeconds = 0.7
     static let clickRippleSeconds = 1.1
@@ -152,6 +154,9 @@ struct CompanionState: Equatable {
     var wakePhrase = "Hey Handsfree"
     /// True when a wake's conversation failed to open and is being retried.
     var wokeWithoutConnecting = false
+    /// While asleep: speech was heard that was not the phrase, so for a moment the hint says so.
+    /// Lets the user tell "it cannot hear me" from "it heard me but not the phrase". Holds no words.
+    var heardOtherSpeechUntil: Date?
     /// 0...1, for the waveform.
     var voiceLevel: Double = 0
     var lastVoiceLevelAt: Date?
@@ -207,6 +212,15 @@ struct CompanionState: Equatable {
     var sleepHint: String? {
         guard isAsleep, caption == nil, prompt == nil else { return nil }
         return "Say \u{201C}\(wakePhrase)\u{201D}"
+    }
+
+    /// True for a moment after speech that was not the phrase was heard while asleep.
+    var sleepHintHeardOtherSpeech: Bool { isAsleep && heardOtherSpeechUntil != nil }
+
+    /// The wake listener heard speech that was not the phrase. Only while asleep.
+    mutating func heardSpeechWithoutPhrase(now: Date) {
+        guard voice == .asleep else { return }
+        heardOtherSpeechUntil = now.addingTimeInterval(CompanionTiming.heardOtherSpeechSeconds)
     }
 
     // MARK: - Events
@@ -413,6 +427,7 @@ struct CompanionState: Equatable {
 
     /// Removes whatever has run out of time. Called several times a second.
     mutating func expire(now: Date) {
+        if let until = heardOtherSpeechUntil, until <= now || voice != .asleep { heardOtherSpeechUntil = nil }
         if let caption, caption.expiresAt <= now { self.caption = nil }
         if let prompt, prompt.expiresAt <= now {
             self.prompt = nil
