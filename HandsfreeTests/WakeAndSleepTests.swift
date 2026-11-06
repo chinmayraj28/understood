@@ -373,7 +373,7 @@ struct ListeningStatusTests {
         #expect(status.listenerLine.contains("paused while the conversation has the microphone"))
         #expect(status.conversationLine.contains("opening"))
         status.conversationConnected = true
-        #expect(status.conversationLine.hasPrefix("Conversation: open, and the voice service can hear. Goes back to sleep after 25 seconds of quiet"))
+        #expect(status.conversationLine.hasPrefix("Conversation: open, and the voice service can hear. Goes back to sleep after 15 seconds of quiet"))
         #expect(status.conversationLine.contains("never while a task is running"))
         status.conversationOpen = false; status.conversationConnected = false
         #expect(status.conversationLine.contains("Nothing said reaches the voice service"))

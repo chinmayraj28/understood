@@ -146,6 +146,235 @@ enum DS {
         static let fadeIn = SwiftUI.Animation.easeOut(duration: 0.18)
         static let fadeOut = SwiftUI.Animation.easeIn(duration: 0.35)
     }
+
+    // MARK: - Menu bar panel
+
+    /// Tokens for the menu bar panel. Unlike the overlay (always dark, drawn over any app), the
+    /// panel is a normal Mac window: it follows the system's light or dark appearance and sits on
+    /// the system's own translucent material. Every text colour here meets WCAG AA (4.5:1) on the
+    /// panel's background and on its cards, in both appearances; the ratios are noted beside each.
+    enum Panel {
+        static let width: CGFloat = 380
+        /// macOS 26's panels and popovers use generous, continuous corners.
+        static let cornerRadius: CGFloat = 16
+        static let cardCornerRadius: CGFloat = 12
+        static let controlCornerRadius: CGFloat = 8
+        static let bubbleCornerRadius: CGFloat = 14
+        /// The space around the panel's content and between its blocks (the 4/8-point grid).
+        static let inset: CGFloat = 16
+        static let blockSpacing: CGFloat = 12
+        static let iconTile: CGFloat = 28
+        /// Taller than this, the conversation scrolls (and keeps the newest line in view).
+        static let threadMaxHeight: CGFloat = 220
+        /// Taller than this, the whole panel body scrolls (the manager lowers it on small screens).
+        static let bodyMaxHeight: CGFloat = 680
+
+        // Text. The system's own secondary label colour is only about 3.9:1 on white, so the
+        // panel uses its own, darker in light mode and lighter in dark mode.
+        static let textPrimary = Adaptive(light: "#1D1B22", dark: "#F1EFF6")
+        /// 7.4:1 on white, 6.4:1 on the light material; 9.6:1 on the dark material.
+        static let textSecondary = Adaptive(light: "#55525E", dark: "#C4C0CF")
+        /// For quiet labels only (eyebrows, the footer). 5.3:1 on white; 5.4:1 on the dark material.
+        static let textTertiary = Adaptive(light: "#6A6773", dark: "#9D99A9")
+
+        /// Iris, for text and icons: 5.7:1 on white (iris 600), 5.7:1 on the dark material (iris 400).
+        static let accent = Adaptive(light: "#6B47F5", dark: "#A98BFF")
+        /// Fills behind white text: white on iris 600 is 5.7:1, in both appearances.
+        static let accentFill = Adaptive(light: "#6B47F5", dark: "#6B47F5")
+        static let accentFillPressed = Adaptive(light: "#5733DB", dark: "#5733DB")
+        static let accentTint = Adaptive(light: "#6B47F5", dark: "#8B66FF", lightOpacity: 0.10, darkOpacity: 0.20)
+
+        /// Waiting for a yes or an answer: 5.9:1 on white; 11:1 on the dark material.
+        static let hold = Adaptive(light: "#8A5A00", dark: "#FFC85C")
+        static let holdTint = Adaptive(light: "#FFB224", dark: "#FFB224", lightOpacity: 0.16, darkOpacity: 0.14)
+        static let holdEdge = Adaptive(light: "#C98500", dark: "#FFB224", lightOpacity: 0.55, darkOpacity: 0.45)
+        /// Done, granted: 6.6:1 on white and 5.4:1 on its own tint; 9.5:1 on the dark material.
+        static let success = Adaptive(light: "#156B3F", dark: "#3DDC97")
+        static let successTint = Adaptive(light: "#156B3F", dark: "#3DDC97", lightOpacity: 0.10, darkOpacity: 0.14)
+        /// Stopped, failed, something wrong: 5.7:1 on white; 6.6:1 on the dark material.
+        static let stop = Adaptive(light: "#C4282E", dark: "#FF8A8D")
+        static let stopTint = Adaptive(light: "#C4282E", dark: "#FF5A5F", lightOpacity: 0.09, darkOpacity: 0.15)
+        static let stopEdge = Adaptive(light: "#C4282E", dark: "#FF5A5F", lightOpacity: 0.35, darkOpacity: 0.40)
+
+        /// Cards sit a step above the material, as grouped rows do in System Settings.
+        static let card = Adaptive(light: "#FFFFFF", dark: "#FFFFFF", lightOpacity: 0.78, darkOpacity: 0.06)
+        static let cardEdge = Adaptive(light: "#000000", dark: "#FFFFFF", lightOpacity: 0.07, darkOpacity: 0.08)
+        static let separator = Adaptive(light: "#000000", dark: "#FFFFFF", lightOpacity: 0.09, darkOpacity: 0.10)
+        static let quietFill = Adaptive(light: "#000000", dark: "#FFFFFF", lightOpacity: 0.05, darkOpacity: 0.08)
+        static let quietFillHover = Adaptive(light: "#000000", dark: "#FFFFFF", lightOpacity: 0.09, darkOpacity: 0.13)
+        /// Handsfree's side of the conversation.
+        static let assistantBubble = Adaptive(light: "#000000", dark: "#FFFFFF", lightOpacity: 0.06, darkOpacity: 0.10)
+        /// The edge around the whole panel, so it separates from a window of the same colour.
+        static let panelEdge = Adaptive(light: "#000000", dark: "#FFFFFF", lightOpacity: 0.12, darkOpacity: 0.14)
+        /// Stands in for the system material when the panel is drawn to an image (`--render-states`),
+        /// which cannot draw AppKit's material view: close to the popover material over a plain desktop.
+        static let snapshotBackground = Adaptive(light: "#F0EFF2", dark: "#29282D")
+
+        /// A colour for light and one for dark, picked from the view's own colour scheme. A SwiftUI
+        /// shape style rather than a dynamic NSColor, so it also resolves correctly when drawn off screen.
+        struct Adaptive: ShapeStyle {
+            let light: String
+            let dark: String
+            var lightOpacity: Double = 1
+            var darkOpacity: Double = 1
+
+            func resolve(in environment: EnvironmentValues) -> Color {
+                environment.colorScheme == .dark
+                    ? Color(hex: dark).opacity(darkOpacity) : Color(hex: light).opacity(lightOpacity)
+            }
+        }
+
+        /// The panel's type ramp, in SF Pro. Sizes are at text scale 1 and grow with
+        /// `panelTextScale` (see `panelFont`).
+        enum TextStyle {
+            case hero, title, headline, body, callout, footnote, eyebrow, mono
+
+            var size: CGFloat {
+                switch self {
+                case .hero: return 22
+                case .title: return 17
+                case .headline: return 13
+                case .body: return 13
+                case .callout: return 12
+                case .footnote: return 11
+                case .eyebrow: return 11
+                case .mono: return 11.5
+                }
+            }
+
+            var weight: Font.Weight {
+                switch self {
+                case .hero: return .bold
+                case .title, .headline, .eyebrow: return .semibold
+                default: return .regular
+                }
+            }
+        }
+
+        /// Spring for content changing inside the panel; replaced by a plain fade under Reduce Motion.
+        static let change = SwiftUI.Animation.spring(response: 0.35, dampingFraction: 0.85)
+    }
+}
+
+// MARK: - Panel text size
+
+/// How much larger than standard the panel's text is drawn (1 = standard). macOS has no system-wide
+/// text size for apps, so the panel reads its own setting: `defaults write com.handsfree.Handsfree
+/// PanelTextScale 1.3` (1 to 1.6). Every panel font goes through `panelFont`, so the whole panel scales.
+private struct PanelTextScaleKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 1
+}
+
+extension EnvironmentValues {
+    var panelTextScale: CGFloat {
+        get { self[PanelTextScaleKey.self] }
+        set { self[PanelTextScaleKey.self] = newValue }
+    }
+}
+
+private struct PanelFontModifier: ViewModifier {
+    let style: DS.Panel.TextStyle
+    @Environment(\.panelTextScale) private var scale
+
+    func body(content: Content) -> some View {
+        let font = Font.system(size: (style.size * scale).rounded(), weight: style.weight, design: style == .mono ? .monospaced : .default)
+        if style == .eyebrow {
+            content.font(font).textCase(.uppercase).tracking(0.5)
+        } else {
+            content.font(font)
+        }
+    }
+}
+
+private struct PanelSymbolModifier: ViewModifier {
+    let size: CGFloat
+    let weight: Font.Weight
+    @Environment(\.panelTextScale) private var scale
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: (size * scale).rounded(), weight: weight))
+    }
+}
+
+extension View {
+    /// Sets one of the panel's text styles, scaled by `panelTextScale`.
+    func panelFont(_ style: DS.Panel.TextStyle) -> some View {
+        modifier(PanelFontModifier(style: style))
+    }
+
+    /// Sizes an SF Symbol beside panel text, so it grows with `panelTextScale` as the text does.
+    func panelSymbol(_ size: CGFloat, _ weight: Font.Weight = .regular) -> some View {
+        modifier(PanelSymbolModifier(size: size, weight: weight))
+    }
+}
+
+// MARK: - Panel button styles
+
+/// The one main action on screen ("Allow Microphone"): solid iris, white text.
+struct PanelPrimaryButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .panelFont(.headline)
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .frame(minHeight: 28)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Panel.controlCornerRadius, style: .continuous)
+                    .fill(isHovered || configuration.isPressed ? AnyShapeStyle(DS.Panel.accentFillPressed) : AnyShapeStyle(DS.Panel.accentFill)))
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: DS.Panel.controlCornerRadius, style: .continuous))
+            .animation(.easeOut(duration: DS.Animation.fast), value: isHovered)
+            .onHover { isHovered = $0 }
+            .pointerCursor()
+    }
+}
+
+/// A supporting action, or the lowest-emphasis one (Quit, details): text on a quiet fill that
+/// appears on hover. `isFilled` keeps the fill visible when the button must read as a button at rest.
+struct PanelQuietButtonStyle: ButtonStyle {
+    var isFilled = false
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .panelFont(.callout)
+            .foregroundStyle(isHovered || configuration.isPressed ? AnyShapeStyle(DS.Panel.textPrimary) : AnyShapeStyle(DS.Panel.textSecondary))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(minHeight: 24)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(fill(isPressed: configuration.isPressed)))
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .animation(.easeOut(duration: DS.Animation.fast), value: isHovered)
+            .onHover { isHovered = $0 }
+            .pointerCursor()
+    }
+
+    private func fill(isPressed: Bool) -> AnyShapeStyle {
+        if isPressed || isHovered { return AnyShapeStyle(DS.Panel.quietFillHover) }
+        return isFilled ? AnyShapeStyle(DS.Panel.quietFill) : AnyShapeStyle(Color.clear)
+    }
+}
+
+/// The round close button in the panel's header: the one icon-only control.
+struct PanelCloseButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(isHovered ? AnyShapeStyle(DS.Panel.textPrimary) : AnyShapeStyle(DS.Panel.textSecondary))
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(isHovered || configuration.isPressed ? AnyShapeStyle(DS.Panel.quietFillHover) : AnyShapeStyle(DS.Panel.quietFill)))
+            .contentShape(Circle())
+            .animation(.easeOut(duration: DS.Animation.fast), value: isHovered)
+            .onHover { isHovered = $0 }
+            .pointerCursor()
+    }
 }
 
 // MARK: - Button styles (adapted from Clicky's DSPrimaryButtonStyle and DSOutlinedButtonStyle, smaller for the panel)

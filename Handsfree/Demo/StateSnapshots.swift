@@ -79,6 +79,22 @@ enum StateSnapshots {
             let url = folder.appendingPathComponent("\(name).png")
             if write(panel, to: url) { written.append(url) }
         }
+        written += renderPanelStates(to: folder.appendingPathComponent("panel"), now: start)
+        return written
+    }
+
+    /// The menu bar panel in every state of `PanelStateCatalogue`, in light and dark, into `folder`.
+    static func renderPanelStates(to folder: URL, now: Date) -> [URL] {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var written: [URL] = []
+        for example in PanelStateCatalogue.examples(now: now) {
+            for scheme in [ColorScheme.light, .dark] {
+                let url = folder.appendingPathComponent("\(example.name)-\(scheme == .light ? "light" : "dark").png")
+                let frame = PanelSnapshotFrame(example: example)
+                    .environment(\.colorScheme, scheme)
+                if write(frame, to: url, palette: true) { written.append(url) }
+            }
+        }
         return written
     }
 
@@ -88,9 +104,11 @@ enum StateSnapshots {
         return renderer.nsImage?.size ?? .zero
     }
 
-    private static func write<Content: View>(_ view: Content, to url: URL) -> Bool {
+    /// Draws `view` at 2x into a PNG. With `palette`, a 256-colour PNG (a third of the size), for files kept in docs/.
+    private static func write<Content: View>(_ view: Content, to url: URL, palette: Bool = false) -> Bool {
         let renderer = ImageRenderer(content: view.environment(\.drawsForSnapshot, true))
         renderer.scale = 2
+        if palette, let image = renderer.cgImage { return PalettePNG.write(image, to: url) }
         guard let image = renderer.cgImage,
             let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
         else { return false }
@@ -120,5 +138,23 @@ private struct SnapshotCanvas: View {
         }
         .frame(width: StateSnapshots.canvas.width, height: StateSnapshots.canvas.height)
         .environment(\.colorScheme, .dark)
+    }
+}
+
+/// One panel state, framed on a plain desktop-coloured margin so its corners and shadow show.
+private struct PanelSnapshotFrame: View {
+    let example: PanelStateCatalogue.Example
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        PanelRootView(
+            snapshot: example.snapshot,
+            sleepAfterSeconds: Int(PanelStateCatalogue.sleepAfterSeconds),
+            expandsDetails: example.expandsDetails,
+            onAction: { _ in }, onClose: {}, onQuit: {})
+            .environment(\.panelTextScale, CGFloat(example.textScale))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(20)
+            .background(colorScheme == .dark ? Color(hex: "#121116") : Color(hex: "#D7D6DD"))
     }
 }

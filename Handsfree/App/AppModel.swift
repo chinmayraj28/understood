@@ -19,7 +19,7 @@ final class AppModel: ObservableObject {
     @Published var isDemo = false
     /// What wakes it, and how long it stays awake with nothing going on (from Settings).
     @Published var wakePhrase = "Hey Handsfree"
-    @Published var sleepAfterIdleSeconds = 25.0
+    @Published var sleepAfterIdleSeconds = 15.0
     /// WAKE_MODE=always: a conversation is kept open and no phrase is needed.
     @Published var isAlwaysOpen = false
     /// The wake listener, the conversation, and what has been heard (counts only).

@@ -69,7 +69,7 @@ struct ListeningStatus: Equatable {
     var wakePhrase = "Hey Handsfree"
     var alwaysOpen = false
     /// How long a conversation stays open with nobody speaking and no task, from SLEEP_AFTER_IDLE_S.
-    var sleepAfterIdleSeconds = 25.0
+    var sleepAfterIdleSeconds = 15.0
 
     // Counts since launch. Only counts and times: never what was said.
     private(set) var speechWithoutPhraseCount = 0
