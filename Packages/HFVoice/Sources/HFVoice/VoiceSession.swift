@@ -102,8 +102,9 @@ public final class VoiceSession {
     private let makeDriver: @MainActor () -> ConversationDriving
     private let clock: @Sendable () -> TimeInterval
     private let sleep: @Sendable (TimeInterval) async -> Void
-    /// Brings the agent's definition in step with the tools. Returns true when it worked.
-    private let syncAgent: (@Sendable ([ToolSpec]) async -> Bool)?
+    /// Brings the agent on ElevenLabs in step with the tools, and checks that it is. Nil in tests
+    /// that do not care about the agent.
+    private let keeper: AgentKeeper?
     /// Gets what the next connection needs (a token or signed URL) ahead of time, so a wake
     /// does not wait for it. Nil in tests.
     private let prepareNextConnection: (@Sendable (ConversationStart) async -> Void)?
@@ -140,7 +141,14 @@ public final class VoiceSession {
     // Keeping the agent's definition in step: once per launch, again only if the tools change.
     private var syncedFingerprint: String?
     private var syncingFingerprint: String?
-    private var syncTask: Task<Bool, Never>?
+    private var syncTask: Task<AgentCheck, Never>?
+    /// The latest check of the agent on ElevenLabs: in step or not, how many tools, when. Nil until checked.
+    public private(set) var agentCheck: AgentCheck?
+    /// Why the last `open` did not open a conversation, if it did not. One sentence, fine to say.
+    public private(set) var openRefusal: String?
+    /// The read-back started with a wake; the first sentence waits for it.
+    private var pendingVerification: Task<AgentCheck, Never>?
+    private var repairTask: Task<Void, Never>?
 
     // This conversation.
     /// The rest of the wake sentence, said as the user's first turn as soon as the conversation is ready.
@@ -209,12 +217,14 @@ public final class VoiceSession {
 
     // MARK: Creating
 
-    /// A session for the app, using `Settings` for the key and the agent id.
+    /// A session using `Settings` for the key, talking to the app's agent (ELEVENLABS_AGENT_ID),
+    /// or, with `agentID`, to another agent such as the test agent (`TestAgent.resolve`).
     ///
-    /// With `syncAgentOnStart`, the agent on ElevenLabs is updated with the current prompt and
-    /// tools once, when the session is prepared, so the agent always matches the code.
+    /// With `syncAgentOnStart`, the agent is brought in step with the app's prompt and tools when
+    /// the session is prepared, read back to confirm it, and checked again on every wake.
     public convenience init(
         settings: Settings,
+        agentID: String? = nil,
         mode: Mode = .voice,
         bus: ActivityBus = .shared,
         configuration: AgentConfiguration = AgentConfiguration(),
@@ -222,38 +232,31 @@ public final class VoiceSession {
         tuning: Tuning = Tuning()
     ) {
         let api = ElevenLabsAPI(apiKey: settings.elevenLabsAPIKey)
-        let agentID = settings.elevenLabsAgentID
-        let sync = syncAgentOnStart && !agentID.isEmpty
-            ? Self.agentSynchroniser(api: api, configuration: configuration, agentID: agentID)
+        let target = agentID ?? settings.elevenLabsAgentID
+        // The app's own agent never takes test tools; any other agent must not be the app's.
+        let role: AgentSyncer.Role = target == settings.elevenLabsAgentID
+            ? .production : .test(productionAgentID: settings.elevenLabsAgentID)
+        let keeper = syncAgentOnStart && !target.isEmpty
+            ? AgentKeeper(syncer: AgentSyncer(apiKey: settings.elevenLabsAPIKey, agentID: target, role: role, configuration: configuration))
             : nil
         let credentials = ConnectionCredentials(api: api)
         self.init(
-            agentID: agentID, mode: mode, bus: bus, tuning: tuning,
+            agentID: target, mode: mode, bus: bus, tuning: tuning,
             makeDriver: { ElevenLabsDriver(credentials: credentials) },
             clock: { ProcessInfo.processInfo.systemUptime },
             sleep: { seconds in try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000)) },
-            syncAgent: sync,
-            prepareNextConnection: { start in await credentials.prefetch(agentID: start.agentID, textOnly: start.textOnly) })
-    }
-
-    /// Updates the agent on ElevenLabs with the current prompt and tools. A failure is
-    /// logged and reported as false: the agent keeps its last definition.
-    nonisolated static func agentSynchroniser(
-        api: ElevenLabsAPI, configuration: AgentConfiguration, agentID: String
-    ) -> @Sendable ([ToolSpec]) async -> Bool {
-        { tools in
-            do {
-                _ = try await api.createOrUpdateAgent(definition: configuration.definition(tools: tools), knownAgentID: agentID)
-                return true
-            } catch {
-                logger.error("Agent update failed: \(String(describing: error), privacy: .public)")
-                return false
-            }
-        }
+            syncAgent: nil,
+            prepareNextConnection: { start in await credentials.prefetch(agentID: start.agentID, textOnly: start.textOnly) },
+            agentKeeper: keeper)
     }
 
     /// The full initialiser, with the SDK, the clock and sleeping injectable. Tests in any package
     /// can pass their own `ConversationDriving` fake here, so nothing touches the network.
+    ///
+    /// - Parameters:
+    ///   - syncAgent: the older, simpler form of `agentKeeper`: true when the update worked. A read-back
+    ///     is then assumed to agree. Kept for tests written against it.
+    ///   - agentKeeper: updates the agent and reads it back. Takes precedence over `syncAgent`.
     public init(
         agentID: String,
         mode: Mode,
@@ -263,7 +266,8 @@ public final class VoiceSession {
         clock: @escaping @Sendable () -> TimeInterval,
         sleep: @escaping @Sendable (TimeInterval) async -> Void,
         syncAgent: (@Sendable ([ToolSpec]) async -> Bool)?,
-        prepareNextConnection: (@Sendable (ConversationStart) async -> Void)? = nil
+        prepareNextConnection: (@Sendable (ConversationStart) async -> Void)? = nil,
+        agentKeeper: AgentKeeper? = nil
     ) {
         self.agentID = agentID
         self.mode = mode
@@ -272,7 +276,7 @@ public final class VoiceSession {
         self.makeDriver = makeDriver
         self.clock = clock
         self.sleep = sleep
-        self.syncAgent = syncAgent
+        self.keeper = agentKeeper ?? syncAgent.map(AgentKeeper.init(simple:))
         self.prepareNextConnection = prepareNextConnection
         self.queue = PushQueue(timing: tuning.push)
     }
@@ -342,29 +346,73 @@ public final class VoiceSession {
         pendingFirstUtterance = text.isEmpty ? nil : text
         firstUtteranceAlreadyHeard = false
 
-        // The agent should have this run's tools before the first conversation, so the first
-        // wake waits for the launch-time update, but at most `firstSyncPatience`: someone who
-        // wakes it right after launch on a slow network must not sit in silence. Later wakes,
-        // and wakes after a failed update, connect at once while any update runs in the background.
-        startAgentSyncIfNeeded()
-        if !hasWaitedForFirstSync, let syncTask {
-            hasWaitedForFirstSync = true
-            await Self.wait(for: syncTask, atMost: tuning.firstSyncPatience)
-        }
+        openRefusal = nil
+
+        // A conversation never opens with the wrong tools: on 6 Nov the user spoke to an agent
+        // whose only tool was a test one, and it invented results. So the agent must be known to
+        // be in step first (see `agentReadyForConversation`).
+        let ready = await agentReadyForConversation()
         syncWaitSeconds = clock() - openRequestedAt
         // Closed while waiting, or closed and opened again (that newer open connects instead).
         guard wantsToRun, thisOpen == openCount else { return }
+        guard ready else {
+            refuseOpen(agentCheck?.problem ?? "The voice agent isn't ready yet, so I can't start a conversation.")
+            return
+        }
+        // Anything else holding the key could have changed the agent since the last check. A
+        // read-back takes about 0.3 s, so it runs alongside connecting, and the first sentence
+        // waits for its answer: a wake is no slower, and a changed agent is caught before anything is said.
+        if let keeper {
+            let tools = self.tools
+            pendingVerification = Task { await keeper.verify(tools) }
+        }
         startPump()
         await connect()
     }
 
-    private var hasWaitedForFirstSync = false
+    /// Whether the agent is known to have exactly this app's tools, updating it if needed.
+    ///
+    /// The launch-time update is waited for up to `firstSyncPatience`. If it is still on its way,
+    /// a read-back (about 0.3 s) may show the agent already has these tools from the last run.
+    /// If it is out of step, one update is tried now (about 2.5 s). Only a confirmed agent opens.
+    private func agentReadyForConversation() async -> Bool {
+        guard let keeper else { return true }
+        startAgentSyncIfNeeded()
+        if let syncTask { await Self.wait(for: syncTask, atMost: tuning.firstSyncPatience) }
+        if agentCheck?.inSync == true { return true }
+        let tools = self.tools
+        let readBack = await keeper.verify(tools)
+        record(readBack, tools: tools)
+        if readBack.inSync { return true }
+        if let syncTask {
+            await Self.wait(for: syncTask, atMost: tuning.firstSyncPatience)
+            if agentCheck?.inSync == true { return true }
+        }
+        let pushed = await keeper.push(tools)
+        record(pushed, tools: tools)
+        return pushed.inSync
+    }
+
+    /// No conversation can be opened. Says why once (unless the listening cycle will), and leaves
+    /// nothing running. A repair keeps being tried in the background.
+    private func refuseOpen(_ problem: String) {
+        Self.logger.error("Not opening a conversation: \(problem, privacy: .public)")
+        openRefusal = problem
+        wantsToRun = false
+        pumpTask?.cancel()
+        pumpTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        pendingVerification = nil
+        pendingFirstUtterance = nil
+        if announcesFailedOpens { bus.post(.voiceDisconnected(reason: problem)) }
+    }
 
     /// Waits for the update to finish, or for `seconds`, whichever comes first. Real time on
     /// purpose: this is a bound on how long a person waits, not part of turn-taking.
     /// (Not a task group: a group waits for all its children, and the child waiting for the
     /// update cannot be cancelled, so the limit would never apply.)
-    private static func wait(for task: Task<Bool, Never>, atMost seconds: TimeInterval) async {
+    private static func wait(for task: Task<AgentCheck, Never>, atMost seconds: TimeInterval) async {
         let resumed = OnceFlag()
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             Task {
@@ -422,9 +470,12 @@ public final class VoiceSession {
     /// True while a conversation is open, or being opened or reconnected.
     public var isOpen: Bool { wantsToRun }
 
+    /// How many tools the app registered with `prepare`: what the agent should have.
+    public var preparedToolCount: Int { tools.count }
+
     /// True if anything of a conversation is still around: a driver, the push pump or a
     /// pending reconnect. Must be false after `close()`. For tests.
-    var hasConversationResources: Bool { driver != nil || pumpTask != nil || reconnectTask != nil || isConnected }
+    public var hasConversationResources: Bool { driver != nil || pumpTask != nil || reconnectTask != nil || isConnected }
 
     // MARK: Speaking task events
 
@@ -532,23 +583,77 @@ public final class VoiceSession {
     /// Starts updating the agent's definition if the tools differ from what was last sent
     /// and no update is already on its way.
     private func startAgentSyncIfNeeded() {
-        guard let syncAgent, !agentID.isEmpty else { return }
+        guard let keeper, !agentID.isEmpty else { return }
         let fingerprint = Self.fingerprint(tools)
         guard fingerprint != syncedFingerprint, fingerprint != syncingFingerprint else { return }
         syncingFingerprint = fingerprint
         agentSyncCount += 1
         let tools = self.tools
         syncTask = Task { @MainActor [weak self] in
-            let succeeded = await syncAgent(tools)
-            guard let self else { return succeeded }
+            let check = await keeper.push(tools)
+            guard let self else { return check }
             if self.syncingFingerprint == fingerprint {
                 self.syncingFingerprint = nil
                 self.syncTask = nil
-                // On failure the agent keeps its last definition; the next open tries again.
-                if succeeded { self.syncedFingerprint = fingerprint } else { self.hasWaitedForFirstSync = true }  // after a failure, wakes never wait
             }
-            return succeeded
+            self.record(check, tools: tools)
+            return check
         }
+    }
+
+    /// Keeps the latest check. In step: these tools count as synced and any repair stops. Out of
+    /// step: it is logged loudly and a repair is scheduled, so the next wake finds it fixed.
+    private func record(_ check: AgentCheck, tools checkedTools: [ToolSpec]) {
+        agentCheck = check
+        if check.inSync {
+            syncedFingerprint = Self.fingerprint(checkedTools)
+            repairTask?.cancel()
+            repairTask = nil
+        } else {
+            Self.logger.error("Voice agent out of step: \(check.summary, privacy: .public) \(check.detail ?? "", privacy: .public)")
+            if Self.fingerprint(checkedTools) == syncedFingerprint { syncedFingerprint = nil }
+            scheduleRepair()
+        }
+    }
+
+    /// While the agent is out of step, updates it again after 30 s, 60 s, 2 min, then every 5 min.
+    private func scheduleRepair(startingAfter firstDelay: TimeInterval? = nil) {
+        guard let keeper, repairTask == nil else { return }
+        let delays = [firstDelay ?? 30, 60, 120, 300]
+        repairTask = Task { @MainActor [weak self] in
+            var attempt = 0
+            while !Task.isCancelled {
+                let delay = delays[min(attempt, delays.count - 1)]
+                attempt += 1
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard let self, !Task.isCancelled else { return }
+                if self.agentCheck?.inSync == true { break }
+                let tools = self.tools
+                let check = await keeper.push(tools)
+                self.agentCheck = check
+                if check.inSync {
+                    self.syncedFingerprint = Self.fingerprint(tools)
+                    Self.logger.notice("Voice agent repaired: \(check.summary, privacy: .public)")
+                    break
+                }
+            }
+            self?.repairTask = nil
+        }
+    }
+
+    /// The agent asked for a tool the app does not have: it is out of step. Repaired at once.
+    private func markOutOfStep(unknownTool name: String) {
+        var check = agentCheck ?? AgentCheck.failed("", detail: nil, at: Date())
+        check.inSync = false
+        check.unexpected = Array(Set(check.unexpected + [name])).sorted()
+        check.checkedAt = Date()
+        check.problem = "The voice agent asked for a tool the app doesn't have, so I'm updating it."
+        agentCheck = check
+        syncedFingerprint = nil
+        Self.logger.error("The agent called \(name, privacy: .public), which the app does not have; repairing the agent.")
+        repairTask?.cancel()
+        repairTask = nil
+        scheduleRepair(startingAfter: 0)
     }
 
     private func prefetchConnection() {
@@ -590,6 +695,18 @@ public final class VoiceSession {
             }
             hasConnectedThisConversation = true
             lastActivityAt = max(lastActivityAt, now)
+            // The read-back started with this wake: nothing is said, and no "listening" is shown,
+            // until it confirms the agent has the app's tools.
+            if let verification = pendingVerification {
+                pendingVerification = nil
+                let check = await verification.value
+                guard myGeneration == generation, wantsToRun else { return }
+                record(check, tools: tools)
+                if !check.inSync {
+                    await replaceConversationWithWrongTools(generation: myGeneration)
+                    return
+                }
+            }
             bus.post(.listening)
             if let first = pendingFirstUtterance {
                 pendingFirstUtterance = nil
@@ -602,6 +719,29 @@ public final class VoiceSession {
             guard myGeneration == generation else { return }
             Self.logger.error("Voice connect failed: \(String(describing: error), privacy: .public)")
             connectionLost("I can't reach the voice service.")
+        }
+    }
+
+    /// The conversation just opened belongs to an agent that is out of step (changed since the
+    /// last check). It is ended before anything is said, the agent is updated, and a fresh
+    /// conversation opens with the right tools; if the update fails, the wake is refused.
+    private func replaceConversationWithWrongTools(generation connectionGeneration: Int) async {
+        guard connectionGeneration == generation else { return }
+        generation += 1
+        isConnected = false
+        let wrong = driver
+        driver = nil
+        await wrong?.end()
+        guard let keeper, wantsToRun else { return }
+        let tools = self.tools
+        let repaired = await keeper.push(tools)
+        record(repaired, tools: tools)
+        guard wantsToRun else { return }
+        if repaired.inSync {
+            hasConnectedThisConversation = false
+            await connect()
+        } else {
+            refuseOpen(repaired.problem ?? "The voice agent's tools don't match the app, so I can't start a conversation yet.")
         }
     }
 
@@ -757,6 +897,7 @@ public final class VoiceSession {
     }
 
     private func runTool(name: String, callID: String, parameters: Data, generation callGeneration: Int) {
+        if !router.knows(name) { markOutOfStep(unknownTool: name) }
         toolCallsInFlight += 1
         let router = self.router
         Task.detached { [weak self] in

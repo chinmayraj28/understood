@@ -574,3 +574,11 @@ It was rewritten for the direction change (the agent works the screen like a per
 ### The prompt
 
 `docs/prompts/voice_agent.md` gained a "Waking and going back to sleep" section: the agent is woken by a phrase; the first message is usually the rest of the wake sentence, so act on it and do not greet; if only the phrase was said, say nothing and wait (the Mac has played a sound); the wake phrase said again is only a call for attention; never fill silence or ask "Anything else?"; for a sign-off, call `go_to_sleep` and say at most "Okay."; never call it during a task or because of silence. **Not yet behaviour-tested** beyond the live wakes above, where the agent acted on each first utterance and said nothing after a phrase-only wake. One run of the older live test showed an odd reply to a progress line pushed at the very start of a conversation ("I'm not sure what that earlier tool call was, so I'll wait for you to speak."); the other run that day said "Opening WhatsApp." as expected.
+
+## 14. Every tool parameter needs a description (6 Nov)
+
+An agent update whose tool list has a parameter without a `description`, at any depth, is rejected whole: **HTTP 400** `{"type":"validation_error","code":"invalid_parameters","message":"Invalid conversation config: Value error, Must set one of: description, dynamic_variable, is_system_provided, constant_value, or is_omitted","param":"agent.prompt.tools.2.client.parameters.properties.action.string"}`. The live tests had only ever sent the demo tool, whose parameter has a description, so this was first seen with the app's real tools. The app's agent kept the demo tool, and its user met it (see `docs/APP.md`, "The voice agent is kept in step with the app"). `AgentConfiguration.clientTool` now fills in a description wherever one is missing. Other facts from the same work:
+- A tool listed inside an agent becomes a workspace tool with its own id, and those ids are separate per agent. Updating the test agent 24 times never changed the app agent's single tool id.
+- An update that includes `"name"` renames the agent; `AgentSyncer` leaves the name and tags out.
+- An update that leaves the tool list out keeps the agent's tools (checked live).
+- Pushing 24 tools took 2.3–2.5 s; reading the agent back took 0.19–0.29 s.

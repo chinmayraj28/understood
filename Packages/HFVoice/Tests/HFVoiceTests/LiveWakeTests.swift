@@ -5,7 +5,7 @@ import Testing
 @testable import HFVoice
 
 /// The wake and sleep path against the real agent, in text mode (no microphone, no sound).
-/// Run with `HF_LIVE=1 swift test --filter openCloseAndOpenAgain`. Puts the demo tool on the agent;
+/// Run with `HF_LIVE=1 swift test --filter openCloseAndOpenAgain`. Uses the TEST agent, never the app's own;
 /// the app restores the real tools when it next starts.
 private let isLive = ProcessInfo.processInfo.environment["HF_LIVE"] == "1"
 
@@ -23,7 +23,7 @@ extension LiveVoiceTests {
         let calls = Recorder<Date>()
         let replies = Recorder<String>()
         let heard = Recorder<String>()
-        let session = VoiceSession(settings: settings, mode: .text, bus: ActivityBus())
+        let session = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .text, bus: ActivityBus())
         session.addReplyListener { replies.add($0) }
 
         // Launch: the agent's definition is updated once, and a credential is fetched ahead.

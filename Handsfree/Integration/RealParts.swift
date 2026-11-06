@@ -257,6 +257,7 @@ enum RealParts {
         return SleepTool.make(isTaskActive: isTaskActive, requestSleep: {
             switch await requestSleep() {
             case .goingToSleep: return .goingToSleep
+            case .afterTask: return .afterTask
             case .busy: return .busy
             case .notAvailable: return .notAvailable
             }
@@ -309,6 +310,14 @@ extension VoiceSession: VoiceConnecting {
     func closeConversation() async { await close() }
 
     var isConversationConnected: Bool { isConnected }
+
+    var agentStatus: AgentStatus? {
+        guard let check = agentCheck else { return nil }
+        return AgentStatus(
+            inSync: check.inSync, toolCount: check.toolCount, expectedToolCount: preparedToolCount, checkedAt: check.checkedAt,
+            problem: check.problem, missing: check.missing, unexpected: check.unexpected)
+    }
+    // `openRefusal` is VoiceSession's own property, with the same meaning.
 
     var conversationActivity: VoiceActivity {
         let now = activity

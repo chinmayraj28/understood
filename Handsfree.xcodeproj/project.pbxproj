@@ -26,6 +26,7 @@
 		332E557F172F3216FBF4D889 /* DemoPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E080185EEEB5151CB8F907 /* DemoPlayer.swift */; };
 		3A4E7F74F3081E510F744C79 /* HFMemory in Frameworks */ = {isa = PBXBuildFile; productRef = C0F1A478D2F87236D913280D /* HFMemory */; };
 		424362B045AA69A17E281BE5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15680A1A8D6560F78419273A /* DesignSystem.swift */; };
+		4541F8CF786E65F32492B862 /* SleepPhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94167225B4307B6A2D6AD3F5 /* SleepPhrases.swift */; };
 		4649CB262D1A39477866BB62 /* SoundCues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D28874D73CB1A60B47431BC /* SoundCues.swift */; };
 		4892EE5487DBB1BB935E9536 /* TargetMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D0671378A8FC12F7252088 /* TargetMarkerView.swift */; };
 		493D98D312D9AB0774B09B27 /* StandIns.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79633DCC171C8B4DA328C291 /* StandIns.swift */; };
@@ -56,6 +57,7 @@
 		C5DF105903DB3E10EBF2B208 /* OverlayGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */; };
 		C7751858B252D5D99E0C8AD4 /* WakeAndSleepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302D323B02F8D75A28A3F516 /* WakeAndSleepTests.swift */; };
 		CB17A0327BE93D9F96CFDBAE /* HFTasks in Frameworks */ = {isa = PBXBuildFile; productRef = 067C2CD41B42536A33F2F72D /* HFTasks */; };
+		CF6D010ACA99AACD830FE04C /* SleepPhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94167225B4307B6A2D6AD3F5 /* SleepPhrases.swift */; };
 		CF9C8606886E2B2772609FFE /* OverlayGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */; };
 		DBF19256549556E3E7E8E81A /* CompanionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */; };
 		E3A6A62CBFA3A8F01D7C3537 /* DemoScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC289DE41FF93CDCF86E731 /* DemoScript.swift */; };
@@ -99,6 +101,7 @@
 		79633DCC171C8B4DA328C291 /* StandIns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandIns.swift; sourceTree = "<group>"; };
 		7C590580290224DD83706E6D /* HFTasks */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFTasks; path = Packages/HFTasks; sourceTree = SOURCE_ROOT; };
 		7D57772024CEDA1B2D75FBDC /* MenuBarPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPanelManager.swift; sourceTree = "<group>"; };
+		94167225B4307B6A2D6AD3F5 /* SleepPhrases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPhrases.swift; sourceTree = "<group>"; };
 		96F015F7A9ED0BADDAAE1454 /* Handsfree.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Handsfree.entitlements; sourceTree = "<group>"; };
 		A687EB15653D0939981D6E41 /* PanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelView.swift; sourceTree = "<group>"; };
 		A8A3BE92F14C082816F1CA20 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -250,6 +253,7 @@
 				4199AC1CF7DBADDD5CFF9528 /* PartAssembly.swift */,
 				3D699160FBF478A6FD49ABAE /* Parts.swift */,
 				124575B1A30C339A5551AA6F /* RealParts.swift */,
+				94167225B4307B6A2D6AD3F5 /* SleepPhrases.swift */,
 				79633DCC171C8B4DA328C291 /* StandIns.swift */,
 			);
 			path = Integration;
@@ -431,6 +435,7 @@
 				1E96527A5C3377DA38875170 /* SessionLog.swift in Sources */,
 				06D9640053BE73F3C618DAAD /* SetupCheck.swift in Sources */,
 				AA3A1B054FDEEB8964423086 /* SingleInstance.swift in Sources */,
+				4541F8CF786E65F32492B862 /* SleepPhrases.swift in Sources */,
 				4649CB262D1A39477866BB62 /* SoundCues.swift in Sources */,
 				493D98D312D9AB0774B09B27 /* StandIns.swift in Sources */,
 				893F29175550DBD45360E552 /* StateSnapshots.swift in Sources */,
@@ -454,6 +459,7 @@
 				27BFE9DF492CE1EF200E78CD /* SetupAndLogTests.swift in Sources */,
 				4B075A0E7CBE970CAFCCBE18 /* SetupCheck.swift in Sources */,
 				E471294055181658180DE011 /* SingleInstance.swift in Sources */,
+				CF6D010ACA99AACD830FE04C /* SleepPhrases.swift in Sources */,
 				BB4A5D543B9BEB3ABE4ED020 /* SoundCues.swift in Sources */,
 				C7751858B252D5D99E0C8AD4 /* WakeAndSleepTests.swift in Sources */,
 			);

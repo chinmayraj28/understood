@@ -116,6 +116,22 @@ struct ListeningStatus: Equatable {
         return "Wake listener: not running (\(cycleState))."
     }
 
+    /// The voice agent on ElevenLabs, as last checked against the app's tools.
+    var agent: AgentStatus?
+
+    /// One line on the voice agent, for the panel. Out of step, the app opens no conversation.
+    func agentLine(now: Date) -> String {
+        guard let agent else { return "Voice agent: not checked yet." }
+        let when = ago(agent.checkedAt, now: now)
+        if agent.inSync {
+            return "Voice agent: in step with the app (\(agent.toolCount) tools), checked \(when)."
+        }
+        var line = "Voice agent: NOT in step with the app, so no conversation opens. \(agent.problem ?? "") Retrying in the background; checked \(when)."
+        if !agent.missing.isEmpty { line += " Missing: \(agent.missing.joined(separator: ", "))." }
+        if !agent.unexpected.isEmpty { line += " Not the app's: \(agent.unexpected.joined(separator: ", "))." }
+        return line
+    }
+
     /// What it listens for and how, for the panel: the first thing to check if the phrase is not heard.
     var languageLine: String {
         guard !alwaysOpen else { return "" }
@@ -180,6 +196,11 @@ struct ListeningStatus: Equatable {
             "wake_language": language,
             "wake_alternatives": alternatives,
             "wake_strictness": strictness,
+            "agent": agent.map { agent -> [String: Any] in
+                ["in_sync": agent.inSync, "tool_count": agent.toolCount, "expected_tool_count": agent.expectedToolCount,
+                 "checked_seconds_ago": Int(now.timeIntervalSince(agent.checkedAt)), "problem": agent.problem ?? "",
+                 "missing": agent.missing, "unexpected": agent.unexpected]
+            } ?? ["in_sync": "not checked yet"],
             "waiting_for": waitingFor ?? "",
             "wake_listener": listener,
             "conversation": ["open": conversationOpen, "connected": conversationConnected],

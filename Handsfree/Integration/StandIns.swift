@@ -168,6 +168,8 @@ final class StandInVoice: VoiceConnecting {
     }
     func closeConversation() async {}
     var isConversationConnected: Bool { false }
+    var agentStatus: AgentStatus? { nil }
+    var openRefusal: String? { nil }
     func waitUntilConnected(timeout: TimeInterval) async -> Bool { false }
     nonisolated func push(_ event: TaskEvent) {}
     var conversationActivity: VoiceActivity { .closed }

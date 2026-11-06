@@ -195,6 +195,8 @@ final class FakeVoice: VoiceConnecting {
         activity = .closed
     }
     var isConversationConnected: Bool { activity.isOpen && connects }
+    var agentStatus: AgentStatus?
+    var openRefusal: String?
     func waitUntilConnected(timeout: TimeInterval) async -> Bool { activity.isOpen && (connects || connectsOnRetry) }
     nonisolated func push(_ event: TaskEvent) {}
     var conversationActivity: VoiceActivity { activity }
@@ -498,5 +500,67 @@ struct SingleInstanceTests {
         #expect(SingleInstance.applies(to: LaunchOptions.parse(["--demo", "--show-panel"])))
         #expect(SingleInstance.applies(to: LaunchOptions.parse(["--quit-after", "6"])))
         #expect(!SingleInstance.applies(to: LaunchOptions.parse(["--render-states", "/tmp/x"])))
+    }
+}
+
+@Suite("Voice agent in step, for diagnosis")
+struct AgentStatusLineTests {
+    let now = Date(timeIntervalSince1970: 1_000_000)
+
+    @Test("The panel says whether the agent has the app's tools, and when it was checked")
+    func lines() {
+        var status = ListeningStatus()
+        #expect(status.agentLine(now: now) == "Voice agent: not checked yet.")
+        status.agent = AgentStatus(inSync: true, toolCount: 24, expectedToolCount: 24, checkedAt: now.addingTimeInterval(-12),
+                                   problem: nil, missing: [], unexpected: [])
+        #expect(status.agentLine(now: now) == "Voice agent: in step with the app (24 tools), checked 12 s ago.")
+        status.agent = AgentStatus(inSync: false, toolCount: 1, expectedToolCount: 24, checkedAt: now,
+                                   problem: "ElevenLabs did not accept the agent's tools, so I can't start a conversation yet.",
+                                   missing: ["start_task"], unexpected: ["demo_set_volume"])
+        let line = status.agentLine(now: now)
+        #expect(line.hasPrefix("Voice agent: NOT in step with the app, so no conversation opens."))
+        #expect(line.contains("Not the app's: demo_set_volume."))
+        let file = status.statusDictionary(now: now)["agent"] as? [String: Any]
+        #expect(file?["in_sync"] as? Bool == false)
+        #expect(file?["tool_count"] as? Int == 1)
+        #expect(file?["expected_tool_count"] as? Int == 24)
+    }
+
+    @Test("A wake refused because the agent is out of step throws that sentence at once")
+    @MainActor func refusal() async {
+        let voice = FakeVoice()
+        voice.openRefusal = "ElevenLabs did not accept the agent's tools, so I can't start a conversation yet."
+        let hooks = CycleWiring.hooks(voice: voice, runner: FakeRunner(), memory: FakeMemory())
+        do {
+            try await hooks.open("open YouTube")
+            Issue.record("expected a refusal")
+        } catch let error as SpeakableError {
+            #expect(error.spokenMessage == voice.openRefusal)
+        } catch {
+            Issue.record("unexpected \(error)")
+        }
+    }
+}
+
+@Suite("Signing off in the user's own words")
+struct SleepPhraseTests {
+    @Test("These end the conversation", arguments: [
+        "stop listening", "Stop listening.", "Please stop listening", "You can stop listening now", "stop listening, thanks",
+        "go to sleep", "Go back to sleep.", "Okay, go to sleep", "That's all, thanks", "that's it", "Thanks, that's all for now",
+        "That will be all", "Thank you, goodbye", "Bye!", "Goodnight", "OK thanks, we're done", "No, that's all",
+        "Hey Handsfree, go to sleep",
+    ])
+    func signsOff(sentence: String) {
+        #expect(SleepPhrases.isSignOff(sentence), "\(sentence)")
+    }
+
+    @Test("These do what they do today", arguments: [
+        "stop", "Stop.", "Stop the music", "stop scrolling", "wait", "cancel that", "be quiet",
+        "Send Amma a message saying that's all for today", "Is that all you can do?", "Open YouTube",
+        "Tell me what's on my calendar, then that's all", "good", "thanks", "okay", "",
+        "I said stop listening to the music",
+    ])
+    func doesNotSignOff(sentence: String) {
+        #expect(!SleepPhrases.isSignOff(sentence), "\(sentence)")
     }
 }

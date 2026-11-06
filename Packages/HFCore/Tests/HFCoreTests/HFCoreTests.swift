@@ -304,7 +304,8 @@ private struct LabelsWithBundleIdentifier: Labels {
     let defaults = Settings.load(environment: [:], envFileCandidates: [])
     #expect(defaults.wakeMode == .phrase)
     #expect(defaults.wakePhrase == "Hey Handsfree")
-    #expect(defaults.sleepAfterIdleSeconds == 25)
+    #expect(defaults.sleepAfterIdleSeconds == 15)
+    #expect(defaults.sleepAfterUnusedWakeSeconds == 8)
 
     let custom = Settings.load(
         environment: ["WAKE_PHRASE": "Okay computer", "WAKE_MODE": "ALWAYS", "SLEEP_AFTER_IDLE_S": "60"],
@@ -312,11 +313,16 @@ private struct LabelsWithBundleIdentifier: Labels {
     #expect(custom.wakePhrase == "Okay computer")
     #expect(custom.wakeMode == .always)
     #expect(custom.sleepAfterIdleSeconds == 60)
+    #expect(custom.sleepAfterUnusedWakeSeconds == 8)
 
     // Nonsense falls back to the safe default, and the idle time has a floor.
     let bad = Settings.load(environment: ["WAKE_MODE": "sometimes", "SLEEP_AFTER_IDLE_S": "0"], envFileCandidates: [])
     #expect(bad.wakeMode == .phrase)
     #expect(bad.sleepAfterIdleSeconds == 5)
+    // The unused-wake wait is never longer than the ordinary one, and has its own floor.
+    #expect(bad.sleepAfterUnusedWakeSeconds == 5)
+    let short = Settings.load(environment: ["SLEEP_AFTER_UNUSED_WAKE_S": "1"], envFileCandidates: [])
+    #expect(short.sleepAfterUnusedWakeSeconds == 3)
 }
 
 @Test func wakeLanguageAlternativesAndStrictnessCanBeSet() {

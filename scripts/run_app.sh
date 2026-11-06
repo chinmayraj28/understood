@@ -12,6 +12,7 @@
 #   scripts/run_app.sh --capturable            let screenshots include the overlay (design review only)
 #   scripts/run_app.sh --wait ...              block until the app quits
 #   scripts/run_app.sh --wait --render-states DIR   draw the companion's states to PNGs and quit
+#   scripts/run_app.sh --sync-only --quit-after 12  update and check the voice agent, no listening (no microphone)
 #
 # Only one copy runs. If Handsfree is already running, it is never stopped from here: a plain
 # start asks it to show its panel; a demo or test launch refuses with one line; --render-states
@@ -44,7 +45,7 @@ TEST_MODE=0
 for argument in ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"}; do
   case "$argument" in
     --render-states) RENDERS_ONLY=1 ;;
-    --demo|--freeze|--loop|--backdrop|--capturable|--quit-after|--moment-log|--request-permissions) TEST_MODE=1 ;;
+    --demo|--freeze|--loop|--backdrop|--capturable|--quit-after|--moment-log|--request-permissions|--sync-only) TEST_MODE=1 ;;
   esac
 done
 running_pid="$(pgrep -x Handsfree | head -n 1 || true)"

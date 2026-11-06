@@ -17,6 +17,9 @@ public struct ToolRouter: Sendable {
 
     public var toolNames: [String] { toolsByName.keys.sorted() }
 
+    /// True if the app has a tool with this name.
+    public func knows(_ toolName: String) -> Bool { toolsByName[toolName] != nil }
+
     /// The result to send back: JSON text, and whether it counts as an error.
     public struct Reply: Equatable, Sendable {
         public let text: String
@@ -27,7 +30,10 @@ public struct ToolRouter: Sendable {
     /// `ok: false` result the agent can read aloud.
     public func handle(toolName: String, parametersJSON: Data) async -> Reply {
         guard let tool = toolsByName[toolName] else {
-            return Self.reply(ToolResult.failure("That action isn't available right now."))
+            // Plainly, so the agent neither retries it nor pretends it worked. The session also marks
+            // the agent as out of step and updates it.
+            return Self.reply(ToolResult.failure(
+                "There is no tool called \(toolName) in this app. Do not try it again, and do not say it was done. Tell the user plainly that you can't do that yet."))
         }
         var parameters = Self.decodeParameters(parametersJSON)
         // The Python SDK merged the call id into the parameters; never pass it to a handler.

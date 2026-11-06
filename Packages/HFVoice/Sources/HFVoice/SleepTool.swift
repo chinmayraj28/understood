@@ -17,6 +17,8 @@ public enum SleepTool {
     public enum Answer: Sendable, Equatable {
         /// The conversation closes once the agent has finished its short reply.
         case goingToSleep
+        /// A task is running or waiting for an answer: it goes to sleep as soon as the task ends.
+        case afterTask
         /// A task is running or waiting for an answer, so it stays awake.
         case busy
         /// It cannot sleep now (it is not awake, or it is set to stay open).
@@ -45,12 +47,14 @@ public enum SleepTool {
             tier: .meta,
             timeoutSeconds: 5
         ) { _ in
-            if isTaskActive() {
-                return ToolResult.failure("A task is still going, so I'll keep listening.")
-            }
-            switch await requestSleep() {
+            var answer = await requestSleep()
+            // Never sleeps over a running task or a question waiting for the user's yes, whatever the app says.
+            if answer == .goingToSleep, isTaskActive() { answer = .afterTask }
+            switch answer {
             case .goingToSleep:
                 return ToolResult.ok(["note": "Going to sleep once you finish. Say at most one short word, or nothing."])
+            case .afterTask:
+                return ToolResult.ok(["note": "A task is still going. It will stop listening as soon as the task ends; say so in a few words."])
             case .busy:
                 return ToolResult.failure("A task is still going, so I'll keep listening.")
             case .notAvailable:

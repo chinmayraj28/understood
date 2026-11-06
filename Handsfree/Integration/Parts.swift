@@ -27,6 +27,18 @@ struct VoiceActivity: Equatable, Sendable {
     static let closed = VoiceActivity(isOpen: false, isUserSpeaking: false, isAgentSpeaking: false, hasUnspokenNews: false, lastActivityAt: -.infinity)
 }
 
+/// The agent on ElevenLabs, as last checked against the app's tools (HFVoice's AgentCheck).
+struct AgentStatus: Equatable, Sendable {
+    var inSync: Bool
+    var toolCount: Int
+    var expectedToolCount: Int
+    var checkedAt: Date
+    /// One plain sentence when out of step.
+    var problem: String?
+    var missing: [String]
+    var unexpected: [String]
+}
+
 /// The voice conversation (HFVoice's VoiceSession). Prepared once, then opened on every
 /// wake and closed on every sleep.
 @MainActor
@@ -42,6 +54,10 @@ protocol VoiceConnecting: AnyObject {
     func closeConversation() async
     /// True once the open conversation can hear the user.
     var isConversationConnected: Bool { get }
+    /// Whether the agent on ElevenLabs has exactly the app's tools, as last checked. Nil until checked.
+    var agentStatus: AgentStatus? { get }
+    /// Why the last open did not open a conversation (the agent is out of step), if it did not.
+    var openRefusal: String? { get }
     /// Waits for the conversation to connect (it retries by itself), up to `timeout` seconds.
     func waitUntilConnected(timeout: TimeInterval) async -> Bool
     /// Makes the agent say a task's question, confirmation or result while the user is silent.
@@ -75,6 +91,8 @@ protocol ListeningCycling: AnyObject {
 enum SleepAnswer: Equatable, Sendable {
     /// The conversation closes once the agent has finished its short reply.
     case goingToSleep
+    /// A task is running or waiting for an answer: it goes to sleep as soon as the task ends.
+    case afterTask
     /// A task is running or waiting for an answer, so it stays awake.
     case busy
     /// It cannot sleep now: it is not awake, or it is set to stay open.

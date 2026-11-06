@@ -34,8 +34,12 @@ public struct Settings: Sendable {
     /// "always": keep a conversation open the whole time, for demos and testing.
     public var wakeMode: WakeMode
     /// How long a conversation stays open with nobody speaking and no task running before
-    /// the app goes back to sleep.
+    /// the app goes back to sleep. Counted from the last thing said or done.
     public var sleepAfterIdleSeconds: Double
+    /// The shorter wait used when nothing at all was said after waking: the phrase was
+    /// probably heard by mistake (a television, someone else in the room), so the
+    /// conversation is closed sooner. Never longer than `sleepAfterIdleSeconds`.
+    public var sleepAfterUnusedWakeSeconds: Double
     /// The language the wake phrase is listened for in, such as "en_GB" or "en_IN".
     /// Empty means the Mac's own language. Accent matters a great deal to the recogniser,
     /// so this is the first thing to change when the phrase is not being heard.
@@ -101,6 +105,7 @@ public struct Settings: Sendable {
             let value = values[key]?.trimmingCharacters(in: .whitespaces) ?? ""
             return value.isEmpty ? fallback : value
         }
+        let idleSeconds = max(5, Double(string("SLEEP_AFTER_IDLE_S", "15")) ?? 15)
         let home = FileManager.default.homeDirectoryForCurrentUser
         let dataDirectory = values["HANDSFREE_DATA_DIR"].map { URL(fileURLWithPath: $0) }
             ?? home.appendingPathComponent("Library/Application Support/\(applicationSupportFolderName)")
@@ -119,7 +124,8 @@ public struct Settings: Sendable {
             maxTaskSeconds: Double(string("MAX_TASK_SECONDS", "180")) ?? 180,
             wakePhrase: string("WAKE_PHRASE", "Hey Handsfree"),
             wakeMode: WakeMode(rawValue: string("WAKE_MODE", "phrase").lowercased()) ?? .phrase,
-            sleepAfterIdleSeconds: max(5, Double(string("SLEEP_AFTER_IDLE_S", "25")) ?? 25),
+            sleepAfterIdleSeconds: idleSeconds,
+            sleepAfterUnusedWakeSeconds: min(idleSeconds, max(3, Double(string("SLEEP_AFTER_UNUSED_WAKE_S", "8")) ?? 8)),
             wakeLanguage: string("WAKE_LANGUAGE"),
             wakeAlternatives: string("WAKE_ALTERNATIVES").split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },

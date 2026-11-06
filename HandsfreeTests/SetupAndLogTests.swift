@@ -181,6 +181,8 @@ struct LaunchOptionsTests {
         #expect(options.demoMomentLogPath == "/tmp/moments.log")
         #expect(LaunchOptions.parse(["--render-states", "/tmp/states"]).renderStatesFolder == "/tmp/states")
         #expect(LaunchOptions.parse([]).renderStatesFolder == nil)
+        #expect(LaunchOptions.parse(["--sync-only", "--quit-after", "12"]).syncOnly)
+        #expect(!LaunchOptions.parse([]).syncOnly)
         #expect(!options.requestsPermissionsAtLaunch)
     }
 

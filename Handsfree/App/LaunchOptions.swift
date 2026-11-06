@@ -33,6 +33,9 @@ struct LaunchOptions: Equatable {
     /// Design review: draw the companion's states into PNG files in this folder and quit.
     /// Needs no permission and puts nothing on screen.
     var renderStatesFolder: String?
+    /// Update and check the agent on ElevenLabs and write the status file, but start no listening:
+    /// no wake listener, no microphone. For checking the agent after a launch.
+    var syncOnly = false
 
     /// Unknown arguments are ignored, because macOS adds its own (for example `-NSDocumentRevisionsDebugMode`).
     static func parse(_ arguments: [String]) -> LaunchOptions {
@@ -60,6 +63,7 @@ struct LaunchOptions: Equatable {
             case "--request-permissions": options.requestsPermissionsAtLaunch = true
             case "--moment-log": options.demoMomentLogPath = nextValue()
             case "--render-states": options.renderStatesFolder = nextValue()
+            case "--sync-only": options.syncOnly = true
             default: break
             }
             index += 1

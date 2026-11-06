@@ -1,0 +1,167 @@
+import Foundation
+import HFCore
+import os
+
+/// Whether the agent on ElevenLabs has exactly the tools the app registers.
+public struct AgentCheck: Sendable, Equatable {
+    public var inSync: Bool
+    /// Tool names on the agent, sorted, as read back.
+    public var toolNamesOnAgent: [String]
+    /// Tools the app has that the agent lacks, and tools the agent has that the app lacks.
+    public var missing: [String]
+    public var unexpected: [String]
+    public var checkedAt: Date
+    /// One plain sentence when it is not in sync, fine to show and say.
+    public var problem: String?
+    /// For the log and tests only: the HTTP status and the start of ElevenLabs' answer. Never a key.
+    public var detail: String?
+
+    public var toolCount: Int { toolNamesOnAgent.count }
+
+    public var summary: String {
+        if inSync { return "in sync: \(toolCount) tools" }
+        var parts = [problem ?? "not in sync"]
+        if !missing.isEmpty { parts.append("missing \(missing.joined(separator: ", "))") }
+        if !unexpected.isEmpty { parts.append("unexpected \(unexpected.joined(separator: ", "))") }
+        return parts.joined(separator: "; ")
+    }
+
+    static func failed(_ problem: String, detail: String?, at date: Date) -> AgentCheck {
+        AgentCheck(inSync: false, toolNamesOnAgent: [], missing: [], unexpected: [], checkedAt: date, problem: problem, detail: detail)
+    }
+}
+
+/// Brings the agent on ElevenLabs in line with the app's tools, and checks that it is.
+///
+/// `push` sends the whole definition (prompt, settings, tools) and then reads the agent back;
+/// success is decided by the read-back, not by the update's status code. `verify` only reads it
+/// back (measured at well under a second), so it can run often.
+public struct AgentSyncer: Sendable {
+    public enum Role: Sendable, Equatable {
+        /// The user's agent: test tools are refused in code.
+        case production
+        /// A test agent: refused if it is the production agent.
+        case test(productionAgentID: String)
+    }
+
+    let api: ElevenLabsAPI
+    let configuration: AgentConfiguration
+    public let agentID: String
+    let role: Role
+    private static let logger = Logger(subsystem: "com.handsfree", category: "HFVoice")
+
+    public init(apiKey: String, agentID: String, role: Role, configuration: AgentConfiguration = AgentConfiguration(), http: HTTPSending = URLSessionHTTP()) {
+        self.api = ElevenLabsAPI(apiKey: apiKey, http: http)
+        self.configuration = configuration
+        self.agentID = agentID
+        self.role = role
+    }
+
+    /// Sends the definition with these tools, then reads the agent back.
+    public func push(tools: [ToolSpec]) async -> AgentCheck {
+        if let refusal = guardFailure(tools) { return refusal }
+        do {
+            _ = try await api.call("PATCH", "/v1/convai/agents/\(agentID)", body: Self.withoutIdentity(configuration.definition(tools: tools)))
+        } catch {
+            let detail = Self.describe(error)
+            Self.logger.error("Agent update rejected: \(detail, privacy: .public)")
+            return .failed("ElevenLabs did not accept the agent's tools, so I can't start a conversation yet.", detail: detail, at: Date())
+        }
+        return await verify(tools: tools)
+    }
+
+    /// The definition without the agent's name and tags. An update never renames an agent: on
+    /// 6 Nov an update of the test agent gave it the app agent's name, and `hf-voice setup` finds
+    /// the app's agent by that name.
+    public static func withoutIdentity(_ definition: JSONValue) -> JSONValue {
+        guard case .object(var fields) = definition else { return definition }
+        fields["name"] = nil
+        fields["tags"] = nil
+        return .object(fields)
+    }
+
+    /// Reads the agent back and compares its tool names with `tools`.
+    public func verify(tools: [ToolSpec]) async -> AgentCheck {
+        let expected = Set(tools.map(\.name))
+        do {
+            let names = Set(try await toolNames())
+            let missing = expected.subtracting(names).sorted()
+            let unexpected = names.subtracting(expected).sorted()
+            let inSync = missing.isEmpty && unexpected.isEmpty
+            return AgentCheck(
+                inSync: inSync, toolNamesOnAgent: names.sorted(), missing: missing, unexpected: unexpected,
+                checkedAt: Date(),
+                problem: inSync ? nil : "The voice agent's tools don't match the app, so I can't start a conversation yet.",
+                detail: nil)
+        } catch {
+            return .failed("I can't check the voice agent right now.", detail: Self.describe(error), at: Date())
+        }
+    }
+
+    /// The names of the agent's tools: from its inline list, or, if that is empty, by looking up its tool ids.
+    func toolNames() async throws -> [String] {
+        let agent = try await api.agent(id: agentID)
+        let prompt = agent["conversation_config"]?["agent"]?["prompt"]
+        let inline = (prompt?["tools"]?.arrayValue ?? []).compactMap { $0["name"]?.stringValue }
+        if !inline.isEmpty { return inline }
+        var names: [String] = []
+        for id in (prompt?["tool_ids"]?.arrayValue ?? []).compactMap(\.stringValue) {
+            let tool = try await api.call("GET", "/v1/convai/tools/\(id)")
+            if let name = tool["tool_config"]?["name"]?.stringValue ?? tool["name"]?.stringValue { names.append(name) }
+        }
+        return names
+    }
+
+    private func guardFailure(_ tools: [ToolSpec]) -> AgentCheck? {
+        switch role {
+        case .production:
+            do { try ProductionAgentGuard.checkProductionTools(tools) } catch {
+                return .failed((error as? SpeakableError)?.spokenMessage ?? "Refused.", detail: nil, at: Date())
+            }
+        case .test(let productionAgentID):
+            if !productionAgentID.isEmpty, agentID == productionAgentID {
+                return .failed("The test agent must not be the app's own agent.", detail: nil, at: Date())
+            }
+        }
+        return nil
+    }
+
+    public static func describe(_ error: Error) -> String {
+        if let apiError = error as? ElevenLabsAPIError { return "HTTP \(apiError.status): \(apiError.message)" }
+        return String(describing: error)
+    }
+}
+
+/// What the voice session uses to keep the agent in step: update it, and read it back.
+/// Built from an `AgentSyncer` in the app; tests pass their own closures.
+public struct AgentKeeper: Sendable {
+    public var push: @Sendable ([ToolSpec]) async -> AgentCheck
+    public var verify: @Sendable ([ToolSpec]) async -> AgentCheck
+
+    public init(push: @escaping @Sendable ([ToolSpec]) async -> AgentCheck, verify: @escaping @Sendable ([ToolSpec]) async -> AgentCheck) {
+        self.push = push
+        self.verify = verify
+    }
+
+    public init(syncer: AgentSyncer) {
+        self.init(push: { await syncer.push(tools: $0) }, verify: { await syncer.verify(tools: $0) })
+    }
+
+    /// From the older form, "did the update work": a read-back is assumed to agree.
+    init(simple sync: @escaping @Sendable ([ToolSpec]) async -> Bool) {
+        self.init(
+            push: { tools in
+                await sync(tools)
+                    ? AgentCheck.matching(tools)
+                    : .failed("The voice agent couldn't be updated, so I can't start a conversation yet.", detail: nil, at: Date())
+            },
+            verify: { tools in AgentCheck.matching(tools) })
+    }
+}
+
+extension AgentCheck {
+    /// An agent that has exactly these tools.
+    public static func matching(_ tools: [ToolSpec], at date: Date = Date()) -> AgentCheck {
+        AgentCheck(inSync: true, toolNamesOnAgent: tools.map(\.name).sorted(), missing: [], unexpected: [], checkedAt: date, problem: nil, detail: nil)
+    }
+}

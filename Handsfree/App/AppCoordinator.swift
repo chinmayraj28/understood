@@ -219,7 +219,12 @@ final class AppCoordinator {
         }
         recordCycle(real: Self.usesWakePhrase(settings: settings) || settings.wakeMode == .always,
                     note: "Not started yet: it starts once \(appModel.setupFacts.needsSpeechRecognition ? "the Microphone and Speech Recognition permissions" : "the Microphone permission") and the ElevenLabs key are in place.")
-        startListeningIfReady()
+        prepareVoice(parts: assembled)
+        if options.syncOnly {
+            logger.notice("--sync-only: the agent is updated and checked; no listening is started.")
+        } else {
+            startListeningIfReady()
+        }
     }
 
     /// Whether this run listens for the wake phrase: wake mode "phrase" and HFWake linked.
@@ -275,21 +280,15 @@ final class AppCoordinator {
         }
         cycle = newCycle
         // "That's all, thanks" reaches the cycle through the go_to_sleep tool.
-        parts.sleepRequests.setHandler { [weak newCycle] in await newCycle?.requestSleep() ?? .notAvailable }
+        parts.sleepRequests.setHandler { [weak self] in await self?.userAskedToSleep() ?? .notAvailable }
         // A task's news arriving while asleep (rare: a task keeps it awake until its result is said)
         // wakes it with HFWake's wakeNow(), so the user hears it.
         CycleWiring.wakeForNews(voice: parts.voice, cycle: newCycle)
 
-        let stopWatcher = parts.stopWatcher
         Task {
-            let memorySummary = await parts.memory.summaryForPrompt(maxCharacters: 1200)
-            // Once per launch: the tools, and the agent's definition brought in step with them,
-            // in the background, so no wake waits for it.
-            // Quitting may have started while the summary was read: then start nothing.
+            // The voice session was prepared at launch (connectParts), so the agent update is
+            // already on its way or done. Quitting may have started meanwhile: then start nothing.
             guard !self.isShuttingDown else { return }
-            parts.voice.prepareConversations(tools: parts.tools, memorySummary: memorySummary, onUserSentence: { sentence in
-                stopWatcher.hear(sentence)
-            })
             await newCycle.start()
             // And if quitting started while the cycle was starting, stop it again at once.
             if self.isShuttingDown { await newCycle.stop() }
@@ -318,7 +317,10 @@ final class AppCoordinator {
             status.listenerRunning = cycle.isListenerRunning
             if status.listenerRunning { status.listenerProblem = nil }
         }
+        sleepIfTaskEnded(conversationOpen: parts?.voice.conversationActivity.isOpen ?? false)
+        let agentWasInSync = appModel.listening.agent?.inSync
         if let voice = parts?.voice {
+            status.agent = voice.agentStatus
             status.conversationOpen = voice.conversationActivity.isOpen
             status.conversationConnected = voice.isConversationConnected
         }
@@ -326,6 +328,63 @@ final class AppCoordinator {
         appModel.listening = status
         panel?.refitPanel()
         writeStatusFile()
+        // Loud, once per change: out of step, the companion shows why (no conversation can open);
+        // back in step while asleep, the hint comes back.
+        if let agent = status.agent, agent.inSync != agentWasInSync, !options.isDemo {
+            if !agent.inSync {
+                bus.post(.voiceDisconnected(reason: agent.problem ?? "The voice agent is out of step with the app."))
+            } else if agentWasInSync == false, status.cycleState == "asleep" {
+                bus.post(.asleep(wakePhrase: settings.wakePhrase))
+            }
+        }
+    }
+
+    /// Set when the user signed off while a task was running or waiting for an answer.
+    private var sleepWhenTaskEnds = false
+
+    /// The user ended the conversation, in their own words or through the go_to_sleep tool. With
+    /// no task, it sleeps once the agent's short reply is over (HFWake's requestSleep). With a task
+    /// running or a question waiting for their yes, it never sleeps over it: it sleeps as soon as
+    /// the task ends, and the agent is told so, to say in a few words.
+    @discardableResult
+    private func userAskedToSleep() async -> SleepAnswer {
+        guard let cycle, let parts else { return .notAvailable }
+        if CycleWiring.isTaskActive(parts.taskRunner) {
+            sleepWhenTaskEnds = true
+            logger.notice("The user signed off during a task: sleeping as soon as it ends.")
+            return .afterTask
+        }
+        return await cycle.requestSleep()
+    }
+
+    /// Runs with the 2 s refresh: a sign-off made during a task is carried out once it has ended
+    /// (its result is still said first: the cycle waits for speech to finish).
+    private func sleepIfTaskEnded(conversationOpen: Bool) {
+        guard sleepWhenTaskEnds else { return }
+        guard conversationOpen else { sleepWhenTaskEnds = false; return }
+        guard let parts, let cycle, !CycleWiring.isTaskActive(parts.taskRunner) else { return }
+        sleepWhenTaskEnds = false
+        Task { _ = await cycle.requestSleep() }
+    }
+
+    /// Once per launch, whatever the permissions: the tools, memory's summary and the stop watcher go
+    /// to the voice session, which updates the agent on ElevenLabs and reads it back. Done before any
+    /// permission is granted, so the panel can say whether the agent is in step during setup.
+    private func prepareVoice(parts: AssembledParts) {
+        let stopWatcher = parts.stopWatcher
+        Task {
+            let memorySummary = await parts.memory.summaryForPrompt(maxCharacters: 1200)
+            guard !self.isShuttingDown else { return }
+            parts.voice.prepareConversations(tools: parts.tools, memorySummary: memorySummary, onUserSentence: { sentence in
+                // "Stop listening", "that's all" and the like end the conversation, decided here rather than
+                // left to the agent; they are not a stop of the task, so the stop watcher never hears them.
+                if SleepPhrases.isSignOff(sentence) {
+                    Task { @MainActor [weak self] in _ = await self?.userAskedToSleep() }
+                } else {
+                    stopWatcher.hear(sentence)
+                }
+            })
+        }
     }
 
     private func recordCycle(real: Bool, note: String) {

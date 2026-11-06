@@ -30,7 +30,8 @@ I chose this so that ElevenLabs minutes are used only while someone is talking, 
 |---|---|---|
 | `WAKE_PHRASE` | `Hey Handsfree` | What you say to wake it |
 | `WAKE_MODE` | `phrase` | `phrase` sleeps until the phrase is heard. `always` keeps a conversation open the whole time, for demos and testing |
-| `SLEEP_AFTER_IDLE_S` | `25` | Seconds of quiet, with no task running, before it sleeps (minimum 5) |
+| `SLEEP_AFTER_IDLE_S` | `15` | Seconds of quiet, with no task running, before it sleeps (minimum 5) |
+| `SLEEP_AFTER_UNUSED_WAKE_S` | `8` | The shorter wait when nothing was said after waking (minimum 3) |
 | `WAKE_LANGUAGE` | the Mac's own | The English the recogniser listens in: `en_AU en_CA en_GB en_IE en_IN en_NZ en_SG en_US en_ZA` |
 | `WAKE_ALTERNATIVES` | none | Extra phrases that also wake it, separated by commas |
 | `WAKE_STRICTNESS` | `balanced` | `strict`, `balanced` or `lenient` |

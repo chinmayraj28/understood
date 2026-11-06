@@ -68,6 +68,8 @@ enum CycleWiring {
                 // Memory may have learned something since the last conversation.
                 let summary = await memory.summaryForPrompt(maxCharacters: 1200)
                 await voice.openConversation(firstUtterance: firstUtterance, memorySummary: summary)
+                // Refused because the agent is out of step: say exactly that, at once (no reconnect is coming).
+                if let refusal = voice.openRefusal { throw SpeakableError(refusal) }
                 if voice.isConversationConnected { return }
                 // The session retries by itself after a second; give it that one chance.
                 if await voice.waitUntilConnected(timeout: connectPatienceSeconds) { return }

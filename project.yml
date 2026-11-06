@@ -97,6 +97,7 @@ targets:
       - path: Handsfree/Integration/Parts.swift
       - path: Handsfree/Integration/CycleWiring.swift
       - path: Handsfree/Integration/ListeningStatus.swift
+      - path: Handsfree/Integration/SleepPhrases.swift
     dependencies:
       - package: HFCore
     settings:

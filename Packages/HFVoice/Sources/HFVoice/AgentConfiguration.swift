@@ -115,12 +115,68 @@ public struct AgentConfiguration: Sendable {
             "type": "client",
             "name": .string(spec.name),
             "description": .string(spec.description),
-            "parameters": spec.parameters,
+            "parameters": describingEveryParameter(spec.parameters),
             "expects_response": true,
             "response_timeout_secs": .number(Double(min(max(spec.timeoutSeconds, 1), 120))),
             "pre_tool_speech": "off",
             "interruption_mode": "allow",
             "execution_mode": "immediate",
         ]
+    }
+
+    // MARK: Parameters ElevenLabs accepts
+
+    /// ElevenLabs rejects a whole agent update (HTTP 400, "Must set one of: description,
+    /// dynamic_variable, is_system_provided, constant_value, or is_omitted") if any tool parameter,
+    /// at any depth, has no `description`. On 6 Nov that is why the app's real tools never reached
+    /// the agent: `media_control`'s `action` had none. So every parameter without one gets a plain
+    /// description from its name (and its allowed values), in properties and in array items.
+    static func describingEveryParameter(_ schema: JSONValue) -> JSONValue {
+        guard case .object(var fields) = schema else { return schema }
+        if let properties = fields["properties"]?.objectValue {
+            var described: [String: JSONValue] = [:]
+            for (name, property) in properties {
+                described[name] = describing(property, named: name)
+            }
+            fields["properties"] = .object(described)
+        }
+        if let items = fields["items"] {
+            fields["items"] = describing(items, named: "item")
+        }
+        return .object(fields)
+    }
+
+    private static func describing(_ property: JSONValue, named name: String) -> JSONValue {
+        guard case .object(var fields) = describingEveryParameter(property) else { return property }
+        let existing = fields["description"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if existing.isEmpty {
+            let words = name.replacingOccurrences(of: "_", with: " ")
+            let choices = (fields["enum"]?.arrayValue ?? []).compactMap(\.stringValue)
+            fields["description"] = .string(choices.isEmpty ? "The \(words)." : "The \(words): one of \(choices.joined(separator: ", ")).")
+        }
+        return .object(fields)
+    }
+
+    /// Where a definition lacks a parameter description, as "tool.parameter" paths. For tests and
+    /// for telling each tool's owner what to write.
+    public static func parametersWithoutDescriptions(_ spec: ToolSpec) -> [String] {
+        var found: [String] = []
+        func walk(_ schema: JSONValue, path: String) {
+            guard let fields = schema.objectValue else { return }
+            for (name, property) in fields["properties"]?.objectValue ?? [:] {
+                let here = "\(path).\(name)"
+                if (property["description"]?.stringValue ?? "").trimmingCharacters(in: .whitespaces).isEmpty { found.append(here) }
+                walk(property, path: here)
+            }
+            if let items = fields["items"] {
+                if (items["description"]?.stringValue ?? "").isEmpty, items["properties"] == nil, items.objectValue != nil {
+                    // A plain item type ("type": "string") needs one too.
+                    found.append("\(path)[]")
+                }
+                walk(items, path: "\(path)[]")
+            }
+        }
+        walk(spec.parameters, path: spec.name)
+        return found.sorted()
     }
 }

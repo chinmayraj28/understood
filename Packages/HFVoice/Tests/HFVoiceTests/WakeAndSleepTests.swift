@@ -82,19 +82,6 @@ import Testing
         #expect(harness.syncs.all.count == 2)
     }
 
-    @Test func aFailedSyncIsTriedAgainAtTheNextWake() async {
-        let attempts = Recorder<Int>()
-        let harness = Harness(mode: .text, sync: { _ in attempts.add(1); return attempts.all.count > 1 })
-        harness.session.prepare(tools: [tool("a")], memorySummary: "")
-        await harness.session.open()
-        await harness.session.close()
-        await harness.session.open()
-        await harness.session.close()
-        await harness.session.open()
-        await harness.session.close()
-        await harness.settle()
-        #expect(harness.syncs.all.count == 2, "failed once, then succeeded, then left alone")
-    }
 
     @Test func theFirstWakeWaitsForAnUpdateStillOnItsWay() async {
         let order = Recorder<String>()
@@ -335,24 +322,6 @@ import Testing
         await harness.session.close()
     }
 
-    @Test func afterAFailedUpdateWakesDoNotWaitForTheRetry() async {
-        let attempts = Recorder<Int>()
-        let harness = Harness(mode: .text, sync: { _ in
-            attempts.add(1)
-            if attempts.all.count == 1 { return false }
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            return true
-        })
-        harness.session.prepare(tools: [tool("a")], memorySummary: "")
-        await harness.session.open()
-        await harness.session.close()
-        let started = Date()
-        await harness.session.open()
-        #expect(Date().timeIntervalSince(started) < 0.5)
-        await harness.settle()
-        #expect(attempts.all.count == 2, "the update is retried in the background")
-        await harness.session.close()
-    }
 
     @Test func closingAndOpeningAgainDuringTheUpdateConnectsOnce() async {
         let harness = Harness(mode: .text, sync: { _ in
@@ -520,29 +489,26 @@ import Testing
 }
 
 @Suite struct SleepToolTests {
-    @Test func itSleepsOnlyWhenNoTaskIsActiveAndSaysWhatReallyHappened() async {
-        let asks = Recorder<Int>()
+    @Test func itSaysWhatTheAppReallyDoes() async {
         let taskActive = Recorder<Bool>()
         let answer = Recorder<SleepTool.Answer>()
-        taskActive.add(true)
-        let tool = SleepTool.make(isTaskActive: { taskActive.all.last ?? false }, requestSleep: {
-            asks.add(1)
-            return answer.all.last ?? .goingToSleep
-        })
+        let tool = SleepTool.make(isTaskActive: { taskActive.all.last ?? false }, requestSleep: { answer.all.last ?? .goingToSleep })
         #expect(tool.name == "go_to_sleep")
-        let refused = await tool.handler([:])
-        #expect(refused["ok"]?.boolValue == false)
-        #expect(asks.all.isEmpty, "never asked while a task is running or waiting for an answer")
-        taskActive.add(false)
-        let accepted = await tool.handler([:])
-        #expect(accepted["ok"]?.boolValue == true)
+        let now = await tool.handler([:])
+        #expect(now["ok"]?.boolValue == true && now["note"]?.stringValue?.contains("Going to sleep") == true)
+        answer.add(.afterTask)
+        let later = await tool.handler([:])
+        #expect(later["note"]?.stringValue?.contains("as soon as the task ends") == true)
         answer.add(.busy)
-        let busy = await tool.handler([:])
-        #expect(busy["ok"]?.boolValue == false, "the app stays awake, so the agent must not say Okay")
+        #expect(await tool.handler([:])["ok"]?.boolValue == false, "the app stays awake, so the agent must not say Okay")
         answer.add(.notAvailable)
-        let notAvailable = await tool.handler([:])
-        #expect(notAvailable["ok"]?.boolValue == false)
-        #expect(asks.all.count == 3)
+        #expect(await tool.handler([:])["ok"]?.boolValue == false)
+    }
+
+    @Test func itNeverSaysGoingToSleepOverARunningTask() async {
+        let tool = SleepTool.make(isTaskActive: { true }, requestSleep: { .goingToSleep })
+        let result = await tool.handler([:])
+        #expect(result["note"]?.stringValue?.contains("as soon as the task ends") == true)
     }
 
     @Test func itsDescriptionSaysWhenNotToUseIt() {
@@ -585,5 +551,197 @@ import Testing
         await harness.settle()
         #expect(disconnections(harness.posted.all) == 1, "wake mode always: nobody else would say it")
         await harness.session.close()
+    }
+}
+
+/// The agent on ElevenLabs must have exactly the app's tools before any conversation opens (6 Nov:
+/// the user spoke to an agent whose only tool was a test one).
+@Suite(.serialized) @MainActor struct AgentInStepTests {
+    final class FakeAgent: @unchecked Sendable {
+        private let lock = NSLock()
+        private var names: [String] = []
+        var acceptsUpdates = true
+        private(set) var pushes = 0
+        private(set) var verifies = 0
+        func set(_ newNames: [String]) { lock.lock(); names = newNames; lock.unlock() }
+        func check(_ tools: [ToolSpec]) -> AgentCheck {
+            lock.lock(); let current = names.sorted(); lock.unlock()
+            let expected = tools.map(\.name).sorted()
+            return AgentCheck(inSync: current == expected, toolNamesOnAgent: current,
+                              missing: Array(Set(expected).subtracting(current)).sorted(),
+                              unexpected: Array(Set(current).subtracting(expected)).sorted(), checkedAt: Date(),
+                              problem: current == expected ? nil : "The voice agent's tools don't match the app.", detail: nil)
+        }
+        var keeper: AgentKeeper {
+            AgentKeeper(
+                push: { tools in
+                    self.lock.lock(); self.pushes += 1; let accepts = self.acceptsUpdates; self.lock.unlock()
+                    if accepts { self.set(tools.map(\.name)) }
+                    return accepts ? self.check(tools)
+                        : .failed("ElevenLabs did not accept the agent's tools.", detail: "HTTP 400", at: Date())
+                },
+                verify: { tools in self.lock.lock(); self.verifies += 1; self.lock.unlock(); return self.check(tools) })
+        }
+    }
+
+    private func harness(_ agent: FakeAgent, announces: Bool = true) -> Harness {
+        let harness = Harness(mode: .text)
+        harness.session = VoiceSession(
+            agentID: "agent_1", mode: .text, bus: harness.bus, tuning: { var t = VoiceSession.Tuning(); t.pumpInterval = 0.01; return t }(),
+            makeDriver: { [unowned harness] in let driver = FakeDriver(); harness.drivers.append(driver); return driver },
+            clock: { [clock = harness.clock] in clock.now }, sleep: { _ in try? await Task.sleep(nanoseconds: 1_000_000) },
+            syncAgent: nil, agentKeeper: agent.keeper)
+        harness.session.announcesFailedOpens = announces
+        return harness
+    }
+
+    private let tools = ["set_volume", "start_task", "go_to_sleep"].map { name in
+        ToolSpec(name: name, description: "d", parameters: ["type": "object"], tier: .quick) { _ in ToolResult.ok() }
+    }
+
+    @Test func theRealToolsArePushedAtLaunchAndConfirmedByReadBack() async {
+        let agent = FakeAgent()
+        agent.set(["demo_set_volume"])  // as the user's agent was
+        let harness = harness(agent)
+        harness.session.prepare(tools: tools, memorySummary: "")
+        await harness.session.open(firstUtterance: "open Spotify")
+        await harness.settle()
+        #expect(harness.session.agentCheck?.inSync == true)
+        #expect(harness.session.agentCheck?.toolCount == 3)
+        #expect(harness.drivers.count == 1 && harness.driver.userMessages == ["open Spotify"])
+        await harness.session.close()
+    }
+
+    @Test func anAgentThatCannotBeUpdatedNeverOpensAConversation() async {
+        let agent = FakeAgent()
+        agent.set(["demo_set_volume"])
+        agent.acceptsUpdates = false
+        let harness = harness(agent)
+        harness.session.prepare(tools: tools, memorySummary: "")
+        await harness.session.open(firstUtterance: "open YouTube")
+        await harness.settle()
+        #expect(harness.drivers.isEmpty, "no conversation with the wrong tools")
+        #expect(!harness.session.isOpen && !harness.session.hasConversationResources)
+        #expect(harness.session.openRefusal?.contains("did not accept") == true)
+        #expect(harness.session.agentCheck?.inSync == false)
+        let announced = harness.posted.all.filter { if case .voiceDisconnected = $0 { return true } else { return false } }
+        #expect(announced.count == 1, "said once")
+    }
+
+    @Test func withTheCycleTheRefusalIsLeftToTheCycleToSay() async {
+        let agent = FakeAgent()
+        agent.acceptsUpdates = false
+        let harness = harness(agent, announces: false)
+        harness.session.prepare(tools: tools, memorySummary: "")
+        await harness.session.open()
+        await harness.settle()
+        #expect(harness.session.openRefusal != nil)
+        #expect(!harness.posted.all.contains { if case .voiceDisconnected = $0 { return true } else { return false } })
+    }
+
+    @Test func anAgentAlreadyInStepOpensEvenWhileTheLaunchUpdateIsSlow() async {
+        let agent = FakeAgent()
+        let harness = harness(agent)
+        agent.set(tools.map(\.name))
+        harness.session.prepare(tools: tools, memorySummary: "")
+        await harness.session.open()
+        await harness.settle()
+        #expect(harness.session.isConnected)
+        await harness.session.close()
+    }
+
+    @Test func anAgentChangedSinceTheLastCheckIsCaughtAtWakeBeforeAnythingIsSaid() async {
+        let agent = FakeAgent()
+        let harness = harness(agent)
+        harness.session.prepare(tools: tools, memorySummary: "")
+        await harness.session.open()
+        await harness.settle()
+        await harness.session.close()
+        let pushesBefore = agent.pushes
+        agent.set(["demo_set_volume"])  // something else with the key changed the agent
+        await harness.session.open(firstUtterance: "open Spotify")
+        await harness.settle()
+        #expect(agent.pushes == pushesBefore + 1, "repaired")
+        let wrong = harness.drivers[harness.drivers.count - 2]
+        #expect(wrong.ended && wrong.userMessages.isEmpty, "the conversation with the wrong tools heard nothing and was ended")
+        #expect(harness.driver.userMessages == ["open Spotify"], "said once, to an agent with the right tools")
+        #expect(harness.session.agentCheck?.inSync == true)
+        await harness.session.close()
+    }
+
+    @Test func everyWakeReadsTheAgentBackAlongsideConnecting() async {
+        let agent = FakeAgent()
+        let harness = harness(agent)
+        harness.session.prepare(tools: tools, memorySummary: "")
+        for _ in 0..<3 {
+            await harness.session.open()
+            await harness.session.close()
+        }
+        #expect(agent.verifies >= 3)
+        #expect(agent.pushes == 1, "updated once; only read back after that")
+    }
+
+    @Test func aCallToAToolTheAppDoesNotHaveIsAnsweredPlainlyAndMarksTheAgentOutOfStep() async {
+        let agent = FakeAgent()
+        let harness = harness(agent)
+        harness.session.prepare(tools: tools, memorySummary: "")
+        await harness.session.open()
+        await harness.settle()
+        harness.driver.emit(.toolCall(name: "demo_set_volume", callID: "c1", parameters: Data(#"{"percent":50}"#.utf8)))
+        await harness.settle()
+        let reply = harness.driver.toolResults.first
+        #expect(reply?.isError == true)
+        #expect(reply?.text.contains("There is no tool called demo_set_volume") == true)
+        #expect(reply?.text.contains("do not say it was done") == true)
+        // Marked out of step and repaired at once (the next wake gets the right tools).
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(agent.pushes == 2, "the launch update, then an immediate repair")
+        #expect(harness.session.agentCheck?.inSync == true)
+        await harness.session.close()
+    }
+}
+
+@Suite struct ParameterDescriptionTests {
+    @Test func everyParameterGetsADescriptionElevenLabsAccepts() {
+        let spec = ToolSpec(name: "media_control", description: "d", parameters: [
+            "type": "object",
+            "properties": [
+                "action": ["type": "string", "enum": ["play", "pause"]],
+                "keys": ["type": "array", "items": ["type": "string"]],
+                "volume": ["type": "integer", "description": "0 to 100"],
+            ],
+        ], tier: .quick) { _ in ToolResult.ok() }
+        #expect(AgentConfiguration.parametersWithoutDescriptions(spec) == ["media_control.action", "media_control.keys", "media_control.keys[]"])
+        let converted = AgentConfiguration.clientTool(spec)["parameters"]
+        let properties = converted?["properties"]
+        #expect(properties?["action"]?["description"]?.stringValue == "The action: one of play, pause.")
+        #expect(properties?["keys"]?["items"]?["description"]?.stringValue == "The item.")
+        #expect(properties?["volume"]?["description"]?.stringValue == "0 to 100", "an existing description is kept")
+    }
+}
+
+@Suite struct ProductionAgentGuardTests {
+    @Test func testToolsNeverGoToTheAppsOwnAgent() async {
+        let demo = DemoTools.make()
+        #expect(throws: SpeakableError.self) { try ProductionAgentGuard.checkProductionTools(demo) }
+        let syncer = AgentSyncer(apiKey: "k", agentID: "agent_prod", role: .production)
+        let check = await syncer.push(tools: demo)
+        #expect(!check.inSync && check.problem?.contains("Refusing to put test tools") == true, "refused before any request")
+    }
+
+    @Test func aTestAgentCanNeverBeTheAppsOwn() async {
+        let syncer = AgentSyncer(apiKey: "k", agentID: "agent_prod", role: .test(productionAgentID: "agent_prod"))
+        let check = await syncer.push(tools: [])
+        #expect(!check.inSync && check.problem?.contains("must not be the app's own agent") == true)
+    }
+}
+
+@Suite struct AgentIdentityTests {
+    @Test func anUpdateNeverRenamesTheAgent() {
+        let definition = AgentConfiguration().definition(tools: [])
+        #expect(definition["name"]?.stringValue == "Hands-Free Laptop Agent")
+        let sent = AgentSyncer.withoutIdentity(definition)
+        #expect(sent["name"] == nil && sent["tags"] == nil, "a test agent must keep its test name")
+        #expect(sent["conversation_config"] != nil)
     }
 }

@@ -118,3 +118,18 @@ Every package's own tests passed, because each one tested its own wording. Only 
 
 - **Which model does which work** (the user's instruction): Opus 5.5 agents for the harder tasks (design, safety, new packages, integration, reviews) and Sonnet 5.5 agents for lighter ones (documents, mechanical edits). Fewer agents run at once, because eight at a time used up the account's limit twice and stalled the work for hours.
 - **Install, Update and Allow buttons always ask.** A dedicated installer or updater app is refused outright. The same buttons inside an ordinary app's own window (an "Install Update" sheet) were only being held when the classifier happened to be off. They are now held by a fixed rule.
+
+## 6 Nov 2026: the voice agent had none of the app's real tools
+
+**What the user saw.** In the first real spoken run, the agent "kept searching for tools" and could not do anything on the Mac.
+
+**The cause.** ElevenLabs requires a description on every tool setting. Four quick commands (`media_control`, `scroll`, `shortcut`, `pointer`) each had one setting without a description, so ElevenLabs refused the whole update with HTTP 400 every time the app started. The app wrote the error to a log and carried on. The agent kept the single test tool that the live tests had left on it.
+
+**Why the tests did not catch it.** Each package passed its own tests, but no test had ever sent the real tool list to ElevenLabs. The live tests sent only a test tool, which did have descriptions. This is the same kind of fault as the safety-gate wording mismatch on 5 Nov: the pieces were right and the join between them was not.
+
+**What was chosen.**
+- Every tool setting gets a description when it is converted for ElevenLabs, at any depth.
+- After each update the app reads the agent back and compares the tool names with the ones it built. A mismatch is shown in the panel and blocks waking, instead of being logged and ignored.
+- A live test sends all 24 real tools to a separate test agent and reads them back. Tests and command-line tools never touch the user's agent again; they use agents named "Handsfree TEST agent" and "Handsfree EVAL agent".
+
+**Rejected.** Only adding the four missing descriptions. That fixes today's fault and leaves the next rejected update just as silent.

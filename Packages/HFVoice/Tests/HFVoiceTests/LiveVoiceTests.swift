@@ -6,7 +6,7 @@ import Testing
 @testable import HFVoice
 
 /// Real conversations with the real agent. Run with `HF_LIVE=1 swift test`.
-/// They put the demo tool on the agent; the app restores the real tools when it starts.
+/// They use the TEST agent (`TestAgent`, ELEVENLABS_TEST_AGENT_ID), never the app's own.
 private let isLive = ProcessInfo.processInfo.environment["HF_LIVE"] == "1"
 
 /// A thread-safe list, for things that arrive from the session's callbacks.
@@ -37,7 +37,7 @@ func waitFor(_ timeout: TimeInterval, _ condition: () -> Bool) async -> TimeInte
         let calls = Recorder<JSONObject>()
         let replies = Recorder<String>()
         let heard = Recorder<String>()
-        let session = VoiceSession(settings: settings, mode: .text)
+        let session = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .text)
         session.addReplyListener { replies.add($0) }
         await session.start(tools: DemoTools.make { _, parameters in calls.add(parameters) },
                             memorySummary: "Nothing yet.", onUserSentence: { heard.add($0) })
@@ -77,7 +77,7 @@ func waitFor(_ timeout: TimeInterval, _ condition: () -> Bool) async -> TimeInte
         let settings = Settings.load()
         try #require(!settings.elevenLabsAgentID.isEmpty)
         let replies = Recorder<String>()
-        let session = VoiceSession(settings: settings, mode: .text)
+        let session = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .text)
         session.addReplyListener { replies.add($0) }
         await session.start(tools: DemoTools.make(), memorySummary: "Nothing yet.")
         try #require(await session.waitUntilConnected(timeout: 25))
@@ -111,7 +111,7 @@ private let isLiveAudio = ProcessInfo.processInfo.environment["HF_LIVE_AUDIO"] =
         let replies = Recorder<String>()
         let stream = bus.events()
         let watcher = Task { for await event in stream { if case .userSaid(let text) = event { transcripts.add(text) } } }
-        let session = VoiceSession(settings: settings, mode: .voice, bus: bus)
+        let session = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .voice, bus: bus)
         session.addReplyListener { replies.add($0) }
         await session.start(tools: DemoTools.make(), memorySummary: "Nothing yet.")
         let connected = await session.waitUntilConnected(timeout: 30)
@@ -121,7 +121,7 @@ private let isLiveAudio = ProcessInfo.processInfo.environment["HF_LIVE_AUDIO"] =
         // Prove the microphone is live: another app says a command out loud.
         let calls = Recorder<JSONObject>()
         await session.stop()
-        let probe = VoiceSession(settings: settings, mode: .voice, bus: bus, syncAgentOnStart: false)
+        let probe = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .voice, bus: bus, syncAgentOnStart: false)
         await probe.start(tools: DemoTools.make { _, parameters in calls.add(parameters) }, memorySummary: "Nothing yet.")
         try #require(await probe.waitUntilConnected(timeout: 30))
         try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -136,7 +136,7 @@ private let isLiveAudio = ProcessInfo.processInfo.environment["HF_LIVE_AUDIO"] =
         let micLive = probe.peakVoiceActivity > 0.5 || !transcripts.all.isEmpty
         print("AUDIO: microphone live: \(micLive)")
         let echoBaseline = transcripts.all.count
-        let session2 = VoiceSession(settings: settings, mode: .voice, bus: bus, syncAgentOnStart: false)
+        let session2 = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .voice, bus: bus, syncAgentOnStart: false)
         session2.addReplyListener { replies.add($0) }
         await session2.start(tools: DemoTools.make(), memorySummary: "Nothing yet.")
         try #require(await session2.waitUntilConnected(timeout: 30))
@@ -181,7 +181,7 @@ private let isLiveAudio = ProcessInfo.processInfo.environment["HF_LIVE_AUDIO"] =
         let transcripts = Recorder<Sample>()
         let heardText = Recorder<String>()
         let replies = Recorder<String>()
-        let session = VoiceSession(settings: settings, mode: .voice, bus: ActivityBus())
+        let session = VoiceSession(settings: settings, agentID: try await TestAgent.resolve(settings: settings), mode: .voice, bus: ActivityBus())
         session.voiceActivityObserver = { level in vad.add(Sample(time: now(), level: level)) }
         session.addReplyListener { replies.add($0) }
         await session.start(tools: DemoTools.make(), memorySummary: "Nothing yet.",
