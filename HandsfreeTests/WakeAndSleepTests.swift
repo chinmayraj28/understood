@@ -209,7 +209,8 @@ final class FakeRunner: TaskRunnerPart, @unchecked Sendable {
     var isRunning = false
     var isAwaitingAnswer = false
     var tools: [ToolSpec] { [] }
-    func cancel() {}
+    var cancels = 0
+    func cancel() { cancels += 1; isRunning = false; isAwaitingAnswer = false }
     var currentTaskID: String? { nil }
     func shutdown() {}
 }
@@ -239,6 +240,26 @@ struct CycleWiringTests {
         var news = quiet; news.hasUnspokenNews = true
         #expect(CycleWiring.snapshot(taskRunning: false, awaitingAnswer: false, conversation: news).someoneSpeaking,
                 "a waiting result counts as speech still to come, so a goodbye waits for it")
+    }
+
+    @Test("A task that started in the moment before the close is stopped, so nothing runs unheard")
+    func aTaskRacingTheCloseIsStopped() async {
+        let voice = FakeVoice(), runner = FakeRunner()
+        let hooks = CycleWiring.hooks(voice: voice, runner: runner, memory: FakeMemory())
+        await hooks.close()
+        #expect(runner.cancels == 0, "no task: nothing to stop")
+        runner.isRunning = true  // start_task ran just as the cycle decided to sleep
+        await hooks.close()
+        #expect(voice.closes == 2 && runner.cancels == 1)
+    }
+
+    @Test("The agent speaking is passed to the cycle on its own, so a goodbye never closes over it")
+    func agentSpeakingIsSeparate() {
+        var talking = VoiceActivity(isOpen: true, isUserSpeaking: false, isAgentSpeaking: true, hasUnspokenNews: false, lastActivityAt: 0)
+        #expect(CycleWiring.snapshot(taskRunning: false, awaitingAnswer: false, conversation: talking).agentSpeaking)
+        talking.isAgentSpeaking = false
+        talking.isUserSpeaking = true
+        #expect(!CycleWiring.snapshot(taskRunning: false, awaitingAnswer: false, conversation: talking).agentSpeaking)
     }
 
     @Test("The hooks open with the first utterance and fresh memory, and read the runner and the voice")

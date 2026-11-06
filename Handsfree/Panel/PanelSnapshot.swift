@@ -96,6 +96,8 @@ struct PanelSnapshot: Equatable {
         enum Kind: String, Equatable {
             /// The voice service's set-up does not match the app, so no conversation opens.
             case voiceNotSetUp
+            /// The voice service could not be checked just now (offline, slow, busy). It still wakes.
+            case voiceUnchecked
             /// The voice connection dropped.
             case notConnected
             /// The wake listener cannot run.

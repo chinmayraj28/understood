@@ -124,7 +124,11 @@ struct ListeningStatus: Equatable {
         guard let agent else { return "Voice agent: not checked yet." }
         let when = ago(agent.checkedAt, now: now)
         if agent.inSync {
-            return "Voice agent: in step with the app (\(agent.toolCount) tools), checked \(when)."
+            let warning = agent.warning.map { " Note: \($0)." } ?? ""
+            return "Voice agent: in step with the app (\(agent.toolCount) tools), checked \(when).\(warning)"
+        }
+        if agent.couldNotCheck {
+            return "Voice agent: could not be checked \(when) (the voice service did not answer). Conversations still open; it is checked again at the next wake."
         }
         var line = "Voice agent: NOT in step with the app, so no conversation opens. \(agent.problem ?? "") Retrying in the background; checked \(when)."
         if !agent.missing.isEmpty { line += " Missing: \(agent.missing.joined(separator: ", "))." }
@@ -199,7 +203,8 @@ struct ListeningStatus: Equatable {
             "agent": agent.map { agent -> [String: Any] in
                 ["in_sync": agent.inSync, "tool_count": agent.toolCount, "expected_tool_count": agent.expectedToolCount,
                  "checked_seconds_ago": Int(now.timeIntervalSince(agent.checkedAt)), "problem": agent.problem ?? "",
-                 "missing": agent.missing, "unexpected": agent.unexpected]
+                 "missing": agent.missing, "unexpected": agent.unexpected,
+                 "could_not_check": agent.couldNotCheck, "warning": agent.warning ?? ""]
             } ?? ["in_sync": "not checked yet"],
             "waiting_for": waitingFor ?? "",
             "wake_listener": listener,

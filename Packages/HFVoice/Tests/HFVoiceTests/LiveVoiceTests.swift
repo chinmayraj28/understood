@@ -65,6 +65,7 @@ func waitFor(_ timeout: TimeInterval, _ condition: () -> Bool) async -> TimeInte
         let relayed = replies.all.dropFirst(repliesBefore).joined(separator: " ")
         #expect(relayed.contains("Shah") && relayed.contains("Patel"), "relayed: \(relayed)")
         #expect(session.queuedEventCount == 0)
+        #expect(session.spokenNews.sentAgain == 0, "the question was recognised as said: \(session.spokenNews)")
 
         print("LIVE: tool call after \(toolLatency ?? -1) s, first reply after \(replyLatency ?? -1) s, pushed question spoken after \(pushLatency ?? -1) s")
         print("LIVE: replies = \(replies.all)")
@@ -92,6 +93,10 @@ func waitFor(_ timeout: TimeInterval, _ condition: () -> Bool) async -> TimeInte
         print("LIVE: confirmation spoken after \(spoken ?? -1) s: \(Array(replies.all.dropFirst(before)))")
         #expect(spoken != nil && Date().timeIntervalSince(pushedAt) < 5, "the confirmation was held")
         #expect(replies.all.dropFirst(before).joined().contains("Amma"))
+        // The app recognised the real agent's words as saying the confirmation: nothing was sent twice.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        print("LIVE: spoken news counts: \(session.spokenNews)")
+        #expect(session.spokenNews.sentAgain == 0 && session.spokenNews.unsaidNow == 0)
         await session.stop()
     }
 }

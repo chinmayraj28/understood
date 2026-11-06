@@ -129,6 +129,14 @@ enum PanelStateCatalogue {
         examples.append(Example(name: "09-trouble-voice", snapshot: make(
             facts: facts(), events: [.asleep(wakePhrase: wakePhrase)], listening: outOfStep, now: now)))
 
+        // 9a. The voice service could not be checked (offline, slow, busy): amber, and it still wakes.
+        var unchecked = asleepListening(now)
+        unchecked.agent = AgentStatus(
+            inSync: false, toolCount: 0, expectedToolCount: 24, checkedAt: now.addingTimeInterval(-20),
+            problem: nil, missing: [], unexpected: [], couldNotCheck: true)
+        examples.append(Example(name: "09a-trouble-voice-unchecked", snapshot: make(
+            facts: facts(), events: [.asleep(wakePhrase: wakePhrase)], listening: unchecked, now: now)))
+
         // 9b. Trouble: speech is heard but never the phrase (a warning, not an error).
         var notHeard = asleepListening(now)
         for _ in 0..<6 { notHeard.record(.speechWithoutPhrase, at: now.addingTimeInterval(-12)) }

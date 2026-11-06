@@ -23,7 +23,12 @@ enum ScreenLock {
     /// For the agent, beside the sentence: there is nothing it can do about it.
     static let agentNote = "Say this once. Do not offer to unlock the Mac, do not ask for a password, and do not try another way: only a person at the Mac can unlock it."
 
-    /// True while the Mac shows its lock screen. Read only, from the window server's session.
+    /// True while the Mac shows its lock screen. Read only, from the window server's session, fresh on
+    /// every call. The one lock check: the app's tools and task executor and the script runner all use it.
+    ///
+    /// Known limits (docs/APP.md): the screen saver before its lock starts, a sleeping display and a
+    /// switched-out user (fast user switching) all read as unlocked. `CGSSessionScreenIsLocked` is not
+    /// documented by Apple; when it cannot be read, this says unlocked, as before the rule existed.
     static func isLockedNow() -> Bool {
         guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
         return (session["CGSSessionScreenIsLocked"] as? Bool) == true
@@ -81,7 +86,16 @@ final class LockAwareContext: TaskContext, @unchecked Sendable {
     var memoryHints: String { inner.memoryHints }
     var lastAnswer: String { inner.lastAnswer }
     func askUser(_ question: String, options: [String]) async throws -> String { try await inner.askUser(question, options: options) }
-    func confirm(_ action: ScreenAction, spokenQuestion: String?) async throws -> Bool { try await inner.confirm(action, spokenQuestion: spokenQuestion) }
+    /// A held action is never pressed on a locked screen. The lock is checked before asking, and again
+    /// once the answer comes back: a question can wait minutes for a yes, and the Mac may lock itself
+    /// meanwhile. The screen agent presses straight after this returns true, so this second check is
+    /// the last one before acting; a "yes" on a locked screen ends the task with the lock sentence.
+    func confirm(_ action: ScreenAction, spokenQuestion: String?) async throws -> Bool {
+        if isLocked() { throw SpeakableError(ScreenLock.sentence) }
+        let approved = try await inner.confirm(action, spokenQuestion: spokenQuestion)
+        if approved, isLocked() { throw SpeakableError(ScreenLock.sentence) }
+        return approved
+    }
     func report(_ progress: String) { inner.report(progress) }
 
     func step() throws {

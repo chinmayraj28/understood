@@ -278,10 +278,14 @@ enum PanelCopy {
         "\(isError ? "Problem" : "Warning"): \(title). \(message)"
     }
 
-    static func voiceDetail(isReady: Bool?, checkedAgo: String?) -> String {
+    static func voiceDetail(isReady: Bool?, checkedAgo: String?, couldNotCheck: Bool = false, settingDiffers: Bool = false) -> String {
         guard let isReady else { return "Voice: not checked yet." }
         let when = checkedAgo.map { ", checked \($0)" } ?? ""
-        return isReady ? "Voice: set up correctly\(when)." : "Voice: not set up correctly\(when). It will not wake until this is fixed."
+        if couldNotCheck { return "Voice: could not be checked just now\(when). It is checked again at the next wake, and still wakes meanwhile." }
+        guard isReady else { return "Voice: not set up correctly\(when). It will not wake until this is fixed." }
+        return settingDiffers
+            ? "Voice: set up\(when), though one setting differs from what Handsfree sent (the status file has the details)."
+            : "Voice: set up correctly\(when)."
     }
 
     static func partsDetail(real: Int, total: Int) -> String {
@@ -293,6 +297,9 @@ enum PanelCopy {
     static let voiceNotSetUpTitle = "Handsfree\u{2019}s voice could not be set up"
     static let voiceNotSetUpMessage = "It cannot wake until this is fixed. It keeps trying by itself. If this stays for more than "
         + "a minute, check that the Mac is online, then quit Handsfree and open it again."
+
+    static let voiceUncheckedTitle = "Handsfree couldn\u{2019}t check its voice just now"
+    static let voiceUncheckedMessage = "It will check again when you wake it. If it doesn\u{2019}t wake, check that the Mac is online."
 
     static let notConnectedTitle = "Handsfree cannot reach its voice service"
 

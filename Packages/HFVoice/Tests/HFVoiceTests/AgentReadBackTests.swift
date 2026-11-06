@@ -49,13 +49,14 @@ import Testing
         #expect(result.detail?.contains("skip_turn") == true)
     }
 
-    @Test func anotherModelOrReasoningSettingIsOutOfStep() async {
-        let haiku = await check(agentJSON(llm: "claude-haiku-5-5"))
-        #expect(!haiku.inSync && haiku.detail?.contains("model") == true)
+    /// ElevenLabs may alias or retire a model: a different model or reasoning read back is a warning, not a refusal.
+    @Test func anotherModelOrReasoningSettingIsAWarningOnly() async {
+        let alias = await check(agentJSON(llm: "claude-sonnet-5-5-20261101"))
+        #expect(alias.inSync && !alias.couldNotCheck)
+        #expect(alias.warning?.contains("model claude-sonnet-5-5-20261101") == true)
         let noReasoning = await check(agentJSON(reasoning: "none"))
-        #expect(!noReasoning.inSync && noReasoning.detail?.contains("reasoning") == true)
-        let unset = await check(agentJSON(reasoning: nil))
-        #expect(!unset.inSync)
+        #expect(noReasoning.inSync && noReasoning.warning?.contains("reasoning none") == true)
+        #expect(await check(agentJSON()).warning == nil)
     }
 
     @Test func aMissingClientToolIsStillCaught() async {

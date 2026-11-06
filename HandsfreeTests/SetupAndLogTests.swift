@@ -172,6 +172,11 @@ struct LaunchOptionsTests {
         #expect(LaunchOptions.parse([]).renderStatesFolder == nil)
         #expect(LaunchOptions.parse(["--sync-only", "--quit-after", "12"]).syncOnly)
         #expect(!LaunchOptions.parse([]).syncOnly)
+        // Neither --sync-only nor a script run may ever start the real wake listener (the microphone).
+        #expect(!LaunchOptions.parse(["--sync-only", "--quit-after", "12"]).mayStartRealListening)
+        #expect(!LaunchOptions.parse(["--script", "scripts/e2e/textedit.txt"]).mayStartRealListening)
+        #expect(LaunchOptions.parse([]).mayStartRealListening)
+        #expect(LaunchOptions.parse(["--show-panel"]).mayStartRealListening)
         #expect(!options.requestsPermissionsAtLaunch)
     }
 

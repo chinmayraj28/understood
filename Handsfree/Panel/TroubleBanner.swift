@@ -52,6 +52,7 @@ struct TroubleBanner: View {
     private var symbol: String {
         switch trouble.kind {
         case .voiceNotSetUp: return "exclamationmark.octagon.fill"
+        case .voiceUnchecked: return "exclamationmark.arrow.triangle.2.circlepath"
         case .notConnected: return "wifi.slash"
         case .cannotListen: return "mic.slash.fill"
         case .phraseNotHeard: return "ear.trianglebadge.exclamationmark"

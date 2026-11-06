@@ -28,7 +28,8 @@ public enum SleepTool {
     /// - Parameters:
     ///   - isTaskActive: true while a task is running or waiting for the user's answer.
     ///   - requestSleep: asks the app to close the conversation once the agent has finished its
-    ///     short reply, and returns what the app will do. Never called while a task is active.
+    ///     short reply, and returns what the app will do. While a task is active the sleep is deferred,
+    ///     not refused: the app goes to sleep when the task ends (`afterTask`).
     public static func make(
         isTaskActive: @escaping @Sendable () -> Bool,
         requestSleep: @escaping @Sendable () async -> Answer
@@ -39,7 +40,8 @@ public enum SleepTool {
                 Stop listening and go back to sleep until the user says the wake phrase again. \
                 Use it only when the user clearly ends the conversation: "that's all, thanks", "that's it", \
                 "go to sleep", "stop listening", "goodbye". \
-                Never use it while a task is running or waiting for the user's answer, never because the user \
+                If a task is running or waiting for the user's answer, the task is not stopped: the app goes to \
+                sleep as soon as the task ends, so tell the user that. Never use it because the user \
                 is silent (the app sleeps on its own after a short silence), and never for "stop" or "cancel", \
                 which stop a task. After it succeeds, say at most one short word such as "Okay.", or nothing.
                 """,

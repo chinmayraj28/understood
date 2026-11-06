@@ -250,7 +250,7 @@ final class AppCoordinator {
     /// conversation when it hears the phrase and closes it after a short silence with nothing
     /// going on. In wake mode "always", or without HFWake, one conversation is kept open.
     private func startListeningIfReady() {
-        guard !hasStartedListening, !isShuttingDown, let parts else { return }
+        guard !hasStartedListening, !isShuttingDown, options.mayStartRealListening, let parts else { return }
         let facts = appModel.setupFacts
         let needsSpeech = facts.needsSpeechRecognition
         // Permissions may be granted one at a time, in any order: this runs again on every change
@@ -327,7 +327,8 @@ final class AppCoordinator {
             if status.listenerRunning { status.listenerProblem = nil }
         }
         sleepIfTaskEnded(conversationOpen: parts?.voice.conversationActivity.isOpen ?? false)
-        let agentWasInSync = appModel.listening.agent?.inSync
+        // "Usable" means a wake can open a conversation: in step, or only not checkable right now.
+        let agentWasUsable = appModel.listening.agent.map { $0.inSync || $0.couldNotCheck }
         if let voice = parts?.voice {
             status.agent = voice.agentStatus
             status.conversationOpen = voice.conversationActivity.isOpen
@@ -337,42 +338,59 @@ final class AppCoordinator {
         appModel.listening = status
         panel?.refitPanel()
         writeStatusFile()
-        // Loud, once per change: out of step, the companion shows why (no conversation can open);
-        // back in step while asleep, the hint comes back.
-        if let agent = status.agent, agent.inSync != agentWasInSync, !options.isDemo {
-            if !agent.inSync {
-                bus.post(.voiceDisconnected(reason: agent.problem ?? "The voice agent is out of step with the app."))
-            } else if agentWasInSync == false, status.cycleState == "asleep" {
+        // Loud, once per change, and only for a confirmed problem (a check that merely failed is shown
+        // amber on the panel, and a wake still opens): the companion shows why; once usable again while
+        // asleep, the hint comes back.
+        if let agent = status.agent, !options.isDemo {
+            let usable = agent.inSync || agent.couldNotCheck
+            if usable == agentWasUsable {
+                // no change
+            } else if !usable {
+                bus.post(.voiceDisconnected(reason: agent.problem ?? "Handsfree's voice isn't set up correctly yet. It is trying again."))
+            } else if agentWasUsable == false, status.cycleState == "asleep" {
                 bus.post(.asleep(wakePhrase: settings.wakePhrase))
             }
         }
     }
 
-    /// Set when the user signed off while a task was running or waiting for an answer.
-    private var sleepWhenTaskEnds = false
+    /// A sign-off made while a task was running or waiting for an answer, held until it ends
+    /// (SentenceRouting.swift; unit tested).
+    private var sleepRequest = SleepRequest()
 
-    /// The user ended the conversation, in their own words or through the go_to_sleep tool. With
-    /// no task, it sleeps once the agent's short reply is over (HFWake's requestSleep). With a task
-    /// running or a question waiting for their yes, it never sleeps over it: it sleeps as soon as
-    /// the task ends, and the agent is told so, to say in a few words.
+    /// The agent's go_to_sleep tool. With no task, it sleeps once the agent's short reply is over
+    /// (HFWake's requestSleep). With a task running or a question waiting for their yes, it never
+    /// sleeps over it: it sleeps as soon as the task ends, and the agent is told so, to say in a few words.
     @discardableResult
     private func userAskedToSleep() async -> SleepAnswer {
         guard let cycle, let parts else { return .notAvailable }
-        if CycleWiring.isTaskActive(parts.taskRunner) {
-            sleepWhenTaskEnds = true
-            logger.notice("The user signed off during a task: sleeping as soon as it ends.")
+        switch sleepRequest.asked(taskActive: CycleWiring.isTaskActive(parts.taskRunner)) {
+        case .sleepWhenTaskEnds:
+            logger.notice("Asked to sleep during a task: sleeping as soon as it ends.")
             return .afterTask
+        case .sleepNow, .none:
+            return await cycle.requestSleep()
         }
-        return await cycle.requestSleep()
+    }
+
+    /// A finished sentence of the user's (the stop watcher has already heard it). A sign-off sleeps,
+    /// now or once the task ends; anything else takes back an earlier sign-off.
+    private func userSaid(_ route: SentenceRoute) async {
+        guard let cycle, let parts else { return }
+        switch sleepRequest.heard(route, taskActive: CycleWiring.isTaskActive(parts.taskRunner)) {
+        case .none:
+            return
+        case .sleepWhenTaskEnds:
+            logger.notice("The user signed off during a task: sleeping as soon as it ends.")
+        case .sleepNow:
+            _ = await cycle.requestSleep()
+        }
     }
 
     /// Runs with the 2 s refresh: a sign-off made during a task is carried out once it has ended
     /// (its result is still said first: the cycle waits for speech to finish).
     private func sleepIfTaskEnded(conversationOpen: Bool) {
-        guard sleepWhenTaskEnds else { return }
-        guard conversationOpen else { sleepWhenTaskEnds = false; return }
-        guard let parts, let cycle, !CycleWiring.isTaskActive(parts.taskRunner) else { return }
-        sleepWhenTaskEnds = false
+        guard let parts, let cycle else { return }
+        guard sleepRequest.taskHasEnded(taskActive: CycleWiring.isTaskActive(parts.taskRunner), conversationOpen: conversationOpen) else { return }
         Task { _ = await cycle.requestSleep() }
     }
 
@@ -386,14 +404,13 @@ final class AppCoordinator {
             guard !self.isShuttingDown else { return }
             // A script run records every tool call (`ToolCallLog`); otherwise the tools are as built.
             let tools = self.scriptToolLog?.wrap(parts.tools) ?? parts.tools
+            let wakePhrases = [self.settings.wakePhrase] + self.settings.wakeAlternatives
             parts.voice.prepareConversations(tools: tools, memorySummary: memorySummary, onUserSentence: { sentence in
-                // "Stop listening", "that's all" and the like end the conversation, decided here rather than
-                // left to the agent; they are not a stop of the task, so the stop watcher never hears them.
-                if SleepPhrases.isSignOff(sentence) {
-                    Task { @MainActor [weak self] in _ = await self?.userAskedToSleep() }
-                } else {
-                    stopWatcher.hear(sentence)
-                }
+                // The stop watcher hears every sentence, sign-offs included, at once and before anything
+                // else; a sign-off ("stop listening", "that's all") is detected as well, never instead.
+                let route = SentenceRouting.route(sentence, wakePhrases: wakePhrases)
+                stopWatcher.hear(route.forStopWatcher)
+                Task { @MainActor [weak self] in await self?.userSaid(route) }
             })
         }
     }
@@ -667,6 +684,7 @@ final class AppCoordinator {
         // Is the wake listener running, is a conversation open, and what has been heard (counts only).
         if !options.isDemo {
             status["listening"] = appModel.listening.statusDictionary(now: Date())
+            if let voice = parts?.voice { status["spoken_news"] = voice.spokenNewsCounts }
         }
         do {
             try FileManager.default.createDirectory(at: settings.dataDirectory, withIntermediateDirectories: true)

@@ -33,6 +33,9 @@ public enum TestAgent {
             definition = .object(fields)
         }
         let stored = storedID(idKey)
+        // Before anything is sent: a stored "test" id that is the app's own agent (a copy-paste slip)
+        // would otherwise rename the user's agent to the test name and strip its tools, then throw.
+        if let stored { try ProductionAgentGuard.refuseIfProduction(stored, settings: settings) }
         let sync = try await api.createOrUpdateAgent(definition: definition, knownAgentID: stored ?? "")
         try ProductionAgentGuard.refuseIfProduction(sync.agentID, settings: settings)
         if sync.agentID != stored, let file = EnvFile.find() {

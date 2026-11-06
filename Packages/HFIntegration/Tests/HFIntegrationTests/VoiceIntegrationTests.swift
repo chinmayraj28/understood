@@ -27,12 +27,19 @@ final class FakeConversation: ConversationDriving {
     /// Like the real agent, reply to every pushed message (the session waits for a reply before pushing more).
     var repliesToPushes = true
 
+    /// The pushed messages the fake agent has said, in order.
+    var said: [String] = []
+    /// True once the agent has said a pushed message containing `fragment`. The user can only
+    /// answer a question they have heard: an answer before that is not passed on.
+    func hasSaid(_ fragment: String) -> Bool { said.contains { $0.contains(fragment) } }
+
     func sendUserMessage(_ text: String) async throws {
         userMessages.append(text)
         guard repliesToPushes else { return }
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 20_000_000)
-            self?.emit(.agentResponse("(says it)"))
+            self?.said.append(text)
+            self?.emit(.agentResponse(text))  // says what it was asked to say (the app checks the words)
         }
     }
     func sendContext(_ text: String) async throws { contexts.append(text) }
@@ -129,6 +136,7 @@ final class VoiceRig {
         defer { Task { await voice.stop() } }
         voice.conversation.callTool("start_task", ["goal": .string(Self.goal)], id: "c1")
         #expect(await waitUntil(timeout: 3) { voice.conversation.pushed(containing: "asks: Priya Shah") })
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("asks:") })
 
         // The agent is still talking when the user answers and the task reaches Send.
         voice.conversation.emit(.agentActivity(.speaking))
@@ -150,8 +158,10 @@ final class VoiceRig {
         defer { Task { await voice.stop() } }
         voice.conversation.callTool("start_task", ["goal": .string(Self.goal)], id: "c1")
         _ = try #require(await voice.rig.recorder.waitFor(.question))
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("asks:") }, "the user hears the question before answering")
         voice.conversation.userSays("Shah", thenAgentCalls: "answer_task", ["answer": "Priya Shah"], id: "c2")
         _ = try #require(await voice.rig.recorder.waitFor(.confirmation))
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("needs a clear yes") }, "the user hears the confirmation before answering")
 
         // The same turn: the sentence, and the agent's tool call passing it on.
         voice.conversation.userSays("no", thenAgentCalls: "answer_task", ["answer": "no"], id: "c3")
@@ -170,8 +180,10 @@ final class VoiceRig {
         defer { Task { await voice.stop() } }
         voice.conversation.callTool("start_task", ["goal": .string(Self.goal)], id: "c1")
         _ = try #require(await voice.rig.recorder.waitFor(.question))
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("asks:") }, "the user hears the question before answering")
         voice.conversation.userSays("Shah", thenAgentCalls: "answer_task", ["answer": "Priya Shah"], id: "c2")
         _ = try #require(await voice.rig.recorder.waitFor(.confirmation))
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("needs a clear yes") }, "the user hears the confirmation before answering")
         voice.conversation.userSays("yes", thenAgentCalls: "answer_task", ["answer": "yes"], id: "c3")
         #expect(await waitUntil {
             voice.rig.activity.events.contains { if case .pointerMoving(_, let duration) = $0 { duration == 5 } else { false } }
@@ -197,6 +209,7 @@ final class VoiceRig {
         defer { Task { await voice.stop() } }
         voice.conversation.callTool("start_task", ["goal": .string(Self.goal)], id: "c1")
         _ = try #require(await voice.rig.recorder.waitFor(.question, timeout: 5))
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("asks:") }, "the user hears the question before answering")
         voice.conversation.userSays("Shah", thenAgentCalls: "answer_task", ["answer": "Priya Shah"], id: "c2")
 
         // The user keeps talking while the model decides its next step (a click on the guests field).
@@ -211,6 +224,7 @@ final class VoiceRig {
         #expect(await waitUntil(timeout: 3) { voice.rig.hands.actions.items.contains("click 400,300") })
         #expect(!voice.heard.items.isEmpty)
         let confirmation = try #require(await voice.rig.recorder.waitFor(.confirmation, timeout: 5))
+        #expect(await waitUntil(timeout: 3) { voice.conversation.hasSaid("needs a clear yes") }, "the user hears the confirmation before answering")
         #expect(confirmation.text.hasPrefix("Send \"Priya Shah\""))
         voice.conversation.userSays("yes", thenAgentCalls: "answer_task", ["answer": "yes"], id: "c3")
         #expect(await voice.rig.recorder.waitFor(.result, timeout: 5)?.status == .done)

@@ -27,7 +27,15 @@
 //    wait-task <seconds>              wait for the task to end and its result to be said
 //    expect-text <App> | <words>      the front document of App contains these words (read only)
 //    wait-asleep <seconds>            the conversation closed and the cycle is asleep again
-//    close-without-saving <App>       Command-W, then the save sheet's Delete button (cleanup)
+//    close-without-saving <App> | <typed text>
+//                                     cleanup: Command-W, then the Delete button of the window's save
+//                                     sheet. Only when <App> was not running before the script and its
+//                                     front document holds exactly <typed text>; otherwise it presses
+//                                     nothing and reports why (ScriptSteps.refusalToDiscard).
+//
+//  Safety: scripts/run_app.sh refuses a script unless the caller holds the live lock
+//  (LIVE_LOCK_OWNER) and waits for it (--wait). What was said and what documents hold
+//  goes only to script-run.json, never to the system log.
 //
 
 import AppKit
@@ -91,21 +99,10 @@ final class ToolCallLog: @unchecked Sendable {
 
 @MainActor
 final class ScriptRun {
-    struct Step: Equatable {
-        let verb: String
-        let argument: String
-    }
+    typealias Step = ScriptStep
 
-    /// One line per step; blank lines and "#" comments are skipped.
-    static func parse(_ text: String) -> [Step] {
-        text.split(whereSeparator: \.isNewline).compactMap { rawLine in
-            let line = rawLine.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { return nil }
-            let parts = trimmed.split(separator: " ", maxSplits: 1)
-            return Step(verb: String(parts[0]).lowercased(), argument: parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : "")
-        }
-    }
+    /// One line per step; blank lines and "#" comments are skipped (ScriptSteps.parse, unit tested).
+    static func parse(_ text: String) -> [Step] { ScriptSteps.parse(text) }
 
     struct Outcome {
         var step: String
@@ -179,7 +176,8 @@ final class ScriptRun {
             let outcome = Outcome(step: "\(step.verb) \(step.argument)".trimmingCharacters(in: .whitespaces), ok: ok,
                                   detail: detail, seconds: Date().timeIntervalSince(stepStarted))
             outcomes.append(outcome)
-            logger.notice("SCRIPT \(ok ? "ok  " : "FAIL", privacy: .public) \(outcome.step, privacy: .public): \(detail, privacy: .public)")
+            // Only the verb and the result: replies and document text stay in script-run.json.
+            logger.notice("SCRIPT \(ok ? "ok  " : "FAIL", privacy: .public) \(step.verb, privacy: .public)")
             if step.verb == "require-unlocked", !ok { break }
         }
         watching?.cancel()
@@ -237,7 +235,8 @@ final class ScriptRun {
             return (found.isEmpty && !said.isEmpty, found.isEmpty ? "reply: \"\(said)\"" : "reply used \(found.joined(separator: ", ")): \"\(said)\"")
         case "require-unlocked":
             let front = await labels.frontmost()
-            let locked = Self.screenIsLocked() || front.app == "loginwindow"
+            // The app's own lock check, plus the login window in front (another account, or a lock not yet reported).
+            let locked = ScreenLock.isLockedNow() || front.app == "loginwindow"
             return (!locked, locked
                 ? "the screen is locked (in front: \(front.app)); nothing can be clicked or typed until someone unlocks it, so the run stops here"
                 : "the screen is unlocked (in front: \(front.app))")
@@ -247,10 +246,9 @@ final class ScriptRun {
         case "wait-task":
             return await waitForTask(seconds: Double(step.argument) ?? 180)
         case "expect-text":
-            let parts = step.argument.split(separator: "|", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-            guard parts.count == 2 else { return (false, "write: expect-text <App> | <words>") }
-            let text = Self.documentText(appName: parts[0]) ?? ""
-            return (text.localizedCaseInsensitiveContains(parts[1]), "the document holds \(text.count) characters" + (text.isEmpty ? "" : ": \"\(text.prefix(80))\""))
+            guard let expected = ScriptSteps.appAndText(step.argument) else { return (false, "write: expect-text <App> | <words>") }
+            let text = Self.documentText(appName: expected.app) ?? ""
+            return (text.localizedCaseInsensitiveContains(expected.text), "the document holds \(text.count) characters" + (text.isEmpty ? "" : ": \"\(text.prefix(80))\""))
         case "wait-asleep":
             let since = Date()
             let asleep = await waitUntil(Double(step.argument) ?? 30) {
@@ -261,7 +259,7 @@ final class ScriptRun {
             return (asleep, "cycle \(state); conversation \(voice.conversationActivity.isOpen ? "open" : "closed"); "
                     + String(format: "asleep %.1f s after the last turn was sent (%.1f s of waiting here)", afterLastTurn, Date().timeIntervalSince(since)))
         case "close-without-saving":
-            return await closeWithoutSaving(appName: step.argument)
+            return await closeWithoutSaving(step.argument)
         default:
             return (false, "unknown step")
         }
@@ -308,19 +306,30 @@ final class ScriptRun {
         return (status == .done && duringTask.isEmpty && result != nil, detail)
     }
 
-    /// Cleanup, as a person would: Command-W, then the save sheet's "Delete" button. The app's own
-    /// hands do it directly (this is the test harness, not the agent), after recording what the
-    /// safety gate would say about that click if the agent tried it. Quits the app again if it
-    /// was not running before the script.
-    private func closeWithoutSaving(appName: String) async -> (Bool, String) {
+    /// Cleanup, as a person would: Command-W, then the "Delete" button of the window's save sheet.
+    /// The app's own hands do it directly (this is the test harness, not the agent), after recording
+    /// what the safety gate would say about that click if the agent tried it. It throws a document
+    /// away only when it is certainly the script's own (`ScriptSteps.refusalToDiscard`), and only
+    /// through a button inside a sheet of that window; otherwise it presses nothing and says why.
+    /// Quits the app again if it was not running before the script.
+    private func closeWithoutSaving(_ argument: String) async -> (Bool, String) {
+        guard let target = ScriptSteps.appAndText(argument) else {
+            return (false, "write: close-without-saving <App> | <the exact text the script typed>")
+        }
+        let appName = target.app
+        let wasRunning = appName.localizedCaseInsensitiveContains("TextEdit") ? textEditWasRunning : true
         var notes: [String] = []
         var front = await labels.frontmost()
         guard front.app.localizedCaseInsensitiveContains(appName) else { return (false, "\(appName) is not in front (\(front.app)); not pressing anything") }
+        if let refusal = ScriptSteps.refusalToDiscard(
+            appWasRunningBefore: wasRunning, documentText: Self.documentText(appName: front.app), typed: target.text)
+        {
+            return (false, refusal)
+        }
         do { try await hands.key("cmd+w") } catch { return (false, "Command-W failed: \(error)") }
         try? await Task.sleep(nanoseconds: 1_200_000_000)
-        let controls = await labels.visibleControls(limit: 120)
-        if let button = controls.first(where: { $0.role == .button && ["delete", "don\u{2019}t save", "don't save"].contains($0.label.lowercased()) }) {
-            let center = CGPoint(x: button.frame.midX, y: button.frame.midY)
+        if let frame = Self.discardButtonInSheet(appName: front.app) {
+            let center = CGPoint(x: frame.midX, y: frame.midY)
             let action = await labels.clickAction(at: center)
             let verdict = await safetyGate.check(action)
             notes.append("safety gate on \(action.description): \(verdict.label) (\(verdict.source))")
@@ -329,7 +338,7 @@ final class ScriptRun {
             }
             try? await Task.sleep(nanoseconds: 800_000_000)
         } else {
-            notes.append("no save sheet (nothing to discard)")
+            notes.append("no Delete button in a save sheet of the front window; pressed nothing more")
         }
         if !textEditWasRunning, appName.localizedCaseInsensitiveContains("TextEdit") {
             front = await labels.frontmost()
@@ -346,12 +355,6 @@ final class ScriptRun {
 
     // MARK: Reading the screen (read only)
 
-    /// True while the Mac shows its lock screen. Read only, from the window server's session.
-    static func screenIsLocked() -> Bool {
-        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
-        return (session["CGSSessionScreenIsLocked"] as? Bool) == true
-    }
-
     /// The text of the front document of `appName`: the first text area's value, read through the
     /// accessibility API. Nothing is clicked or changed.
     static func documentText(appName: String) -> String? {
@@ -360,6 +363,59 @@ final class ScriptRun {
         var window: CFTypeRef?
         guard AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &window) == .success, let window else { return nil }
         return firstTextAreaValue(window as! AXUIElement, depth: 0)
+    }
+
+    /// The frame (screen points, top-left origin) of a discard button ("Delete", "Don't Save") that is
+    /// inside a sheet attached to the focused window of `appName`, or nil. Read only. A button anywhere
+    /// else (a toolbar, another window) is never returned, so the cleanup can never press it.
+    static func discardButtonInSheet(appName: String) -> CGRect? {
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == appName }) else { return nil }
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        var window: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &window) == .success, let window else { return nil }
+        for sheet in children(of: window as! AXUIElement) where role(of: sheet) == (kAXSheetRole as String) {
+            if let frame = discardButton(in: sheet, depth: 0) { return frame }
+        }
+        return nil
+    }
+
+    private static func discardButton(in element: AXUIElement, depth: Int) -> CGRect? {
+        guard depth < 5 else { return nil }
+        if role(of: element) == (kAXButtonRole as String) {
+            var title: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &title)
+            if let title = title as? String, ScriptSteps.discardButtonTitles.contains(title.lowercased()) { return frame(of: element) }
+        }
+        for child in children(of: element) {
+            if let found = discardButton(in: child, depth: depth + 1) { return found }
+        }
+        return nil
+    }
+
+    private static func role(of element: AXUIElement) -> String? {
+        var role: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        return role as? String
+    }
+
+    private static func children(of element: AXUIElement) -> [AXUIElement] {
+        var children: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children)
+        return (children as? [AXUIElement]) ?? []
+    }
+
+    private static func frame(of element: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+            AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+            let positionValue, let sizeValue
+        else { return nil }
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
+        AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+        return CGRect(origin: position, size: size)
     }
 
     private static func firstTextAreaValue(_ element: AXUIElement, depth: Int) -> String? {

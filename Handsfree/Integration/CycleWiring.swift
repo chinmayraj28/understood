@@ -12,6 +12,7 @@
 
 import Foundation
 import HFCore
+import os
 
 /// "Is anything going on", in the three parts HFWake's cycle asks about.
 struct CycleSnapshot: Equatable, Sendable {
@@ -23,6 +24,9 @@ struct CycleSnapshot: Equatable, Sendable {
     var taskRunning: Bool
     /// A task is waiting for the user's answer or their yes.
     var awaitingAnswer: Bool
+    /// The agent itself is talking or working out a reply (part of `someoneSpeaking`). A goodbye never
+    /// closes over it: what it is saying may be a task's result, which is not repeated.
+    var agentSpeaking: Bool = false
 
     static let idle = CycleSnapshot(someoneSpeaking: false, taskRunning: false, awaitingAnswer: false)
 
@@ -46,6 +50,8 @@ struct CycleHooks {
 
 @MainActor
 enum CycleWiring {
+    nonisolated static let logger = Logger(subsystem: "com.handsfree", category: "wake")
+
     /// How long a wake waits for the conversation to connect, including one automatic retry,
     /// before it gives up and goes back to sleep.
     static let connectPatienceSeconds: TimeInterval = 4
@@ -58,7 +64,8 @@ enum CycleWiring {
         CycleSnapshot(
             someoneSpeaking: conversation.isUserSpeaking || conversation.isAgentSpeaking || conversation.hasUnspokenNews,
             taskRunning: taskRunning,
-            awaitingAnswer: awaitingAnswer)
+            awaitingAnswer: awaitingAnswer,
+            agentSpeaking: conversation.isAgentSpeaking)
     }
 
     static func hooks(voice: any VoiceConnecting, runner: any TaskRunnerPart, memory: any MemoryProviding) -> CycleHooks {
@@ -82,7 +89,18 @@ enum CycleWiring {
                 let summary = await memory.summaryForPrompt(maxCharacters: 1200)
                 await voice.openConversation(firstUtterance: "", memorySummary: summary)
             },
-            close: { [weak voice] in await voice?.closeConversation() },
+            close: { [weak voice] in
+                await voice?.closeConversation()
+                // The last word, after the close: a start_task that arrived in the moment between the
+                // decision to sleep and the close (about 0.2 s) may have begun a task. No task may run with
+                // no conversation to hear "stop", so it is stopped; its result wakes the app to say so.
+                // (Calls from the closed conversation that had not started yet never run: VoiceSession
+                // checks the conversation before running a tool.)
+                if runner.isRunning || runner.isAwaitingAnswer {
+                    CycleWiring.logger.error("A task started as the conversation closed; stopping it")
+                    runner.cancel()
+                }
+            },
             snapshot: { [weak voice] in
                 snapshot(taskRunning: runner.isRunning, awaitingAnswer: runner.isAwaitingAnswer,
                          conversation: voice?.conversationActivity ?? .closed)

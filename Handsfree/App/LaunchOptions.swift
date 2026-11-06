@@ -40,6 +40,11 @@ struct LaunchOptions: Equatable {
     /// microphone and no sound, write <data dir>/script-run.json and quit (see App/ScriptRun.swift).
     var scriptPath: String?
 
+    /// Whether this launch may start the real wake listener (the microphone). `--sync-only` must not,
+    /// even when a permission is granted while it runs (the setup refresh would otherwise start it), and
+    /// a script run uses its own fake listener.
+    var mayStartRealListening: Bool { !syncOnly && scriptPath == nil }
+
     /// Unknown arguments are ignored, because macOS adds its own (for example `-NSDocumentRevisionsDebugMode`).
     static func parse(_ arguments: [String]) -> LaunchOptions {
         var options = LaunchOptions()

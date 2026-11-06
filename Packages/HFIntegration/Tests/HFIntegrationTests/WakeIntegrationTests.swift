@@ -81,11 +81,18 @@ final class WakeConversation: ConversationDriving {
     }
 
     /// Like the real agent, reply to every message (the session waits for a reply before pushing more).
+    /// The pushed messages the fake agent has said, in order.
+    var said: [String] = []
+    /// True once the agent has said a pushed message containing `fragment`. The user can only
+    /// answer a question they have heard: an answer before that is not passed on.
+    func hasSaid(_ fragment: String) -> Bool { said.contains { $0.contains(fragment) } }
+
     func sendUserMessage(_ text: String) async throws {
         userMessages.append(text)
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 20_000_000)
-            self?.emit(.agentResponse("(says it)"))
+            self?.said.append(text)
+            self?.emit(.agentResponse(text))  // says what it was asked to say (the app checks the words)
         }
     }
     func sendContext(_ text: String) async throws {}
@@ -419,8 +426,10 @@ func heldTask(_ gate: Gate, result: String = "Finished the long job.") -> Script
         #expect(await wake.wake(saying: ""))
         wake.conversation.callTool("start_task", ["goal": .string(TaskFlowTests.goal)], id: "c1")
         _ = try #require(await wake.rig.recorder.waitFor(.question, timeout: 3))
+        #expect(await waitUntil(timeout: 3) { wake.conversation.hasSaid("asks:") }, "the user hears the question before answering")
         wake.conversation.userSays("Shah", thenAgentCalls: "answer_task", ["answer": "Priya Shah"], id: "c2")
         let confirmation = try #require(await wake.rig.recorder.waitFor(.confirmation, timeout: 3))
+        #expect(await waitUntil(timeout: 3) { wake.conversation.hasSaid("needs a clear yes") }, "the user hears the confirmation before answering")
         #expect(confirmation.text.contains("Send the invite to Priya Shah"))
         #expect(await waitUntil(timeout: 3) { wake.conversation.pushes(containing: "Send the invite to Priya Shah") == 1 })
         await wake.settle()
@@ -515,8 +524,10 @@ func heldTask(_ gate: Gate, result: String = "Finished the long job.") -> Script
         #expect(await wake.wake(saying: ""))
         wake.conversation.callTool("start_task", ["goal": .string(TaskFlowTests.goal)], id: "c1")
         _ = try #require(await wake.rig.recorder.waitFor(.question, timeout: 3))
+        #expect(await waitUntil(timeout: 3) { wake.conversation.hasSaid("asks:") }, "the user hears the question before answering")
         wake.conversation.userSays("Shah", thenAgentCalls: "answer_task", ["answer": "Priya Shah"], id: "c2")
         _ = try #require(await wake.rig.recorder.waitFor(.confirmation, timeout: 3))
+        #expect(await waitUntil(timeout: 3) { wake.conversation.hasSaid("needs a clear yes") }, "the user hears the confirmation before answering")
         wake.conversation.userSays("yes", thenAgentCalls: "answer_task", ["answer": "yes"], id: "c3")
         #expect(await waitUntil {
             wake.rig.activity.events.contains { if case .pointerMoving(_, let duration) = $0 { duration == 5 } else { false } }

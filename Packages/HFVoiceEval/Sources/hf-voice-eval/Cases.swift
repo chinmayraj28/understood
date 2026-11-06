@@ -16,16 +16,22 @@ struct EvalCase: Decodable, Sendable {
     let task: TaskScript?
     /// Results to return instead of the default stub results, by tool name.
     let toolResults: [String: StubResult]?
+    /// The Mac is locked: every quick action and start_task answers as the app does then.
+    let lockedMac: Bool?
     let expect: Expect
 
     enum Turn: Decodable, Sendable {
         case say(String)
+        /// Said without waiting for the agent or a running task, for example a "yes" that comes
+        /// before the task's question has been heard.
+        case sayNow(String)
         case wait(Double)
 
-        private enum Keys: String, CodingKey { case say, wait }
+        private enum Keys: String, CodingKey { case say, sayNow, wait }
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: Keys.self)
             if let text = try container.decodeIfPresent(String.self, forKey: .say) { self = .say(text); return }
+            if let text = try container.decodeIfPresent(String.self, forKey: .sayNow) { self = .sayNow(text); return }
             self = .wait(try container.decode(Double.self, forKey: .wait))
         }
     }
@@ -71,6 +77,9 @@ struct EvalCase: Decodable, Sendable {
         let notBeforeResult: [String]?
         /// The most words the agent may say before its first action (its few words, no narration).
         let maxWordsBeforeFirstCall: Int?
+        /// answer_task may only be called after the agent has said something matching this
+        /// (the task's question, spoken aloud).
+        let answerOnlyAfterSaying: String?
     }
 
     struct ExpectedCall: Decodable, Sendable {

@@ -169,9 +169,16 @@ enum PanelSnapshotBuilder {
         let listening = inputs.listening
 
         if let agent = listening.agent, !agent.inSync {
-            found.append(PanelSnapshot.Trouble(
-                kind: .voiceNotSetUp, severity: .error,
-                title: PanelCopy.voiceNotSetUpTitle, message: PanelCopy.voiceNotSetUpMessage, action: nil))
+            if agent.couldNotCheck {
+                // Nothing is known (offline, slow, busy): it still wakes, so amber, not the red cannot-wake banner.
+                found.append(PanelSnapshot.Trouble(
+                    kind: .voiceUnchecked, severity: .warning,
+                    title: PanelCopy.voiceUncheckedTitle, message: PanelCopy.voiceUncheckedMessage, action: nil))
+            } else {
+                found.append(PanelSnapshot.Trouble(
+                    kind: .voiceNotSetUp, severity: .error,
+                    title: PanelCopy.voiceNotSetUpTitle, message: PanelCopy.voiceNotSetUpMessage, action: nil))
+            }
         }
 
         if activity == .notConnected || inputs.log.voiceProblem != nil {
@@ -210,7 +217,9 @@ enum PanelSnapshotBuilder {
         let listening = inputs.listening
         let voice = PanelCopy.voiceDetail(
             isReady: listening.agent?.inSync,
-            checkedAgo: listening.agent.map { ago($0.checkedAt, now: inputs.now) })
+            checkedAgo: listening.agent.map { ago($0.checkedAt, now: inputs.now) },
+            couldNotCheck: listening.agent?.couldNotCheck ?? false,
+            settingDiffers: listening.agent?.warning != nil)
         let lines = [
             voice,
             listening.listenerLine,

@@ -315,12 +315,21 @@ extension VoiceSession: VoiceConnecting {
     var isConversationConnected: Bool { isConnected }
 
     var agentStatus: AgentStatus? {
-        guard let check = agentCheck else { return nil }
+        // A failed check over a confirmed mismatch: the mismatch is what decides, so it is what is shown.
+        let shown = (agentCheck?.couldNotCheck == true && confirmedCheck?.isConfirmedMismatch == true) ? confirmedCheck : agentCheck
+        guard let check = shown else { return nil }
         return AgentStatus(
             inSync: check.inSync, toolCount: check.toolCount, expectedToolCount: preparedToolCount, checkedAt: check.checkedAt,
-            problem: check.problem, missing: check.missing, unexpected: check.unexpected)
+            problem: check.problem, missing: check.missing, unexpected: check.unexpected,
+            couldNotCheck: check.couldNotCheck, warning: check.warning)
     }
     // `openRefusal` is VoiceSession's own property, with the same meaning.
+
+    var spokenNewsCounts: [String: Int] {
+        let counts = spokenNews
+        return ["sent_again": counts.sentAgain, "not_said_twice": counts.notSaidTwice,
+                "unsaid_now": counts.unsaidNow, "answers_held_back": counts.answersHeldBack]
+    }
 
     var conversationActivity: VoiceActivity {
         let now = activity
@@ -419,7 +428,8 @@ final class WakeCycleAdapter: ListeningCycling {
             currentActivity: {
                 let now = mirror.current
                 return HFWake.ConversationActivity(
-                    someoneSpeaking: now.someoneSpeaking, taskRunning: now.taskRunning, awaitingAnswer: now.awaitingAnswer)
+                    someoneSpeaking: now.someoneSpeaking, taskRunning: now.taskRunning, awaitingAnswer: now.awaitingAnswer,
+                    agentSpeaking: now.agentSpeaking)
             },
             bus: bus,
             // The cycle posts each problem itself as `.voiceDisconnected` (once per distinct problem), which the

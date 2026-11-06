@@ -37,6 +37,11 @@ struct AgentStatus: Equatable, Sendable {
     var problem: String?
     var missing: [String]
     var unexpected: [String]
+    /// The check itself failed (network, timeout, 5xx, 429): nothing is known about the agent. Conversations
+    /// still open; it is checked again at the next wake. Shown amber, never the red cannot-wake banner.
+    var couldNotCheck: Bool = false
+    /// In step, but the model or reasoning read back differs from what was sent. Shown, never a refusal.
+    var warning: String? = nil
 }
 
 /// The voice conversation (HFVoice's VoiceSession). Prepared once, then opened on every
@@ -68,7 +73,15 @@ protocol VoiceConnecting: AnyObject {
     var conversationActivity: VoiceActivity { get }
     /// Called when a task event the user must hear arrives while no conversation is open.
     var onNewsWhileClosed: (@MainActor () -> Void)? { get set }
+    /// Counts for app-status.json (see the extension below).
+    var spokenNewsCounts: [String: Int] { get }
     func stop() async
+}
+
+extension VoiceConnecting {
+    /// For app-status.json: how often the agent did not say a pushed message, and answers held back
+    /// because the user had not heard the question. Counts only. Empty for stand-ins.
+    var spokenNewsCounts: [String: Int] { [:] }
 }
 
 /// Decides when the app is asleep and when a conversation is open (HFWake's listening

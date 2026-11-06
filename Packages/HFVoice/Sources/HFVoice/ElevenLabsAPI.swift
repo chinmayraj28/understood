@@ -97,18 +97,18 @@ public struct ElevenLabsAPI: Sendable {
     }
 
     /// The agent as stored on ElevenLabs.
-    public func agent(id agentID: String) async throws -> JSONValue {
-        try await call("GET", "/v1/convai/agents/\(agentID)")
+    public func agent(id agentID: String, timeout: TimeInterval = 30) async throws -> JSONValue {
+        try await call("GET", "/v1/convai/agents/\(agentID)", timeout: timeout)
     }
 
     @discardableResult
-    func call(_ method: String, _ pathAndQuery: String, body: JSONValue? = nil) async throws -> JSONValue {
+    func call(_ method: String, _ pathAndQuery: String, body: JSONValue? = nil, timeout: TimeInterval = 30) async throws -> JSONValue {
         guard let url = URL(string: pathAndQuery, relativeTo: baseURL) else {
             throw ElevenLabsAPIError(status: 0, message: "Bad path \(pathAndQuery)")
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 30
+        request.timeoutInterval = timeout
         request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

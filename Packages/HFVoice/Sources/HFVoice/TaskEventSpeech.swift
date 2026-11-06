@@ -30,6 +30,9 @@ public enum TaskEventSpeech {
         }
     }
 
+    /// Put before a push sent a second time, because the agent did not say it the first time.
+    public static let sayItNow = "\(marker) The user has not heard the message below: your last reply did not say it. Say it aloud to the user now, in full. Do not skip this turn."
+
     /// The silent note for the agent's context, so "how's it going?" can be answered.
     public static func contextLine(for event: TaskEvent) -> String {
         "Task \(event.taskID) \(event.kind.rawValue) (\(event.status.rawValue)): \(event.text)"
@@ -55,13 +58,28 @@ public struct PushQueue: Sendable {
         public var maximumWait: TimeInterval = 10
         /// A progress line older than this is no longer worth saying.
         public var progressShelfLife: TimeInterval = 6
+        /// A question, confirmation or result is never said more than this long after it happened.
+        public var newsShelfLife: TimeInterval = 1800
         public init() {}
     }
 
     struct Item: Sendable {
         let event: TaskEvent
         let queuedAt: TimeInterval
+        /// When the event first arrived. Kept when it is queued again (re-sent, put back after a failed send).
+        var happenedAt: TimeInterval
         var isProgress: Bool { event.kind == .progress }
+    }
+
+    /// When each recent event first arrived, so a re-queued one keeps its age.
+    private var firstSeen: [(event: TaskEvent, at: TimeInterval)] = []
+
+    private mutating func happenedAt(_ event: TaskEvent, now: TimeInterval) -> TimeInterval {
+        firstSeen.removeAll { now - $0.at > timing.newsShelfLife }
+        if let seen = firstSeen.first(where: { $0.event == event }) { return seen.at }
+        firstSeen.append((event, now))
+        if firstSeen.count > 50 { firstSeen.removeFirst(firstSeen.count - 50) }
+        return now
     }
 
     public var timing: Timing
@@ -71,8 +89,13 @@ public struct PushQueue: Sendable {
 
     public var isEmpty: Bool { items.isEmpty }
     public var count: Int { items.count }
+    /// How many waiting items are still young enough to be said.
+    public func freshCount(at now: TimeInterval) -> Int { items.filter { now - $0.happenedAt <= timing.newsShelfLife }.count }
 
-    public mutating func add(_ event: TaskEvent, at now: TimeInterval) {
+    /// - Parameter fresh: true when the task has just sent this event (a new occurrence, even if an
+    ///   identical one came before); false when it is queued again and keeps its age.
+    public mutating func add(_ event: TaskEvent, at now: TimeInterval, fresh: Bool = false) {
+        if fresh { firstSeen.removeAll { $0.event == event } }
         if event.kind == .progress {
             // Only the latest progress matters, and only if nothing important is waiting.
             if items.contains(where: { !$0.isProgress }) { return }
@@ -80,7 +103,7 @@ public struct PushQueue: Sendable {
         } else {
             items.removeAll { $0.isProgress }
         }
-        items.append(Item(event: event, queuedAt: now))
+        items.append(Item(event: event, queuedAt: now, happenedAt: happenedAt(event, now: now)))
     }
 
     /// The events to speak now, oldest first, or none to keep waiting. Removes what it returns.
@@ -90,6 +113,8 @@ public struct PushQueue: Sendable {
     ///   - connected: false while reconnecting; nothing is taken, nothing is lost.
     public mutating func takeReady(at now: TimeInterval, quiet: Bool, connected: Bool) -> [TaskEvent] {
         items.removeAll { $0.isProgress && now - $0.queuedAt > timing.progressShelfLife }
+        // Nothing is said more than half an hour after it happened.
+        items.removeAll { now - $0.happenedAt > timing.newsShelfLife }
         guard connected, let oldest = items.first else { return [] }
         let waitedTooLong = !oldest.isProgress && now - oldest.queuedAt >= timing.maximumWait
         guard quiet || waitedTooLong else { return [] }
@@ -100,7 +125,9 @@ public struct PushQueue: Sendable {
 
     /// Returns events whose sending failed to the front of the queue, in their order.
     public mutating func putBack(_ events: [TaskEvent], at now: TimeInterval) {
-        let returned = events.filter { $0.kind != .progress }.map { Item(event: $0, queuedAt: now - timing.maximumWait) }
+        let returned = events.filter { $0.kind != .progress }.map {
+            Item(event: $0, queuedAt: now - timing.maximumWait, happenedAt: happenedAt($0, now: now))
+        }
         items.removeAll { $0.isProgress && !returned.isEmpty }
         items.insert(contentsOf: returned, at: 0)
     }

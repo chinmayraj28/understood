@@ -13,7 +13,9 @@
 #   scripts/run_app.sh --wait ...              block until the app quits
 #   scripts/run_app.sh --wait --render-states DIR   draw the companion's states to PNGs and quit
 #   scripts/run_app.sh --sync-only --quit-after 12  update and check the voice agent, no listening (no microphone)
-#   scripts/run_app.sh --wait --script scripts/e2e/textedit.txt   test only: typed flow on the TEST agent, no mic, no sound
+#   LIVE_LOCK_OWNER=<you> scripts/run_app.sh --wait --script scripts/e2e/textedit.txt
+#                                              test only: typed flow on the TEST agent, no mic, no sound;
+#                                              needs --wait and the live lock held by <you>
 #
 # Only one copy runs. If Handsfree is already running, it is never stopped from here: a plain
 # start asks it to show its panel; a demo or test launch refuses with one line; --render-states
@@ -68,6 +70,27 @@ if [ -n "$running_pid" ] && [ "$RENDERS_ONLY" -eq 0 ]; then
   echo "Handsfree is already running (process $running_pid); asking it to show its panel."
 fi
 
+# A script run moves the real pointer and presses real keys, so it needs the live lock (one pointer,
+# one keyboard), held by whoever runs it, for the whole run: it must be waited for, and the lock is
+# refreshed every minute while it runs. Its report is deleted first, so an old one is never shown as new.
+REPORT="${HANDSFREE_DATA_DIR:-$HOME/Library/Application Support/Handsfree}/script-run.json"
+LOCK_REFRESHER=""
+if [ "$SCRIPT_RUN" -eq 1 ]; then
+  if [ ${#WAIT_FLAG[@]} -eq 0 ]; then
+    echo "A script run must be waited for, so the live lock covers all of it: add --wait." >&2
+    exit 1
+  fi
+  if [ -z "${LIVE_LOCK_OWNER:-}" ] || ! "$REPO_ROOT/scripts/live_lock.sh" holds "$LIVE_LOCK_OWNER" >/dev/null; then
+    echo "A script run moves the real pointer and presses keys, so it needs the live lock. Take it, then pass your name:" >&2
+    echo "  scripts/live_lock.sh acquire <you> && LIVE_LOCK_OWNER=<you> scripts/run_app.sh --wait --script <file>" >&2
+    exit 1
+  fi
+  rm -f "$REPORT"
+  ( while sleep 60; do "$REPO_ROOT/scripts/live_lock.sh" refresh "$LIVE_LOCK_OWNER" >/dev/null 2>&1 || exit 0; done ) &
+  LOCK_REFRESHER=$!
+  trap '[ -n "$LOCK_REFRESHER" ] && kill "$LOCK_REFRESHER" 2>/dev/null; true' EXIT
+fi
+
 # `open -n` starts a new process, so the options reach the app; if a copy is running, that new
 # process hands over to it at once (see Handsfree/App/SingleInstance.swift).
 open -n ${WAIT_FLAG[@]+"${WAIT_FLAG[@]}"} "$APP_PATH" --args ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"}
@@ -76,9 +99,11 @@ if [ ${#WAIT_FLAG[@]} -eq 0 ] && [ "$TEST_MODE" -eq 1 ] && ! printf '%s\n' ${APP
 fi
 # A waited-for script run prints its report, so the result is visible without opening the file.
 if [ ${#WAIT_FLAG[@]} -gt 0 ] && [ "$SCRIPT_RUN" -eq 1 ]; then
-  REPORT="${HANDSFREE_DATA_DIR:-$HOME/Library/Application Support/Handsfree}/script-run.json"
   if [ -f "$REPORT" ]; then
     echo "Report: $REPORT"
     cat "$REPORT"; echo
+  else
+    echo "No report was written: the run stopped before the end (or another copy of Handsfree took over)." >&2
+    exit 1
   fi
 fi

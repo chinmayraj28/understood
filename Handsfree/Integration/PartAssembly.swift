@@ -175,7 +175,10 @@ enum PartAssembly {
             hands: hands, eyes: eyes, labels: labels, classifiers: classifiers, safetyGate: safetyGate,
             memory: memory, executor: executor, taskRunner: taskRunner, stopWatcher: stopWatcher, voice: voice,
             // While the Mac is locked, quick tools and start_task do nothing and say so (ScreenLock.swift).
-            tools: ScreenLock.guarding(quickTools + memoryTools + taskRunner.tools + sleepTools, isLocked: ScreenLock.isLockedNow),
+            // While a task runs or waits for an answer, it owns the hands (TaskOwnsHands.swift).
+            tools: ScreenLock.guarding(
+                TaskOwnsHands.guarding(quickTools, isTaskActive: { [taskRunner] in CycleWiring.isTaskActive(taskRunner) })
+                    + memoryTools + taskRunner.tools + sleepTools, isLocked: ScreenLock.isLockedNow),
             sleepRequests: sleepRequests,
             wiring: wiring,
             quitHooks: quitHooks,

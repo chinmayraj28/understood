@@ -9,11 +9,14 @@ public struct ConversationActivity: Sendable, Equatable {
     public var taskRunning: Bool
     /// A task is waiting for the user's answer or their yes. The pointer may be over Send.
     public var awaitingAnswer: Bool
+    /// The agent itself is talking or working out a reply (also counted in `someoneSpeaking`).
+    public var agentSpeaking: Bool
 
-    public init(someoneSpeaking: Bool = false, taskRunning: Bool = false, awaitingAnswer: Bool = false) {
-        self.someoneSpeaking = someoneSpeaking
+    public init(someoneSpeaking: Bool = false, taskRunning: Bool = false, awaitingAnswer: Bool = false, agentSpeaking: Bool = false) {
+        self.someoneSpeaking = someoneSpeaking || agentSpeaking
         self.taskRunning = taskRunning
         self.awaitingAnswer = awaitingAnswer
+        self.agentSpeaking = agentSpeaking
     }
 
     public static let idle = ConversationActivity()
@@ -81,6 +84,9 @@ public actor ListeningCycle {
         public var goodbyeGraceSeconds: Double = 1.5
         /// The longest a goodbye is waited for.
         public var goodbyeLongestSeconds: Double = 15
+        /// Past that, the conversation still never closes while the agent is talking (it may be saying a
+        /// task's result, which is not repeated), up to this long in all. A stuck signal cannot hold it for ever.
+        public var goodbyeAgentLongestSeconds: Double = 60
         public init() {}
     }
 
@@ -361,6 +367,11 @@ public actor ListeningCycle {
         do { try await sleep(pace.goodbyeGraceSeconds) } catch { return }
         var waited = pace.goodbyeGraceSeconds
         while currentActivity().someoneSpeaking && waited < pace.goodbyeLongestSeconds {
+            do { try await sleep(0.5) } catch { return }
+            waited += 0.5
+        }
+        // At the limit, never cut the agent off mid-sentence.
+        while currentActivity().agentSpeaking && waited < pace.goodbyeAgentLongestSeconds {
             do { try await sleep(0.5) } catch { return }
             waited += 0.5
         }

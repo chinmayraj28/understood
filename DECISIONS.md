@@ -157,3 +157,21 @@ Every package's own tests passed, because each one tested its own wording. Only 
 **Not known.** Each setup ran once, so a difference of one or two cases is noise. The tests are typed, so mishearing and talking over the agent are not covered. Sonnet costs more per conversation than Haiku and that was not measured.
 
 **Also changed.** Task progress is no longer sent as something the agent must answer, because it replied "Nothing to add yet." after every task start. Progress is background information now, and the companion beside the pointer shows it.
+
+## 6 Nov 2026: a yes only counts if the question was heard
+
+**What was found.** Once the voice agent could stay silent for a turn, it could also stay silent on a question the app had sent it to say, such as "Send 'running late' to Amma?". The app counted the question as said. Looking further, nothing in code had ever checked that the user heard a question before their answer was passed to the task: a "yes" said a moment too early, or one the agent made up, would have been consent. The only guard was a sentence in the prompt.
+
+**What was chosen.**
+- A question or confirmation counts as said only when the agent's reply contains at least half of its meaningful words. If not, it is sent once more with wording that says it must be spoken. It is never sent a third time in the same conversation.
+- An answer reaches a task only after that task's question has been said in the current conversation. Otherwise the answer is held back and the question is asked again. A question from before the app slept must be heard again.
+- A result that is not said after two attempts no longer keeps the conversation open; it stays on the panel and is offered at the next wake. A waiting question still keeps the app awake.
+- While a task is running or waiting, quick commands that use the keyboard or pointer are refused, so the agent cannot type a question into the focused text box (the backup model did this once in testing).
+
+**Rejected.** Trusting the prompt. A rule about consent has to hold when the model is wrong.
+
+**What it costs.** The word match is rough. A heavily reworded question is repeated once, which is safe but can sound repetitive.
+
+## 6 Nov 2026: a locked Mac
+
+With the screen locked, the app used to say "Spotlight didn't open" or "I can't find the main display". Now every quick command and every task checks first, does nothing, and says "The Mac is locked, so I can't use it until someone unlocks it." The agent never offers to unlock the Mac and never asks for a password. Found by the typed end-to-end run on the night of 5 to 6 Nov, when the screen had locked.

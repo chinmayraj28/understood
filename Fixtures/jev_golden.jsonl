@@ -311,3 +311,6 @@
 {"classifier":"answer","split":"holdout","question":"Place the order for printer ink?","reply":"yes if it's under ten pounds","expected":"unclear"}
 {"classifier":"answer","split":"holdout","question":"Send \"on my way\" to Sam?","reply":"yes, add a heart emoji first","expected":"unclear"}
 {"classifier":"answer","split":"holdout","question":"Send \"on my way\" to Sam?","reply":"oh, um, yes, no, I mean","expected":"unclear"}
+{"classifier":"utterance","split":"tune","text":"stop listening","task_running":true,"question":null,"expected":"cancel","note":"6 Nov review: said mid-task it stops the task at once, then the app sleeps"}
+{"classifier":"utterance","split":"tune","text":"Okay, please stop listening to me","task_running":true,"question":"Send 'running late' to Amma?","expected":"cancel","note":"6 Nov review: ends the task even while a confirmation is open"}
+{"classifier":"utterance","split":"holdout","text":"Stop listening, stop.","task_running":true,"question":null,"expected":"cancel"}

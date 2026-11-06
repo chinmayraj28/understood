@@ -76,6 +76,12 @@ enum Scoring {
             let words = before.map(wordCount).reduce(0, +)
             if words > limit { failures.append("said \(words) words before acting (at most \(limit)): \(before.map { "\"\($0)\"" }.joined(separator: " "))") }
         }
+        if let pattern = expect.answerOnlyAfterSaying {
+            let saidAt = events.first { $0.kind == "agent" && matches(pattern, $0.text) }?.at ?? .infinity
+            for event in events where event.kind == "tool" && event.text.hasPrefix("answer_task") && event.at < saidAt {
+                failures.append("passed an answer on before the question was said aloud: \(event.text)")
+            }
+        }
         if let patterns = expect.notBeforeResult {
             let resultAt = events.first { $0.kind == "push" && $0.text.hasPrefix("result") }?.at ?? .infinity
             for event in events where event.kind == "agent" && event.at < resultAt {

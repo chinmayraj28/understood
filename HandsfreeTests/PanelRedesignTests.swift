@@ -179,6 +179,29 @@ struct PanelRedesignTests {
         #expect(try example("09b-trouble-phrase-not-heard").snapshot.canWake)
     }
 
+    @Test("Voice not checkable (offline, slow, busy): amber, still invites the wake phrase, never the red banner")
+    func voiceUnchecked() throws {
+        let snapshot = try example("09a-trouble-voice-unchecked").snapshot
+        #expect(snapshot.trouble.map(\.kind) == [.voiceUnchecked])
+        #expect(snapshot.trouble.first?.severity == .warning)
+        #expect(snapshot.trouble.first?.message.hasPrefix("It will check again when you wake it") == true)
+        #expect(snapshot.canWake, "the ready screen keeps saying the wake phrase")
+        #expect(snapshot.mode == .ready)
+        #expect(snapshot.needsAttention)
+        #expect(snapshot.details.first?.hasPrefix("Voice: could not be checked just now") == true)
+    }
+
+    @Test("A model or reasoning difference is only a quiet line in the details, never a banner")
+    func settingDiffers() {
+        var listening = PanelStateCatalogue.asleepListening(now)
+        listening.agent?.warning = "model read back as another alias"
+        let snapshot = PanelStateCatalogue.make(
+            facts: PanelStateCatalogue.facts(), events: [.asleep(wakePhrase: "Hey Handsfree")], listening: listening, now: now)
+        #expect(snapshot.trouble.isEmpty)
+        #expect(snapshot.details.first?.contains("one setting differs") == true)
+        #expect(snapshot.details.allSatisfy { !$0.contains("alias") }, "the warning's own words stay in the status file")
+    }
+
     @Test("The header agrees with any banner: \u{201C}Needs attention\u{201D}, never \u{201C}Asleep\u{201D} under a red banner")
     func headerAgreesWithTrouble() throws {
         for name in ["09-trouble-voice", "09b-trouble-phrase-not-heard", "09c-trouble-not-connected"] {
@@ -345,10 +368,10 @@ struct PanelRedesignTests {
         strings += [
             PanelCopy.setupTitle, PanelCopy.setupIntro, PanelCopy.keysInstructions, PanelCopy.optionalKeyNote, PanelCopy.readySubtitle,
             PanelCopy.alwaysOpenTitle, PanelCopy.alwaysOpenSubtitle, PanelCopy.cannotWakeSubtitle, PanelCopy.risingChime, PanelCopy.fallingChime(sleepAfterSeconds: 25),
-            PanelCopy.voiceNotSetUpTitle, PanelCopy.voiceNotSetUpMessage, PanelCopy.notConnectedTitle,
+            PanelCopy.voiceNotSetUpTitle, PanelCopy.voiceNotSetUpMessage, PanelCopy.voiceUncheckedTitle, PanelCopy.voiceUncheckedMessage, PanelCopy.notConnectedTitle,
             PanelCopy.notConnectedMessage(reason: nil), PanelCopy.yesHint, PanelCopy.answerHint, PanelCopy.needsAttention, PanelCopy.whereToFind,
             PanelCopy.voiceDetail(isReady: true, checkedAgo: "1 min ago"), PanelCopy.voiceDetail(isReady: false, checkedAgo: nil),
-            PanelCopy.voiceDetail(isReady: nil, checkedAgo: nil), PanelCopy.partsDetail(real: 8, total: 9),
+            PanelCopy.voiceDetail(isReady: nil, checkedAgo: nil), PanelCopy.voiceDetail(isReady: false, checkedAgo: "5 s ago", couldNotCheck: true), PanelCopy.voiceDetail(isReady: true, checkedAgo: nil, settingDiffers: true), PanelCopy.partsDetail(real: 8, total: 9),
         ]
         #expect(strings.count > 100)
         for string in strings {

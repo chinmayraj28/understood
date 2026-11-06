@@ -237,6 +237,31 @@ final class CycleHarness: @unchecked Sendable {
         await harness.cycle.stop()
     }
 
+    @Test func theGoodbyeLimitNeverCutsTheAgentOffMidSentence() async {
+        let harness = CycleHarness(idle: 25)
+        #expect(await harness.wake())
+        #expect(await harness.cycle.requestSleep() == .goingToSleep)
+        // The agent is still saying a long task result when the 15 s goodbye limit passes.
+        harness.activity.value = ConversationActivity(agentSpeaking: true)
+        await harness.clock.advance(by: 20)
+        #expect(await harness.state() == .awake, "not closed over the agent")
+        #expect(harness.closes.value == 0)
+        harness.activity.value = .idle
+        await harness.clock.advance(by: 1)
+        #expect(await harness.waitFor(.asleep))
+        await harness.cycle.stop()
+    }
+
+    @Test func pastTheGoodbyeLimitTheUserTalkingDoesNotHoldItOpen() async {
+        let harness = CycleHarness(idle: 25)
+        #expect(await harness.wake())
+        #expect(await harness.cycle.requestSleep() == .goingToSleep)
+        harness.activity.value = ConversationActivity(someoneSpeaking: true)  // room noise or the user, not the agent
+        await harness.clock.advance(by: 16)
+        #expect(await harness.waitFor(.asleep))
+        await harness.cycle.stop()
+    }
+
     @Test func askedToSleepButATaskStartsDuringTheGoodbye() async {
         let harness = CycleHarness(idle: 25)
         #expect(await harness.wake())

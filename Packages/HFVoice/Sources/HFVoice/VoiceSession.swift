@@ -57,9 +57,17 @@ public final class VoiceSession {
         public var agentStuckAfter: TimeInterval = 60
         /// Task news older than this is not mentioned at the start of a new conversation.
         public var taskNewsShelfLife: TimeInterval = 1800
-        /// The longest the first wake after launch waits for the agent's definition to be updated
-        /// (measured at about 2 s). Real time: it bounds how long a person waits in silence.
-        public var firstSyncPatience: TimeInterval = 3
+        /// The longest a wake waits for an update already on its way (the launch update, about 2.5 s).
+        /// Real time: it bounds how long a person waits in silence.
+        public var firstSyncPatience: TimeInterval = 2
+        /// The longest a connected wake waits for the agent's read-back before carrying on (it is
+        /// about 0.3 s and runs alongside connecting). A slow or failed read-back never refuses a wake.
+        public var wakeCheckPatience: TimeInterval = 2
+        /// The longest a wake waits for a repair of an agent confirmed wrong (about 2.5 s) before refusing.
+        public var repairPatience: TimeInterval = 4
+        /// After the connection drops, waiting news keeps the conversation open this long while it
+        /// reconnects; after that it waits for the next conversation instead.
+        public var undeliverableNewsGrace: TimeInterval = 30
         public var push = PushQueue.Timing()
         public init() {}
     }
@@ -144,6 +152,17 @@ public final class VoiceSession {
     private var syncTask: Task<AgentCheck, Never>?
     /// The latest check of the agent on ElevenLabs: in step or not, how many tools, when. Nil until checked.
     public private(set) var agentCheck: AgentCheck?
+    /// The latest check that said something about the agent (in step, or a confirmed mismatch):
+    /// a failed check ("could not check") never replaces it. Decisions are made on this one.
+    public private(set) var confirmedCheck: AgentCheck?
+    /// True once a check in this launch has confirmed the agent in step.
+    private var hasConfirmedGoodCheck = false
+    /// Every check is numbered when it starts; a result older than the newest recorded is ignored,
+    /// so a slow update that fails late cannot overwrite a newer good check.
+    private var checksStarted = 0
+    private var newestRecordedCheck = 0
+    /// With no good check yet, tool calls wait for the first read-back (at most `wakeCheckPatience`).
+    private var toolGate: Task<Void, Never>?
     /// Why the last `open` did not open a conversation, if it did not. One sentence, fine to say.
     public private(set) var openRefusal: String?
     /// The read-back started with a wake; the first sentence waits for it.
@@ -169,6 +188,13 @@ public final class VoiceSession {
     private var lastVoiceAt: TimeInterval = -.infinity
     private var lastActivityAt: TimeInterval = -.infinity
     private var toolCallsInFlight = 0
+    /// Whether pushed questions, confirmations and results were really said, and whether the user
+    /// heard a question before their answer is passed on (see SaidCheck).
+    private var said = SaidCheck()
+    /// The user's recent sentences with when they arrived: a confirmation is answered in their own words.
+    private var userSentences: [(text: String, turn: Int)] = []
+    /// Numbers every sentence either side says, in order (a clock can give two the same time).
+    private var turnCounter = 0
 
     // What to tell the agent after a reconnect, or at the start of the next conversation.
     private var recentTurns: [String] = []
@@ -339,58 +365,84 @@ public final class VoiceSession {
         openCount += 1
         let thisOpen = openCount
         openRequestedAt = clock()
+        disconnectedSince = nil
         lastActivityAt = openRequestedAt
         hasConnectedThisConversation = false
         reconnectAttempt = 0
         let text = firstUtterance.trimmingCharacters(in: .whitespacesAndNewlines)
         pendingFirstUtterance = text.isEmpty ? nil : text
         firstUtteranceAlreadyHeard = false
+        // Nothing has been heard in this conversation yet; what was left unsaid gets a new chance.
+        let again = said.newConversation(at: clock(), shelfLife: tuning.taskNewsShelfLife)
+        if !again.isEmpty {
+            let now = clock()
+            withQueue { queue in for event in again where !queue.items.contains(where: { $0.event == event }) { queue.add(event, at: now) } }
+        }
 
         openRefusal = nil
 
-        // A conversation never opens with the wrong tools: on 6 Nov the user spoke to an agent
-        // whose only tool was a test one, and it invented results. So the agent must be known to
-        // be in step first (see `agentReadyForConversation`).
+        // A conversation never opens with an agent confirmed wrong: on 6 Nov the user spoke to an
+        // agent whose only tool was a test one, and it invented results. But a check that merely
+        // failed (network, timeout, 5xx, 429) never stops a wake: see `agentReadyForConversation`.
         let ready = await agentReadyForConversation()
         syncWaitSeconds = clock() - openRequestedAt
         // Closed while waiting, or closed and opened again (that newer open connects instead).
         guard wantsToRun, thisOpen == openCount else { return }
         guard ready else {
-            refuseOpen(agentCheck?.problem ?? "The voice agent isn't ready yet, so I can't start a conversation.")
+            refuseOpen(AgentCheck.notSetUpSentence)
             return
         }
-        // Anything else holding the key could have changed the agent since the last check. A
-        // read-back takes about 0.3 s, so it runs alongside connecting, and the first sentence
-        // waits for its answer: a wake is no slower, and a changed agent is caught before anything is said.
-        if let keeper {
-            let tools = self.tools
-            pendingVerification = Task { await keeper.verify(tools) }
+        // Anything else holding the key could have changed the agent since the last check. The
+        // read-back (about 0.3 s) runs alongside connecting; the first sentence waits for it, at most
+        // `wakeCheckPatience`. (If it finds the agent wrong while an update is on its way, the
+        // repair is that update.)
+        if keeper != nil {
+            let verification = startCheck(push: false)
+            pendingVerification = verification
+            // With no good check yet in this launch, tools wait for it too (speech cannot be held).
+            if !hasConfirmedGoodCheck {
+                let patience = tuning.wakeCheckPatience
+                toolGate = Task { _ = await Self.result(of: verification, atMost: patience) }
+            }
         }
         startPump()
         await connect()
     }
 
-    /// Whether the agent is known to have exactly this app's tools, updating it if needed.
-    ///
-    /// The launch-time update is waited for up to `firstSyncPatience`. If it is still on its way,
-    /// a read-back (about 0.3 s) may show the agent already has these tools from the last run.
-    /// If it is out of step, one update is tried now (about 2.5 s). Only a confirmed agent opens.
+    /// Whether a conversation may open. False only when the agent is confirmed wrong and a repair,
+    /// tried now for at most `repairPatience`, has not fixed it. An update already on its way is
+    /// waited for at most `firstSyncPatience`. A check that fails or is slow never refuses.
     private func agentReadyForConversation() async -> Bool {
-        guard let keeper else { return true }
+        guard keeper != nil else { return true }
         startAgentSyncIfNeeded()
-        if let syncTask { await Self.wait(for: syncTask, atMost: tuning.firstSyncPatience) }
-        if agentCheck?.inSync == true { return true }
+        if let syncTask { _ = await Self.result(of: syncTask, atMost: tuning.firstSyncPatience) }
+        guard confirmedCheck?.isConfirmedMismatch == true else { return true }
+        let repair = syncTask ?? startCheck(push: true)
+        let repaired = await Self.result(of: repair, atMost: tuning.repairPatience)
+        if repaired?.inSync == true || confirmedCheck?.isConfirmedMismatch == false { return true }
+        Self.logger.error("Voice agent still out of step after a repair (\(repaired?.summary ?? "repair still running", privacy: .public))")
+        return false
+    }
+
+    /// Starts a numbered check (an update with read-back, or a read-back alone) and records its
+    /// result when it comes, unless a newer check has been recorded first.
+    private func startCheck(push: Bool) -> Task<AgentCheck, Never> {
+        checksStarted += 1
+        let number = checksStarted
         let tools = self.tools
-        let readBack = await keeper.verify(tools)
-        record(readBack, tools: tools)
-        if readBack.inSync { return true }
-        if let syncTask {
-            await Self.wait(for: syncTask, atMost: tuning.firstSyncPatience)
-            if agentCheck?.inSync == true { return true }
+        guard let keeper else { return Task { AgentCheck.matching(tools) } }
+        return Task { @MainActor [weak self] in
+            let check = push ? await keeper.push(tools) : await keeper.verify(tools)
+            self?.record(check, number: number, tools: tools)
+            return check
         }
-        let pushed = await keeper.push(tools)
-        record(pushed, tools: tools)
-        return pushed.inSync
+    }
+
+    /// The task's result, or nil if it has not finished within `seconds`. The task keeps running.
+    private static func result(of task: Task<AgentCheck, Never>, atMost seconds: TimeInterval) async -> AgentCheck? {
+        let box = CheckBox()
+        await wait(for: task, atMost: seconds, into: box)
+        return box.value
     }
 
     /// No conversation can be opened. Says why once (unless the listening cycle will), and leaves
@@ -412,12 +464,15 @@ public final class VoiceSession {
     /// purpose: this is a bound on how long a person waits, not part of turn-taking.
     /// (Not a task group: a group waits for all its children, and the child waiting for the
     /// update cannot be cancelled, so the limit would never apply.)
-    private static func wait(for task: Task<AgentCheck, Never>, atMost seconds: TimeInterval) async {
+    private static func wait(for task: Task<AgentCheck, Never>, atMost seconds: TimeInterval, into box: CheckBox? = nil) async {
         let resumed = OnceFlag()
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             Task {
-                _ = await task.value
-                if resumed.claim() { continuation.resume() }
+                let check = await task.value
+                if resumed.claim() {
+                    box?.set(check)
+                    continuation.resume()
+                }
             }
             Task {
                 try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
@@ -442,6 +497,8 @@ public final class VoiceSession {
         resetTurnState()
         agentAudible = false
         recentTurns = []
+        toolGate = nil
+        pendingVerification = nil
         withSpeech { $0.reset() }
         let ending = driver
         driver = nil
@@ -492,9 +549,10 @@ public final class VoiceSession {
         // agent said "Nothing to add yet." after every task step (6 Nov evaluation). It goes only
         // into the agent's context, so "how is it going?" can be answered; the companion shows it
         // on screen. Questions, confirmations and results still go as user messages, to be said.
-        if event.kind != .progress { withQueue { $0.add(event, at: now) } }
+        if event.kind != .progress { withQueue { $0.add(event, at: now, fresh: true) } }
         Task { @MainActor [weak self] in
             guard let self else { return }
+            self.said.noted(event)
             self.lastTaskNote = TaskEventSpeech.contextLine(for: event)
             self.lastTaskNoteAt = self.clock()
             if event.kind == .progress, self.isConnected, let driver = self.driver {
@@ -551,12 +609,22 @@ public final class VoiceSession {
 
     /// True when a task event is waiting to be said, or was just sent and not yet said.
     public var hasUnspokenNews: Bool {
-        if queuedEventCount > 0 { return true }
+        let now = clock()
+        // News that cannot be delivered (no conversation, or one that has not reconnected for a while)
+        // does not keep the app awake: it waits for the next conversation, and is dropped once it is
+        // half an hour old.
+        let canDeliver = wantsToRun && (isConnected || now - (disconnectedSince ?? now) < tuning.undeliverableNewsGrace)
+        guard canDeliver else { return false }
+        if withQueue({ $0.freshCount(at: now) }) > 0 { return true }
         // A question, confirmation or result was sent and the agent has not answered yet.
+        if said.attempt != nil { return true }
+        if said.hasUnsaid(at: clock(), shelfLife: tuning.taskNewsShelfLife) { return true }
         if let since = awaitingReplySince, clock() - since < tuning.replyTimeout { return pushAwaitingReply }
         return false
     }
     private var pushAwaitingReply = false
+    /// When the connection last dropped, until it is back.
+    private var disconnectedSince: TimeInterval?
 
     /// Everything the listening cycle needs, read at one moment.
     public var activity: Activity {
@@ -595,29 +663,45 @@ public final class VoiceSession {
     /// Starts updating the agent's definition if the tools differ from what was last sent
     /// and no update is already on its way.
     private func startAgentSyncIfNeeded() {
-        guard let keeper, !agentID.isEmpty else { return }
+        guard keeper != nil, !agentID.isEmpty else { return }
         let fingerprint = Self.fingerprint(tools)
         guard fingerprint != syncedFingerprint, fingerprint != syncingFingerprint else { return }
         syncingFingerprint = fingerprint
         agentSyncCount += 1
-        let tools = self.tools
+        let update = startCheck(push: true)
         syncTask = Task { @MainActor [weak self] in
-            let check = await keeper.push(tools)
-            guard let self else { return check }
-            if self.syncingFingerprint == fingerprint {
+            let check = await update.value
+            if let self, self.syncingFingerprint == fingerprint {
                 self.syncingFingerprint = nil
                 self.syncTask = nil
             }
-            self.record(check, tools: tools)
             return check
         }
     }
 
-    /// Keeps the latest check. In step: these tools count as synced and any repair stops. Out of
-    /// step: it is logged loudly and a repair is scheduled, so the next wake finds it fixed.
-    private func record(_ check: AgentCheck, tools checkedTools: [ToolSpec]) {
+    /// Keeps the result of check number `number`, unless a newer one is already recorded.
+    ///
+    /// - In step: these tools count as synced and any repair stops. A model or reasoning
+    ///   difference is only logged (`warning`).
+    /// - Confirmed mismatch: logged loudly and a repair is scheduled, so the next wake finds it fixed.
+    /// - Could not check: logged and shown; nothing is re-sent (a failed read says nothing about the
+    ///   agent), and the last confirmed check still decides. The next wake checks again.
+    private func record(_ check: AgentCheck, number: Int, tools checkedTools: [ToolSpec]) {
+        // An older result is ignored unless it confirms the agent in step (an update that finished late
+        // read the agent after it was changed, so its good news stands).
+        guard number > newestRecordedCheck || check.inSync else {
+            Self.logger.notice("Ignoring an older agent check (\(number) after \(self.newestRecordedCheck)): \(check.summary, privacy: .public)")
+            return
+        }
+        newestRecordedCheck = max(newestRecordedCheck, number)
         agentCheck = check
+        if check.couldNotCheck {
+            Self.logger.error("Could not check the voice agent: \(check.detail ?? "", privacy: .public)")
+            return
+        }
+        confirmedCheck = check
         if check.inSync {
+            hasConfirmedGoodCheck = true
             syncedFingerprint = Self.fingerprint(checkedTools)
             repairTask?.cancel()
             repairTask = nil
@@ -628,9 +712,9 @@ public final class VoiceSession {
         }
     }
 
-    /// While the agent is out of step, updates it again after 30 s, 60 s, 2 min, then every 5 min.
+    /// While the agent is confirmed out of step, updates it again after 30 s, 60 s, 2 min, then every 5 min.
     private func scheduleRepair(startingAfter firstDelay: TimeInterval? = nil) {
-        guard let keeper, repairTask == nil else { return }
+        guard keeper != nil, repairTask == nil else { return }
         let delays = [firstDelay ?? 30, 60, 120, 300]
         repairTask = Task { @MainActor [weak self] in
             var attempt = 0
@@ -639,12 +723,9 @@ public final class VoiceSession {
                 attempt += 1
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 guard let self, !Task.isCancelled else { return }
-                if self.agentCheck?.inSync == true { break }
-                let tools = self.tools
-                let check = await keeper.push(tools)
-                self.agentCheck = check
+                if self.confirmedCheck?.inSync == true { break }
+                let check = await self.startCheck(push: true).value
                 if check.inSync {
-                    self.syncedFingerprint = Self.fingerprint(tools)
                     Self.logger.notice("Voice agent repaired: \(check.summary, privacy: .public)")
                     break
                 }
@@ -655,12 +736,14 @@ public final class VoiceSession {
 
     /// The agent asked for a tool the app does not have: it is out of step. Repaired at once.
     private func markOutOfStep(unknownTool name: String) {
-        var check = agentCheck ?? AgentCheck.failed("", detail: nil, at: Date())
+        var check = confirmedCheck ?? AgentCheck.failed(detail: nil, at: Date())
         check.inSync = false
+        check.couldNotCheck = false
         check.unexpected = Array(Set(check.unexpected + [name])).sorted()
         check.checkedAt = Date()
-        check.problem = "The voice agent asked for a tool the app doesn't have, so I'm updating it."
+        check.problem = AgentCheck.notSetUpSentence
         agentCheck = check
+        confirmedCheck = check
         syncedFingerprint = nil
         Self.logger.error("The agent called \(name, privacy: .public), which the app does not have; repairing the agent.")
         repairTask?.cancel()
@@ -699,6 +782,7 @@ public final class VoiceSession {
             }
             isConnected = true
             reconnectAttempt = 0
+            disconnectedSince = nil
             let now = clock()
             if !hasConnectedThisConversation {
                 lastOpenTiming = OpenTiming(
@@ -707,16 +791,21 @@ public final class VoiceSession {
             }
             hasConnectedThisConversation = true
             lastActivityAt = max(lastActivityAt, now)
-            // The read-back started with this wake: nothing is said, and no "listening" is shown,
-            // until it confirms the agent has the app's tools.
+            // The read-back started with this wake: nothing is said, and no "listening" is shown, until
+            // it answers or `wakeCheckPatience` passes. Only a confirmed mismatch replaces the
+            // conversation; a slow or failed read-back is logged and the conversation carries on.
             if let verification = pendingVerification {
                 pendingVerification = nil
-                let check = await verification.value
+                let check = await Self.result(of: verification, atMost: tuning.wakeCheckPatience)
                 guard myGeneration == generation, wantsToRun else { return }
-                record(check, tools: tools)
-                if !check.inSync {
+                if let check, check.isConfirmedMismatch, confirmedCheck?.isConfirmedMismatch == true {
                     await replaceConversationWithWrongTools(generation: myGeneration)
                     return
+                }
+                if check == nil {
+                    Self.logger.error("The agent read-back is still running after \(self.tuning.wakeCheckPatience, privacy: .public) s; carrying on")
+                } else if check?.couldNotCheck == true {
+                    Self.logger.error("Could not check the agent at this wake; carrying on with the conversation")
                 }
             }
             bus.post(.listening)
@@ -730,7 +819,7 @@ public final class VoiceSession {
             await newDriver.end()
             guard myGeneration == generation else { return }
             Self.logger.error("Voice connect failed: \(String(describing: error), privacy: .public)")
-            connectionLost("I can't reach the voice service.")
+            connectionLost(AgentCheck.unreachableSentence)
         }
     }
 
@@ -744,16 +833,14 @@ public final class VoiceSession {
         let wrong = driver
         driver = nil
         await wrong?.end()
-        guard let keeper, wantsToRun else { return }
-        let tools = self.tools
-        let repaired = await keeper.push(tools)
-        record(repaired, tools: tools)
-        guard wantsToRun else { return }
-        if repaired.inSync {
+        guard keeper != nil, wantsToRun else { return }
+        let repaired = await Self.result(of: syncTask ?? startCheck(push: true), atMost: tuning.repairPatience)
+        guard wantsToRun, connectionGeneration + 1 == generation else { return }
+        if repaired?.inSync == true || confirmedCheck?.isConfirmedMismatch == false {
             hasConnectedThisConversation = false
             await connect()
         } else {
-            refuseOpen(repaired.problem ?? "The voice agent's tools don't match the app, so I can't start a conversation yet.")
+            refuseOpen(AgentCheck.notSetUpSentence)
         }
     }
 
@@ -791,6 +878,10 @@ public final class VoiceSession {
 
     private func connectionLost(_ reason: String) {
         isConnected = false
+        if disconnectedSince == nil { disconnectedSince = clock() }
+        // A push the agent may not have said before the drop is said again after reconnecting.
+        let unanswered = said.notSent()
+        if !unanswered.isEmpty { let now = clock(); withQueue { $0.putBack(unanswered, at: now) } }
         // End the old conversation explicitly, so nothing of it (room, microphone) lingers.
         let lost = driver
         driver = nil
@@ -871,6 +962,8 @@ public final class VoiceSession {
             remember("Agent: \(text)")
             bus.post(.agentSpeaking(text))
             for listener in replyListeners { listener(text) }
+            turnCounter += 1
+            apply(said.replied(text, at: now, turn: turnCounter))
         case .agentActivity(let activity):
             agentAudible = activity != .listening
             lastActivityAt = now
@@ -906,6 +999,8 @@ public final class VoiceSession {
             awaitingReplySince = nil
             pushAwaitingReply = false
             lastActivityAt = now
+            // But a question, confirmation or result it skipped was not said: it goes again, once.
+            apply(said.silent(at: now))
         case .toolCall(let name, let callID, let parameters):
             lastActivityAt = now
             runTool(name: name, callID: callID, parameters: parameters, generation: signalGeneration)
@@ -915,16 +1010,42 @@ public final class VoiceSession {
         Task { @MainActor [weak self] in await self?.deliverIfReady() }
     }
 
-    private func runTool(name: String, callID: String, parameters: Data, generation callGeneration: Int) {
+    private func runTool(name: String, callID: String, parameters originalParameters: Data, generation callGeneration: Int) {
         if !router.knows(name) { markOutOfStep(unknownTool: name) }
+        var parameters = originalParameters
+        if name == Self.answerToolName {
+            let taskID = Self.taskID(in: parameters)
+            if let question = said.unheardQuestion(forAnswerTo: taskID) {
+                holdBackAnswer(callID: callID, question: question, generation: callGeneration)
+                return
+            }
+            // A yes to a held action is judged on what the user said, never on the agent's wording:
+            // their most recent sentence after the confirmation was said. None yet: not passed on.
+            if let confirmation = said.openQuestion(forAnswerTo: taskID), confirmation.kind == .confirmation {
+                guard let heardIn = said.heardInTurn(confirmation), let reply = userSentence(after: heardIn) else {
+                    holdBackUnansweredConfirmation(callID: callID, generation: callGeneration)
+                    return
+                }
+                parameters = Self.replacingAnswer(in: parameters, with: reply)
+            }
+        }
         toolCallsInFlight += 1
         let router = self.router
         Task.detached { [weak self] in
             // Listeners for this turn's transcript go first, so the stop watcher sees the
             // state before the tool changes it.
             await self?.listenersCaughtUp()
+            // With no good agent check yet, tools wait for the first read-back (at most 2 s). And a call
+            // from a conversation that has since closed or been replaced never runs.
+            guard await self?.toolMayRun(generation: callGeneration) == true else {
+                await self?.toolDropped(generation: callGeneration)
+                return
+            }
             // Off the main actor: a slow handler must not hold up the conversation or the overlay.
             let reply = await router.handle(toolName: name, parametersJSON: parameters)
+            if name == VoiceSession.answerToolName, !reply.isError {
+                await self?.answerPassedOn(taskID: VoiceSession.taskID(in: parameters))
+            }
             await self?.finishTool(callID: callID, reply: reply, generation: callGeneration)
         }
     }
@@ -940,12 +1061,135 @@ public final class VoiceSession {
         }
     }
 
+    // MARK: Was it said?
+
+    /// The task tool that passes the user's reply to a waiting task (HFTasks).
+    nonisolated static let answerToolName = "answer_task"
+
+    nonisolated static func taskID(in parameters: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: parameters) as? [String: Any],
+              let id = object["task_id"] as? String, !id.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return id
+    }
+
+    /// Counts for the status file: never the words.
+    public struct SpokenNewsCounts: Sendable, Equatable {
+        /// Pushes sent a second time because the first was not said.
+        public var sentAgain: Int
+        /// Pushes not said after the second attempt.
+        public var notSaidTwice: Int
+        /// Items unsaid right now (keeping the conversation open).
+        public var unsaidNow: Int
+        /// Answers not passed on because the user had not heard the question.
+        public var answersHeldBack: Int
+    }
+
+    public var spokenNews: SpokenNewsCounts {
+        SpokenNewsCounts(sentAgain: said.sentAgainCount, notSaidTwice: said.gaveUpCount,
+                         unsaidNow: said.unsaid.count, answersHeldBack: said.answersHeldBack)
+    }
+
+    private func apply(_ outcome: SaidCheck.Outcome) {
+        switch outcome {
+        case .nothingPending, .said:
+            return
+        case .sendAgain(let events):
+            let kinds = events.map(\.kind.rawValue).joined(separator: ", ")
+            Self.logger.notice("Not said by the agent (\(kinds, privacy: .public)); sending it once more")
+            let now = clock()
+            withQueue { queue in
+                for event in events where !queue.items.contains(where: { $0.event == event }) { queue.add(event, at: now) }
+            }
+            Task { @MainActor [weak self] in await self?.deliverIfReady() }
+        case .gaveUp(let events):
+            let kinds = events.map(\.kind.rawValue).joined(separator: ", ")
+            Self.logger.error("Not said by the agent after two attempts (\(kinds, privacy: .public)); kept as unsaid")
+        }
+    }
+
+    /// The agent tried to pass on an answer to a question the user has not heard in this
+    /// conversation. It is not passed on: a stray "yes" must never become consent. The agent is
+    /// told why, and the question is pushed again to be said.
+    private func holdBackAnswer(callID: String, question: TaskEvent, generation callGeneration: Int) {
+        Self.logger.notice("Answer held back: the user has not heard the \(question.kind.rawValue, privacy: .public) yet")
+        let now = clock()
+        let alreadyGoing = said.attempt?.events.contains(question) == true
+        if !alreadyGoing {
+            withQueue { queue in
+                if !queue.items.contains(where: { $0.event == question }) { queue.add(question, at: now) }
+            }
+        }
+        let reply = ToolRouter.Reply(
+            text: "Not passed on: the user has not heard this task's question yet, so what they said is not an answer to it. "
+                + "The app is sending you the question now. Say it to the user, then wait for their reply.",
+            isError: true)
+        toolCallsInFlight += 1
+        Task { @MainActor [weak self] in
+            await self?.finishTool(callID: callID, reply: reply, generation: callGeneration)
+        }
+    }
+
+    private func answerPassedOn(taskID: String?) { said.answered(taskID: taskID) }
+
+    /// The agent passed on an answer to a confirmation the user has not answered yet (no sentence
+    /// of theirs since it was said). Not passed on: the yes must be the user's own words.
+    private func holdBackUnansweredConfirmation(callID: String, generation callGeneration: Int) {
+        said.noteAnswerHeldBack()
+        Self.logger.notice("Answer held back: the user has not said anything since the confirmation was asked")
+        let reply = ToolRouter.Reply(
+            text: "Not passed on: the user has not answered the confirmation yet. Wait for them to say yes or no, then pass on their words.",
+            isError: true)
+        toolCallsInFlight += 1
+        Task { @MainActor [weak self] in
+            await self?.finishTool(callID: callID, reply: reply, generation: callGeneration)
+        }
+    }
+
+    /// The user's most recent sentence (heard, or typed in a test) after turn `turn`.
+    private func userSentence(after turn: Int) -> String? {
+        userSentences.last(where: { $0.turn > turn })?.text
+    }
+
+    nonisolated static func replacingAnswer(in parameters: Data, with answer: String) -> Data {
+        var object = (try? JSONSerialization.jsonObject(with: parameters) as? [String: Any]) ?? [:]
+        object["answer"] = answer
+        return (try? JSONSerialization.data(withJSONObject: object)) ?? parameters
+    }
+
+    /// Waits for the tool gate (if any), then says whether a call from `callGeneration` may still run.
+    private func toolMayRun(generation callGeneration: Int) async -> Bool {
+        if let toolGate { await toolGate.value }
+        return callGeneration == generation && wantsToRun && isConnected
+    }
+
+    /// A call that was not run: it no longer counts as in flight.
+    private func toolDropped(generation callGeneration: Int) {
+        guard callGeneration == generation else { return }
+        toolCallsInFlight = max(0, toolCallsInFlight - 1)
+    }
+
+    /// A push with no reply at all within the reply timeout was not said. Not judged while the agent is
+    /// speaking or working (a long reply, a tool call) or while the user is talking (over the reply, or
+    /// answering it): the wait restarts from the last thing either side said or did.
+    private func checkUnansweredPush() {
+        guard isConnected, said.attempt != nil else { return }
+        let now = clock()
+        let agentHolding = agentAudible && now - lastAgentSignalAt < tuning.agentStuckAfter
+        let userTalking = withSpeech { $0.isSpeaking(at: now) } || now - lastVoiceAt < tuning.userQuietAfter
+        guard !agentHolding, toolCallsInFlight == 0, !userTalking else { return }
+        let lastActivity = max(lastAgentSignalAt, lastVoiceAt, lastActivityAt)
+        apply(said.checkTimeout(at: now, replyTimeout: tuning.replyTimeout, lastActivity: lastActivity))
+    }
+
     /// Hands a sentence to every listener, in order, on the listener queue.
     ///
     /// Called the instant the transcript arrives, before any tool call of the same turn
     /// is handled: `runTool` waits for this queue first. That is what lets the stop watcher
     /// read "is the assistant waiting for an answer" before `answer_task` changes it.
     private func notifyTranscriptListeners(_ text: String) {
+        turnCounter += 1
+        userSentences.append((text, turnCounter))
+        if userSentences.count > 10 { userSentences.removeFirst(userSentences.count - 10) }
         let listeners = (primaryListener.map { [$0] } ?? []) + transcriptListeners
         listenerQueue.async { [weak self] in
             for listener in listeners { listener(text) }
@@ -995,9 +1239,13 @@ public final class VoiceSession {
             pushAwaitingReply = true
         }
         lastActivityAt = now
+        var message = PushQueue.message(for: ready)
+        if said.isSecondTry(ready) { message = TaskEventSpeech.sayItNow + "\n" + message }
+        said.sent(ready, at: now)
         do {
-            try await driver.sendUserMessage(PushQueue.message(for: ready))
+            try await driver.sendUserMessage(message)
         } catch {
+            said.notSent()
             // Never lose a question or a confirmation: back to the front, sent after reconnecting.
             Self.logger.error("Task event not sent: \(String(describing: error), privacy: .public)")
             let failedAt = clock()
@@ -1016,6 +1264,7 @@ public final class VoiceSession {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.sleep(interval)
+                self.checkUnansweredPush()
                 if self.queuedEventCount > 0 { await self.deliverIfReady() }
             }
         }
@@ -1034,4 +1283,12 @@ final class OnceFlag: @unchecked Sendable {
         claimed = true
         return true
     }
+}
+
+/// Holds a check handed across tasks. Thread-safe.
+final class CheckBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: AgentCheck?
+    var value: AgentCheck? { lock.withLock { stored } }
+    func set(_ check: AgentCheck) { lock.withLock { stored = check } }
 }

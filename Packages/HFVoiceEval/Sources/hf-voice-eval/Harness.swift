@@ -153,6 +153,9 @@ struct Harness {
             switch turn {
             case .wait(let seconds):
                 try? await Task.sleep(nanoseconds: UInt64(seconds * 1e9))
+            case .sayNow(let text):
+                recorder.add("user", text)
+                do { try await session.sendText(text) } catch { recorder.add("note", "not sent: \(error)") }
             case .say(let text):
                 recorder.add("user", text)
                 let sentAt = recorder.now
@@ -208,11 +211,18 @@ struct Harness {
         ToolSpec(name: spec.name, description: spec.description, parameters: spec.parameters, tier: spec.tier,
                  timeoutSeconds: spec.timeoutSeconds) { parameters in
             recorder.add("tool", "\(spec.name) \(Self.describe(parameters))")
-            let result = Self.stubResult(spec.name, parameters, override: testCase.toolResults?[spec.name])
+            let result = testCase.lockedMac == true
+                ? Self.lockedResult
+                : Self.stubResult(spec.name, parameters, override: testCase.toolResults?[spec.name])
             recorder.add("result", "\(spec.name) → \(Self.describe(result))")
             return result
         }
     }
+
+    /// What the app returns for every action while the Mac is locked (Handsfree/Integration/ScreenLock.swift).
+    nonisolated static let lockedResult: JSONObject = ToolResult.failure(
+        "The Mac is locked, so I can't use it until someone unlocks it.",
+        ["locked": true, "note": "Say this once. Do not offer to unlock the Mac, do not ask for a password, and do not try another way: only a person at the Mac can unlock it."])
 
     /// A real tool, with its calls and results recorded.
     private func wrap(_ spec: ToolSpec, testCase: EvalCase, recorder: Recorder) -> ToolSpec {
@@ -220,7 +230,9 @@ struct Harness {
                  timeoutSeconds: spec.timeoutSeconds) { parameters in
             recorder.add("tool", "\(spec.name) \(Self.describe(parameters))")
             let result: JSONObject
-            if let override = testCase.toolResults?[spec.name] {
+            if testCase.lockedMac == true, spec.name == "start_task" {
+                result = Self.lockedResult
+            } else if let override = testCase.toolResults?[spec.name] {
                 result = Self.stubResult(spec.name, parameters, override: override)
             } else {
                 result = await spec.handler(parameters)

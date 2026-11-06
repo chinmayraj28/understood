@@ -257,7 +257,8 @@ import Testing
         harness.session.push(TaskEvent(taskID: "t1", kind: .result, status: .done, text: "Sent to Amma."))
         await harness.settle()
         #expect(wakes.all.count == 1)
-        #expect(harness.session.activity.hasUnspokenNews, "kept until it is said")
+        #expect(harness.session.queuedEventCount == 1, "kept until it is said")
+        #expect(!harness.session.activity.hasUnspokenNews, "but with no conversation it keeps nothing awake")
         await harness.session.open()
         await harness.settle()
         #expect(harness.driver.userMessages.first?.contains("Sent to Amma.") == true, "said in the conversation it woke for")
@@ -514,8 +515,8 @@ import Testing
     @Test func itsDescriptionSaysWhenNotToUseIt() {
         let description = SleepTool.make(isTaskActive: { false }, requestSleep: { .goingToSleep }).description
         #expect(description.contains("that's all"))
-        #expect(description.contains("Never use it while a task is running"))
-        #expect(description.contains("never because the user is silent"))
+        #expect(description.contains("the task is not stopped: the app goes to sleep as soon as the task ends"), "deferred, not refused")
+        #expect(description.contains("Never use it because the user is silent"))
         #expect(description.contains("\"stop\""))
     }
 }
@@ -622,7 +623,7 @@ import Testing
         await harness.settle()
         #expect(harness.drivers.isEmpty, "no conversation with the wrong tools")
         #expect(!harness.session.isOpen && !harness.session.hasConversationResources)
-        #expect(harness.session.openRefusal?.contains("did not accept") == true)
+        #expect(harness.session.openRefusal == AgentCheck.notSetUpSentence)
         #expect(harness.session.agentCheck?.inSync == false)
         let announced = harness.posted.all.filter { if case .voiceDisconnected = $0 { return true } else { return false } }
         #expect(announced.count == 1, "said once")
@@ -727,6 +728,24 @@ import Testing
         let syncer = AgentSyncer(apiKey: "k", agentID: "agent_prod", role: .production)
         let check = await syncer.push(tools: demo)
         #expect(!check.inSync && check.problem?.contains("Refusing to put test tools") == true, "refused before any request")
+    }
+
+    /// A stored test id that is the app's own agent is refused before any request is made, so the
+    /// user's agent is never renamed to the test name. (The key's value is a fake id; no network.)
+    @Test func aStoredTestIdThatIsTheAppsOwnIsRefusedBeforeAnyRequest() async {
+        let key = "HF_GUARD_ORDER_TEST_AGENT_ID"
+        setenv(key, "agent_prod", 1)
+        defer { unsetenv(key) }
+        let settings = Settings.load(
+            environment: ["ELEVENLABS_API_KEY": "not-a-real-key", "ELEVENLABS_AGENT_ID": "agent_prod"], envFileCandidates: [])
+        do {
+            _ = try await TestAgent.resolve(settings: settings, idKey: key)
+            Issue.record("resolve should have refused the app's own agent")
+        } catch let error as SpeakableError {
+            #expect(error.spokenMessage.contains("must not be the app's own agent"), "refused by the guard, not by a failed request")
+        } catch {
+            Issue.record("refused by something other than the guard: \(error)")
+        }
     }
 
     @Test func aTestAgentCanNeverBeTheAppsOwn() async {

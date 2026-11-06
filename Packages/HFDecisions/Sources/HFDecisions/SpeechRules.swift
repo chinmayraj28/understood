@@ -61,7 +61,7 @@ public enum UtteranceRules {
     /// late' to Amma?" "No, don't" declines the action and keeps the task alive, so
     /// the user can follow with a correction ("no, don't, say fifteen minutes").
     /// Only `endTaskPhrases` cancel then.
-    public static let hardCancel: Set<String> = [
+    public static let hardCancel: Set<String> = Set([
         "stop", "stop it", "stop that", "stop this", "stop now", "stop right now", "stop right there",
         "stop everything", "stop stop", "no stop", "stop no", "cancel", "cancel it", "cancel that",
         "cancel this", "cancel everything", "cancel the task", "abort", "abort it", "abort that",
@@ -74,18 +74,28 @@ public enum UtteranceRules {
         "cancel the whole thing", "cancel all of it", "abort the task", "abort everything",
         "never mind forget it", "never mind forget about it", "nevermind forget it", "forget it all",
         "forget the whole thing",
+    ]).union(stopListening)
+
+    /// "Stop listening" and the like. Someone watching the pointer who says this mid-task almost
+    /// certainly means "stop everything": a wrong cancel costs a retry, a wrong carry-on can finish a
+    /// send they were trying to halt. So it stops a running task at once, even while a question is
+    /// open, and the app then puts the conversation to sleep. With no task running it only sleeps.
+    /// ("please" and "okay" are dropped before matching, so "okay, please stop listening" is here too.)
+    public static let stopListening: Set<String> = [
+        "stop listening", "stop listening now", "stop listening to me", "stop listening to me now",
+        "you can stop listening", "you can stop listening now",
     ]
 
     /// Whole sentences that unmistakably end the whole task, even while a question
     /// is open. Everything else in `hardCancel` and `softCancel` is then an answer.
-    public static let endTaskPhrases: Set<String> = [
+    public static let endTaskPhrases: Set<String> = Set([
         "stop", "stop it", "stop stop", "stop stop it", "stop everything", "stop all of it",
         "stop the task", "stop the whole thing", "stop right now", "stop now", "cancel the task",
         "cancel everything", "cancel the whole thing", "cancel all of it", "abort", "abort it",
         "abort the task", "abort everything", "halt", "quit", "never mind forget it",
         "never mind forget about it", "nevermind forget it", "forget it all", "forget the whole thing",
         "i said stop", "stop what you're doing", "stop what youre doing",
-    ]
+    ]).union(stopListening)
 
     /// Pause words. They stop a running task, but not while a question is open:
     /// then the task is already paused, and "wait" is the user thinking.
@@ -160,6 +170,11 @@ public enum UtteranceRules {
 
     /// The instant local check, with no network: cancel for an exact stop phrase,
     /// other for a pause word while a question is open, nil when Jev should decide.
+    ///
+    /// A stop at the END of a sentence ("okay stop listening to him and stop") is deliberately not
+    /// an instant rule: "don't stop", "it won't stop" and "make the music stop" end in "stop" too.
+    /// Jev decides those, and the fallback below checks each clause when Jev is down. The app takes
+    /// the wake phrase off the front first, so "Hey Handsfree stop" arrives here as "stop".
     public static func instantDecision(_ text: String, awaitingAnswer: Bool) -> Decision<Intent>? {
         let phrase = SpeechText.normalise(text)
         if awaitingAnswer {
