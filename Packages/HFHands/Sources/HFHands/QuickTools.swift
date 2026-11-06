@@ -196,7 +196,8 @@ struct QuickToolbox: Sendable {
         spec(
             "media_control",
             "Control whatever music or video is playing, with the keyboard's media keys: play_pause (one key for both play and pause, so it toggles), next or previous track. Example: 'pause the music' -> play_pause; 'skip this song' -> next. For loudness use set_volume.",
-            properties: ["action": ["type": "string", "enum": ["play_pause", "next", "previous"]]],
+            properties: ["action": ["type": "string", "enum": ["play_pause", "next", "previous"],
+                                   "description": "play_pause to play or pause what is playing; next or previous to skip a track."]],
             required: ["action"], doing: "control the music"
         ) { params in
             let action = try Support.choice(
@@ -221,7 +222,8 @@ struct QuickToolbox: Sendable {
             "scroll",
             "Scroll the window in front with the mouse wheel: up, down, left or right by a_little, a page (default) or a_lot, or all the way to the top or bottom. If the pointer isn't over that window it first glides there. Example: 'scroll down' -> direction down; 'scroll up a bit' -> direction up, amount a_little; 'go to the bottom' -> direction bottom.",
             properties: [
-                "direction": ["type": "string", "enum": ["up", "down", "left", "right", "top", "bottom"]],
+                "direction": ["type": "string", "enum": ["up", "down", "left", "right", "top", "bottom"],
+                              "description": "Which way to scroll; top or bottom jumps to the start or end of the page."],
                 "amount": ["type": "string", "enum": ["a_little", "page", "a_lot"], "description": "Default page."],
             ],
             required: ["direction"], doing: "scroll"
@@ -465,7 +467,8 @@ struct QuickToolbox: Sendable {
         return spec(
             "shortcut",
             "Do a common action in the app in front by pressing its real keyboard shortcut. Editing: copy, cut, paste, undo, redo, select_all, save, find. Browser tabs and pages: new_tab, close_tab, reopen_tab, next_tab, previous_tab, back, forward, reload, zoom_in, zoom_out, actual_size. Windows and apps: new_window, close_window, minimise, fullscreen, next_window (same app), previous_app (the app you were just in), hide_app, hide_others, quit_app, mission_control, spotlight. Example: 'close this tab' -> close_tab; 'go back' -> back. close_tab, close_window and quit_app are checked by the safety gate first; if it refuses, use start_task. To open or switch to a named app use open_app.",
-            properties: ["action": ["type": "string", "enum": .array(actions.map { .string($0) })]],
+            properties: ["action": ["type": "string", "enum": .array(actions.map { .string($0) }),
+                                   "description": "Which common action to do with its keyboard shortcut, from the list above."]],
             required: ["action"], doing: "do that"
         ) { params in
             let action = try Support.choice(
@@ -572,7 +575,8 @@ struct QuickToolbox: Sendable {
             "pointer",
             "Use the mouse pointer directly, for when the user knows exactly what they want: click, double_click or right_click where the pointer is now, or move it up, down, left or right by a_little, some (default) or a_lot. Example: 'click' -> action click; 'move the mouse left a bit' -> action move, direction left, amount a_little. Every click is checked by the safety gate first; if it refuses, do it with start_task instead. To click a named button or link, use the task tool.",
             properties: [
-                "action": ["type": "string", "enum": ["click", "double_click", "right_click", "move"]],
+                "action": ["type": "string", "enum": ["click", "double_click", "right_click", "move"],
+                           "description": "click, double_click or right_click where the pointer is now, or move it (with direction and amount)."],
                 "direction": ["type": "string", "enum": ["up", "down", "left", "right"], "description": "For move."],
                 "amount": ["type": "string", "enum": ["a_little", "some", "a_lot"], "description": "For move. Default some."],
             ],

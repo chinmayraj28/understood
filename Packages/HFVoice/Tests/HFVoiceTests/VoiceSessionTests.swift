@@ -325,17 +325,27 @@ private let question = TaskEvent(taskID: "t1", kind: .question, status: .needsIn
         #expect(!harness.session.isUserSpeaking)
     }
 
-    @Test func aConfirmationIsNotHeldBehindAProgressLineTheAgentLeftUnsaid() async {
+    @Test func progressIsContextOnlyWhileQuestionsAndResultsAreSaid() async {
         let harness = Harness(mode: .text)
         await harness.start()
         harness.session.push(TaskEvent(taskID: "t1", kind: .progress, status: .running, text: "Opening WhatsApp"))
         await harness.settle()
-        #expect(harness.driver.userMessages.count == 1, "the progress line went out")
-        // The agent says nothing. No time passes. The confirmation must still go out at once.
-        harness.session.push(TaskEvent(taskID: "t1", kind: .confirmation, status: .needsInput, text: "Send 'late' to Amma?"))
+        harness.clock.advance(1)
         await harness.settle()
-        #expect(harness.driver.userMessages.count == 2)
-        #expect(harness.driver.userMessages.last?.contains("Send 'late' to Amma?") == true)
+        #expect(harness.driver.userMessages.isEmpty, "progress never asks the agent to speak (it said \"Nothing to add yet.\" every time)")
+        #expect(harness.driver.contexts == ["Task t1 progress (running): Opening WhatsApp"], "it reaches the agent silently")
+        #expect(harness.session.queuedEventCount == 0)
+        #expect(!harness.session.activity.hasUnspokenNews, "progress is not news the conversation must stay open for")
+
+        harness.session.push(TaskEvent(taskID: "t1", kind: .question, status: .needsInput, text: "Amma or Amma Work?"))
+        await harness.settle()
+        #expect(harness.driver.userMessages.count == 1, "a question is said at once")
+        harness.driver.emit(.agentResponse("Amma or Amma Work?"))
+        harness.clock.advance(1)
+        harness.session.push(TaskEvent(taskID: "t1", kind: .result, status: .done, text: "Sent to Amma."))
+        await harness.settle()
+        #expect(harness.driver.userMessages.count == 2, "and so is the final result")
+        #expect(harness.driver.userMessages.last?.contains("Sent to Amma.") == true)
     }
 
     @Test func anAnswerRelayedSilentlyHoldsAConfirmationForAtMostTheReplyTimeout() async {

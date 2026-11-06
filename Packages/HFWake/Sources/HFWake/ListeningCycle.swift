@@ -87,6 +87,9 @@ public actor ListeningCycle {
     public let mode: WakeMode
     public let wakePhrase: String
     public let sleepAfterIdleSeconds: Double
+    /// The shorter wait when the user has said nothing at all since waking (a wake by mistake, or
+    /// they changed their mind). Never longer than `sleepAfterIdleSeconds`.
+    public let sleepAfterUnusedWakeSeconds: Double
     public private(set) var state: State = .stopped
     /// The latest thing that went wrong, until it is put right.
     public private(set) var problem: SpeakableError?
@@ -107,6 +110,9 @@ public actor ListeningCycle {
     private var retryIndex = 0
     private var loops: [Task<Void, Never>] = []
     private var busWatcher: Task<Void, Never>?
+    /// The user has said something in this conversation: the rest of the wake sentence, a
+    /// transcript, or a task started. Until then the shorter `sleepAfterUnusedWakeSeconds` applies.
+    private var userHasSpoken = false
     /// wakeNow() was called while the conversation was closing.
     private var wakeWhenClosed = false
 
@@ -124,6 +130,7 @@ public actor ListeningCycle {
         mode: WakeMode,
         wakePhrase: String,
         sleepAfterIdleSeconds: Double,
+        sleepAfterUnusedWakeSeconds: Double? = nil,
         listener: WakeListening,
         openConversation: @escaping @Sendable (_ firstUtterance: String) async throws -> Void,
         closeConversation: @escaping @Sendable () async -> Void,
@@ -139,6 +146,7 @@ public actor ListeningCycle {
         self.mode = mode
         self.wakePhrase = wakePhrase
         self.sleepAfterIdleSeconds = sleepAfterIdleSeconds
+        self.sleepAfterUnusedWakeSeconds = min(sleepAfterUnusedWakeSeconds ?? sleepAfterIdleSeconds, sleepAfterIdleSeconds)
         self.listener = listener
         self.openConversation = openConversation
         self.closeConversation = closeConversation
@@ -302,6 +310,7 @@ public actor ListeningCycle {
     /// The one way to wake, for the phrase and for `wakeNow()`. The caller has set `.waking`.
     private func wake(firstUtterance restOfSentence: String, epoch: Int) async {
         guard epoch == self.epoch, state == .waking else { return }
+        userHasSpoken = !restOfSentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         wakeWhenClosed = false
         cancelLoops()
         bus.post(.waking)
@@ -339,7 +348,9 @@ public actor ListeningCycle {
                 lastActivityAt = now()
                 continue
             }
-            if now() - lastActivityAt >= sleepAfterIdleSeconds {
+            // Counted from the last activity: the connect, or the end of the agent's greeting or news.
+            let wait = userHasSpoken ? sleepAfterIdleSeconds : sleepAfterUnusedWakeSeconds
+            if now() - lastActivityAt >= wait {
                 beginFallingAsleep(epoch: epoch)
                 return
             }
@@ -423,7 +434,18 @@ public actor ListeningCycle {
 
     private func observe(_ event: ActivityEvent, epoch: Int) {
         guard epoch == self.epoch, state == .awake, Self.countsAsActivity(event) else { return }
+        if Self.meansTheUserSpoke(event) { userHasSpoken = true }
         lastActivityAt = now()
+    }
+
+    /// What shows the user really used this conversation: something they said reached the
+    /// conversation, or a task started. Voice activity alone (`.userSpeaking`) does not: room noise
+    /// or someone nearby would otherwise turn a mistaken wake into a 15-second one.
+    static func meansTheUserSpoke(_ event: ActivityEvent) -> Bool {
+        switch event {
+        case .userSaid, .taskStarted, .waitingForAnswer, .heldForConfirmation: return true
+        default: return false
+        }
     }
 
     /// Anything the user, the agent or a task does. Not the cycle's own events, and not
@@ -467,7 +489,7 @@ public actor ListeningCycle {
 
 extension ListeningCycle {
     /// The cycle with the wake settings from `Settings`: `wakeMode`, `wakePhrase` and
-    /// `sleepAfterIdleSeconds`.
+    /// `sleepAfterIdleSeconds` and `sleepAfterUnusedWakeSeconds`.
     public init(
         settings: Settings,
         listener: WakeListening,
@@ -479,7 +501,8 @@ extension ListeningCycle {
     ) {
         self.init(
             mode: settings.wakeMode, wakePhrase: settings.wakePhrase,
-            sleepAfterIdleSeconds: settings.sleepAfterIdleSeconds, listener: listener,
+            sleepAfterIdleSeconds: settings.sleepAfterIdleSeconds,
+            sleepAfterUnusedWakeSeconds: settings.sleepAfterUnusedWakeSeconds, listener: listener,
             openConversation: openConversation, closeConversation: closeConversation,
             currentActivity: currentActivity, bus: bus, onProblem: onProblem)
     }

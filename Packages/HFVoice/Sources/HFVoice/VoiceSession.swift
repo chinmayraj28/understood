@@ -479,16 +479,20 @@ public final class VoiceSession {
 
     // MARK: Speaking task events
 
-    /// Makes the agent say a task's question, confirmation, result or progress.
+    /// Makes the agent say a task's question, confirmation or result; gives it progress silently.
     ///
     /// Safe to call from any thread. The event waits until the agent has finished
     /// speaking and the user is quiet, because a pushed message cuts the agent off.
-    /// Progress is also added silently to the agent's context straight away.
+    /// Progress is only added silently to the agent's context (never spoken, never queued).
     /// If no conversation is open, the event waits for the next one, and `onNewsWhileClosed`
     /// is called for anything the user must hear.
     public nonisolated func push(_ event: TaskEvent) {
         let now = clock()
-        withQueue { $0.add(event, at: now) }
+        // Progress is never a user message: a user message always gets a spoken reply, and the
+        // agent said "Nothing to add yet." after every task step (6 Nov evaluation). It goes only
+        // into the agent's context, so "how is it going?" can be answered; the companion shows it
+        // on screen. Questions, confirmations and results still go as user messages, to be said.
+        if event.kind != .progress { withQueue { $0.add(event, at: now) } }
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.lastTaskNote = TaskEventSpeech.contextLine(for: event)

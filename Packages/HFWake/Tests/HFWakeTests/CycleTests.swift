@@ -19,14 +19,15 @@ final class CycleHarness: @unchecked Sendable {
     let problems = Locked<[SpeakableError]>([])
     let cycle: ListeningCycle
 
-    init(mode: WakeMode = .phrase, idle: Double = 25) {
+    init(mode: WakeMode = .phrase, idle: Double = 25, unusedWake: Double? = nil) {
         recorder = BusRecorder(bus)
         var pace = ListeningCycle.Pace()
         pace.retrySeconds = [2, 5]
         let clock = self.clock
         let (opened, closes, openErrors, activity, problems) = (self.opened, self.closes, self.openErrors, self.activity, self.problems)
         cycle = ListeningCycle(
-            mode: mode, wakePhrase: "Hey Handsfree", sleepAfterIdleSeconds: idle, listener: listener,
+            mode: mode, wakePhrase: "Hey Handsfree", sleepAfterIdleSeconds: idle, sleepAfterUnusedWakeSeconds: unusedWake,
+            listener: listener,
             openConversation: { first in
                 var error: Error?
                 openErrors.update { errors in if !errors.isEmpty { error = errors.removeFirst() } }
@@ -412,5 +413,93 @@ final class CycleHarness: @unchecked Sendable {
         })
         #expect(shown.contains("I couldn't reach the voice service."))
         await harness.cycle.stop()
+    }
+}
+
+/// A wake where the user says nothing at all sleeps after the shorter `sleepAfterUnusedWakeSeconds`;
+/// as soon as they say anything, the ordinary idle time applies for the rest of the conversation.
+@Suite struct CycleUnusedWake {
+    @Test func aWakeWithNothingSaidSleepsAfterTheShorterWait() async {
+        let harness = CycleHarness(idle: 15, unusedWake: 8)
+        #expect(await harness.wake())
+        await harness.clock.advance(by: 7)
+        #expect(await harness.state() == .awake)
+        await harness.clock.advance(by: 2)
+        #expect(await harness.waitFor(.asleep), "nothing said: asleep after 8 s, not 15")
+        #expect(harness.closes.value == 1)
+        await harness.cycle.stop()
+    }
+
+    @Test func theWaitCountsFromTheEndOfTheAgentsGreeting() async {
+        let harness = CycleHarness(idle: 15, unusedWake: 8)
+        #expect(await harness.wake())
+        harness.activity.value = ConversationActivity(someoneSpeaking: true)  // the agent is talking
+        await harness.clock.advance(by: 12)
+        #expect(await harness.state() == .awake, "speech in progress is never cut off")
+        harness.activity.value = .idle
+        await harness.clock.advance(by: 7)
+        #expect(await harness.state() == .awake)
+        await harness.clock.advance(by: 2)
+        #expect(await harness.waitFor(.asleep))
+        await harness.cycle.stop()
+    }
+
+    @Test func theRestOfTheWakeSentenceCountsAsSpeaking() async {
+        let harness = CycleHarness(idle: 15, unusedWake: 8)
+        #expect(await harness.wake(saying: "open Spotify"))
+        await harness.clock.advance(by: 10)
+        #expect(await harness.state() == .awake, "the ordinary 15 s applies")
+        await harness.clock.advance(by: 6)
+        #expect(await harness.waitFor(.asleep))
+        await harness.cycle.stop()
+    }
+
+    @Test func oneSentenceFromTheUserSwitchesToTheOrdinaryWait() async {
+        let harness = CycleHarness(idle: 15, unusedWake: 8)
+        #expect(await harness.wake())
+        await harness.clock.advance(by: 3)
+        harness.bus.post(.userSaid("what's the time?"))
+        await settle()
+        await harness.clock.advance(by: 10)
+        #expect(await harness.state() == .awake)
+        await harness.clock.advance(by: 6)
+        #expect(await harness.waitFor(.asleep))
+        await harness.cycle.stop()
+    }
+
+    @Test func voiceActivityAloneDoesNotCountAsSpeaking() async {
+        let harness = CycleHarness(idle: 15, unusedWake: 8)
+        #expect(await harness.wake())
+        harness.bus.post(.userSpeaking(level: 0.9))  // someone nearby, no transcript
+        await settle()
+        await harness.clock.advance(by: 9)
+        #expect(await harness.waitFor(.asleep), "noise restarts the wait but does not make it the long one")
+        await harness.cycle.stop()
+    }
+
+    @Test func aTaskWaitingForAYesIsNeverPutToSleep() async {
+        let harness = CycleHarness(idle: 15, unusedWake: 8)
+        #expect(await harness.wake())
+        harness.activity.value = ConversationActivity(awaitingAnswer: true)
+        await harness.clock.advance(by: 60, step: 1)
+        #expect(await harness.state() == .awake)
+        await harness.cycle.stop()
+    }
+
+    @Test func theShorterWaitIsNeverLongerThanTheIdleTime() async {
+        let harness = CycleHarness(idle: 10, unusedWake: 30)
+        #expect(await harness.cycle.sleepAfterUnusedWakeSeconds == 10)
+        let defaulted = CycleHarness(idle: 15)
+        #expect(await defaulted.cycle.sleepAfterUnusedWakeSeconds == 15, "without the setting, nothing changes")
+    }
+
+    @Test func theSettingsAreRead() async {
+        var settings = Settings.load(environment: [:], envFileCandidates: [])
+        settings.sleepAfterIdleSeconds = 15
+        settings.sleepAfterUnusedWakeSeconds = 8
+        let cycle = ListeningCycle(settings: settings, listener: FakeWakeListener(),
+                                   openConversation: { _ in }, closeConversation: {}, currentActivity: { .idle })
+        #expect(await cycle.sleepAfterUnusedWakeSeconds == 8)
+        #expect(await cycle.sleepAfterIdleSeconds == 15)
     }
 }
