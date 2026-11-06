@@ -109,7 +109,7 @@ One sentence and one confirmation.
 
 | Problem | Plan |
 |---------|------|
-| **Speed.** AI agents take seconds per step | Fast path for simple commands; speak progress aloud so silence never feels broken. In the prototype a simple command takes about a second, because every sentence passes through the voice agent's LLM before the tool runs. The tool itself takes milliseconds. Routing with Jev before the LLM would remove most of that second |
+| **Speed.** AI agents take seconds per step | Fast path for simple commands; show progress beside the pointer, and keep the agent quiet while a task runs, because it used to answer every progress note with filler. A simple command takes about a second from the sentence to the action, because every sentence passes through the voice agent's language model first (median 0.87 s in a typed evaluation of 37 cases, text not speech, one run per setup). The tool itself takes milliseconds. Routing with Jev before the language model would remove most of that delay |
 | **Wrong action.** The agent clicks the wrong thing | Confirm risky actions; the "stop" word; show the plan on screen |
 | **Atypical speech.** Many users with motor disabilities also have speech differences (e.g. ALS, cerebral palsy) | ElevenLabs patient turn-taking setting so slow speakers aren't cut off; next step: own pipeline with Jev end-of-turn detection, and per-user speech adaptation |
 | **Jev is early access** | Fallbacks: a small LLM for routing, a fixed risky-word list for safety. Failing safe means asking for confirmation |
@@ -158,7 +158,7 @@ Three decisions in the loop are picks from a short list: is this a cancel? Is th
 Irreversible actions always need a spoken yes, and "stop" always works.
 
 **"How fast is it?"**
-Measured on my laptop. A simple command reaches the Mac about 0.6 seconds after the sentence, then runs in milliseconds (a keyboard shortcut) to about a second (opening an app through Spotlight). A multi-step task takes several seconds per step: typing a line into a new document took 17 seconds in five steps. The agent shows what it's doing beside the pointer so the user is never left guessing. "Stop" freezes the pointer in under a tenth of a second.
+Measured on my laptop. The voice agent acts about 0.87 seconds (median) after a typed sentence, measured on 6 November in a 37-case typed evaluation with Sonnet 5.5 at low reasoning; each setup ran once and it was typed, not spoken, so mishearing and delays in the audio path are not included. (An earlier Haiku 5.5 setup took 0.71 s but passed 23 of the 37 cases against 36; I chose the slower, smarter one.) The command then runs in milliseconds (a keyboard shortcut) to about a second (opening an app through Spotlight). A multi-step task takes several seconds per step: typing a line into a new document took 17 seconds in five steps. The agent shows what it's doing beside the pointer so the user is never left guessing. "Stop" freezes the pointer in under a tenth of a second.
 
 **"Who exactly is this for?"**
 First, people with motor impairments: spinal cord injury, ALS, severe RSI, cerebral palsy. It also helps anyone whose hands are busy, but disabled users come first.

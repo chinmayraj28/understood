@@ -21,8 +21,8 @@ Here is what happens when Sam says "Hey Handsfree, open Spotify":
 1. **Asleep.** The microphone is open and Apple's speech recogniser runs on the Mac. The companion shows that it is asleep (`.asleep(wakePhrase:)` on the activity bus). Nothing is sent anywhere.
 2. **The phrase is heard.** The recogniser writes "Hey hands-free, open Spotify." The matcher finds the phrase in it and keeps "open Spotify" as the rest of the sentence.
 3. **Waking.** `.waking` is posted, so the companion can show it heard. The listener stops and releases the microphone completely. The app then opens the ElevenLabs conversation and sends "open Spotify" as Sam's first message, so the one sentence is enough.
-4. **Awake.** The conversation stays open while anyone is speaking, while a task runs, and while a task waits for Sam's answer. After that it stays open for `SLEEP_AFTER_IDLE_S` seconds (25 by default) after the last activity.
-5. **Going back to sleep.** The conversation is closed and the listener starts again. Sam can also say "that's all, thanks". The voice agent then calls a tool that asks the cycle to sleep once the agent has said goodbye.
+4. **Awake.** The conversation stays open while anyone is speaking, while a task runs, and while a task waits for Sam's answer. After that it stays open for `SLEEP_AFTER_IDLE_S` seconds (15 by default, changed from 25 on 6 November) after the last activity. If the wake was a mistake and nobody says anything at all, it sleeps after `SLEEP_AFTER_UNUSED_WAKE_S` (8 seconds) instead; anything the user says switches that conversation to the ordinary 15.
+5. **Going back to sleep.** The conversation is closed and the listener starts again. Sam can also say "stop listening", "go to sleep", "that's all" or "goodbye". The app itself recognises these when they are the whole sentence (give or take "thanks" or "please"), without waiting for the voice agent, and asks the cycle to sleep once the agent has said a short reply. A sentence like "stop" or "stop the music" is not one of them, and "stop listening" never cancels a task. During a task it finishes the task, says the result, and only then sleeps.
 
 Two rules protect the user here:
 
@@ -92,7 +92,7 @@ Examples at the default strictness (all are unit tests):
 
 The two mistakes cost different things:
 
-- **A false wake** opens a paid conversation for about 25 seconds. It could also act on a sentence nobody meant as a command, although every risky action still needs a spoken yes.
+- **A false wake** opens a paid conversation for about 15 seconds (8 if nobody says anything). It could also act on a sentence nobody meant as a command, although every risky action still needs a spoken yes.
 - **A missed wake** leaves someone who cannot use their hands unable to get the computer's attention at all.
 
 So the default leans towards hearing the phrase:
@@ -243,8 +243,8 @@ Nothing below has run on a real microphone yet. With the app built and Microphon
 2. **The phrase wakes it.** Say "Hey Handsfree" at a normal distance and volume, five times, with pauses. Count the wakes. If one is missed, see whether a "heard speech that was not the phrase" count went up: if it did, the Mac heard you but the recogniser wrote something the matcher refused. That calls for a different strictness, an alternative phrase, or a different recogniser language.
 3. **Time to wake.** From the end of the phrase to the `.waking` sound, expect about 1.5 s for the bare phrase and about 1 s after "Hey Handsfree, open Spotify". Much longer means the recogniser is slow to decide you have stopped. Then add the conversation's own connection time.
 4. **The rest of the sentence.** "Hey Handsfree, open Spotify" in one breath should reach the agent as "open Spotify". Spotify should open without a second request.
-5. **The hand-over.** After waking, the agent must hear you; that shows the voice-processing engine got the microphone. Then let it fall asleep, which takes 25 s of quiet, and say the phrase again. It must wake again. Do this three times in a row.
-6. **Never asleep over a question.** Start a task that asks for confirmation ("send ... to the test contact") and stay silent at the question for more than 25 s. The conversation must stay open.
+5. **The hand-over.** After waking, the agent must hear you; that shows the voice-processing engine got the microphone. Then let it fall asleep, which takes 15 s of quiet, and say the phrase again. It must wake again. Do this three times in a row.
+6. **Never asleep over a question.** Start a task that asks for confirmation ("send ... to the test contact") and stay silent at the question for more than 15 s. The conversation must stay open.
 7. **Ordinary talk.** Talk normally near the Mac for a few minutes, mentioning "hands free" without "hey". There should be no wakes.
 8. **CPU.** In Activity Monitor, while asleep, look at `localspeechrecognition` plus Handsfree. File tests gave about 2% of one core in silence; the microphone adds a little.
 
@@ -283,7 +283,7 @@ The cycle also watches the activity bus. Anything the user, the agent or a task 
 
 ```
 cd Packages/HFWake
-swift test                                             # 99 tests, no microphone
+swift test                                             # 108 tests, no microphone (6 November)
 HF_LIVE=1 swift test --filter Live                     # the real recogniser on synthetic speech files
 swift run hf-wake status                               # permissions and the Mac's language
 echo "Hey hands free, open Spotify" | swift run hf-wake match

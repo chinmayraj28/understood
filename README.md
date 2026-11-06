@@ -22,7 +22,7 @@ The app shell (menu bar panel, the overlay beside the pointer, the design tokens
 
 ## Waking and sleeping
 
-The app does not keep a microphone conversation open all day. It sleeps, and while it sleeps it listens on the Mac itself for a wake phrase, "Hey Handsfree" by default, using Apple's on-device speech recognition (SpeechAnalyzer on macOS 26). Nothing it hears while asleep leaves the laptop, and no audio is saved or logged. When it hears the phrase it opens a conversation with the ElevenLabs agent. Anything said in the same breath ("Hey Handsfree, open Spotify") becomes the first message. When nobody has spoken for a while and no task is running (25 seconds by default), it closes the conversation and sleeps again. A task waiting for your yes is never put to sleep.
+The app does not keep a microphone conversation open all day. It sleeps, and while it sleeps it listens on the Mac itself for a wake phrase, "Hey Handsfree" by default, using Apple's on-device speech recognition (SpeechAnalyzer on macOS 26). Nothing it hears while asleep leaves the laptop, and no audio is saved or logged. When it hears the phrase it opens a conversation with the ElevenLabs agent. Anything said in the same breath ("Hey Handsfree, open Spotify") becomes the first message. When nobody has spoken for 15 seconds and no task is running, it closes the conversation and sleeps again; if you woke it by mistake and say nothing, it sleeps after 8 seconds. You can also say "stop listening", "go to sleep", "that's all" or "goodbye", which the app handles itself. A task is never cut off: during a task, or while it waits for your yes, it finishes, says the result, and only then sleeps.
 
 I chose this so that ElevenLabs minutes are used only while someone is talking, and so that other people's voices in the room are not sent to the cloud. There is still no key to press, because the people this is for cannot press one. Full detail, measurements and limits are in `docs/WAKE.md`.
 
@@ -50,11 +50,11 @@ Under "Listening details" at the bottom of the panel, the app counts how often t
 
 > **To be updated before submission.** This is what was true on 6 November 2026.
 
-- Every package builds and passes its unit tests (770 package tests and 74 app tests in the last run; see [Run the tests](#run-the-tests)). A clean clone of the repository builds and passes (see [Setup](#setup)).
+- Every package builds and passes its unit tests: 910 tests in the last run (799 in the packages and 111 in the app; see [Run the tests](#run-the-tests)). A clean clone of the repository built and passed on 6 November, before the latest changes to the panel and the voice agent; I have not repeated that check since.
 - The first demo task, drafting a WhatsApp message and stopping before sending, has been run for real through the screen agent from the command line (17.0 seconds, five model turns, the send refused as intended; see `docs/SCREEN_AGENT.md`).
-- A typed conversation with the real ElevenLabs agent works.
+- A typed conversation with the real ElevenLabs agent works. The voice agent runs on Claude Sonnet 5.5 at low reasoning. I chose it on a typed evaluation of 37 conversations (36 passed, against 23 for the earlier setup), with a median of 0.87 seconds from sentence to action. Each setup ran once and the tests were typed, not spoken, so mishearing and talking over the agent are not covered. The cost per conversation with Sonnet has not been measured.
 - **The wake phrase has been tested only with synthetic voices.** Sentences written to sound files with macOS's `say`, in nine English voices and three speeds, were fed to Apple's recogniser in place of the microphone: 100 of 108 wake sentences were caught, and 3 false wakes in 132 other sentences came from one sentence. 114 seconds of ordinary conversation caused no wakes. It has never been tried with a real voice or a real microphone.
-- **Not yet done:** a full spoken run through the built app. The app has not yet been granted its macOS permissions. The Google Meet task has not been run, because Chrome was signed out of Google.
+- **Not yet done:** a full spoken run through the new build. A typed end-to-end run through the built app (`scripts/e2e/textedit.txt`) is blocked because the Mac was locked overnight. The new menu bar panel has been seen only as offscreen renders (`docs/research/screens/panel/`), never on screen by a person. The app has not yet been granted its macOS permissions in a way I have observed. The Google Meet task has not been run, because Chrome was signed out of Google.
 
 If you only have a few minutes, use the [demo mode](#try-it-without-any-setup-demo-mode), which needs no keys and no permissions.
 
@@ -142,9 +142,9 @@ The app has no Dock icon. It lives in the menu bar and draws its companion besid
 **A first run, in this order:**
 
 1. Say "Hey Handsfree" on its own, then wait for the rising chime. That means it is listening.
-2. Say "Turn the volume to thirty percent." Then say nothing for 25 seconds and listen for the falling chime.
+2. Say "Turn the volume to thirty percent." Then say nothing for 15 seconds and listen for the falling chime.
 3. Say "Hey Handsfree, open Spotify" in one breath. It should open Spotify without asking again.
-4. Say "that's all" to send it back to sleep early.
+4. Say "that's all" or "stop listening" to send it back to sleep early. (If the Mac is locked, quick commands and tasks do nothing and it says "The Mac is locked, so I can't use it until someone unlocks it." It never offers to unlock the Mac or asks for a password.)
 
 **Other things to say** (after the wake phrase):
 
@@ -181,13 +181,15 @@ Results of the last full run (6 November 2026, `swift test` in each package):
 | Package | Tests | Package | Tests |
 |---|---|---|---|
 | HFCore | 25 | HFTasks | 55 |
-| HFDecisions | 86 | HFVoice | 91 |
-| HFEyes | 40 | HFWake | 100 |
-| HFHands | 127 | HFIntegration | 58 (1 known issue) |
-| HFMemory | 121 | the app (`HandsfreeTests`) | 74 |
-| HFScreenAgent | 67 | **Total** | **844** |
+| HFDecisions | 86 | HFVoice | 110 |
+| HFEyes | 40 | HFWake | 108 |
+| HFHands | 127 | HFIntegration | 60 |
+| HFMemory | 121 | the app (`HandsfreeTests`) | 111 |
+| HFScreenAgent | 67 | **Total** | **910** |
 
-All passed. The known issue in `HFIntegration` is deliberate and recorded in the test: one failed wake shows one disconnection per reconnect attempt instead of one in total. `HFIntegration` holds the cross-package tests that feed one package's real output into another.
+All passed, as run on 6 November 2026 after the last changes. Earlier in the day a clean clone had passed with different counts (844 in total); the difference is new tests. `HFIntegration` holds the cross-package tests that feed one package's real output into another.
+
+Typed end-to-end runs need no microphone. `scripts/run_app.sh --wait --script scripts/e2e/textedit.txt` drives the built app with typed turns against a separate test agent on ElevenLabs (so your own agent is never touched); `scripts/e2e/conversation-only.txt` and `scripts/e2e/locked.txt` do the same for a plain conversation and for a locked Mac. They move the real pointer, so take the live lock first. `Packages/HFVoiceEval` scores the voice agent on 37 typed conversations against a second test agent: `cd Packages/HFVoiceEval && swift run hf-voice-eval run`. The test agents' ids are written into `.env` as `ELEVENLABS_TEST_AGENT_ID` and `ELEVENLABS_EVAL_AGENT_ID` by the project's own tools; you do not need to set them for the app.
 
 Tests that touch the real Mac or a real API only run when `HF_LIVE=1` is set. They move the real pointer and press real keys, so take the lock first and release it straight after:
 
@@ -203,7 +205,7 @@ Command-line tools for trying one part on its own: `swift run hf-voice text` or 
 
 | What | Goes to | When |
 |---|---|---|
-| Your voice, as audio, and the agent's replies | ElevenLabs | Only while the app is awake and a conversation is open |
+| Your voice, as audio, and the agent's replies (ElevenLabs runs the voice agent's language model, Claude Sonnet 5.5, on its side) | ElevenLabs | Only while the app is awake and a conversation is open |
 | Screenshots of your main display | Anthropic (Claude) | Only while a task is running |
 | Short descriptions of an action ("Click button Send in WhatsApp"), your spoken sentences for the stop check, and your replies to a confirmation | OpenRouter, which passes them to Jev | Only if `OPENROUTER_API_KEY` is set. Fixed rules decide first where they can (77% of risk decisions in the final run were made by rule, with no network) |
 | The goal and your answers to its questions, with message wording replaced by `[message]`, for learning | Anthropic (Claude Haiku) | After a task finishes |
@@ -232,6 +234,7 @@ HandsfreeTests/       the app's unit tests
 Packages/
   HFCore/             shared types and protocols; every other package depends only on this
   HFVoice/            ElevenLabs conversation, agent definition and setup
+  HFVoiceEval/       typed evaluation of the voice agent (37 conversations) against a test agent
   HFHands/            real pointer and keyboard, and the 13 quick tools
   HFEyes/             screenshots, and read-only accessibility lookups (names the control)
   HFWake/             on-device wake phrase listener and the sleep and wake cycle (hf-wake tool)
@@ -259,7 +262,7 @@ Where to read first: `docs/ARCHITECTURE.md` (the contracts between packages), `D
 - **Tested on few tasks.** The screen agent is general by design but tuned and tested on a few tasks. Runs are single samples, not statistics.
 - **One display.** Screenshots are of the main display.
 - **Updaters in ordinary windows.** An update sheet drawn inside an ordinary app's own window (a Sparkle "Install Update" sheet) is not recognised as protected; only the gate's word rules ("install", "update") cover it.
-- **Spoken-run checks are outstanding.** Slow or paused speech, interrupting the agent, and a spoken run through the built app have not been done yet.
+- **Spoken-run checks are outstanding.** Slow or paused speech, interrupting the agent, and a spoken run through the built app have not been done yet. The voice agent was evaluated on typed conversations only.
 - **Mac only.** No Windows, no offline mode.
 - **Certificate changes.** If the signing certificate is replaced by one with a different name, macOS asks for the permissions again.
 
