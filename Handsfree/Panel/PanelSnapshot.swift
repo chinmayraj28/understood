@@ -134,6 +134,9 @@ struct PanelSnapshot: Equatable {
     var details: [String]
     var version: String
 
+    /// The largest panel text size a carer can choose (`PanelTextScale`, 1 to this).
+    static let largestTextScale = 1.6
+
     // MARK: - Rules
 
     /// Which layout to show.
@@ -160,6 +163,9 @@ struct PanelSnapshot: Equatable {
         if mode == .setup { return nextStep?.action }
         return trouble.first(where: { $0.action != nil })?.action
     }
+
+    /// Any trouble at all: the header then says "Needs attention" rather than "Asleep" or "Working".
+    var needsAttention: Bool { !trouble.isEmpty }
 
     /// False when a problem stops it waking at all: then the ready layout does not promise that it will.
     var canWake: Bool {

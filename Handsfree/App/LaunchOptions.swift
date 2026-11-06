@@ -36,6 +36,9 @@ struct LaunchOptions: Equatable {
     /// Update and check the agent on ElevenLabs and write the status file, but start no listening:
     /// no wake listener, no microphone. For checking the agent after a launch.
     var syncOnly = false
+    /// Test-only: run this script of typed turns through the built app on the TEST agent, with no
+    /// microphone and no sound, write <data dir>/script-run.json and quit (see App/ScriptRun.swift).
+    var scriptPath: String?
 
     /// Unknown arguments are ignored, because macOS adds its own (for example `-NSDocumentRevisionsDebugMode`).
     static func parse(_ arguments: [String]) -> LaunchOptions {
@@ -64,6 +67,7 @@ struct LaunchOptions: Equatable {
             case "--moment-log": options.demoMomentLogPath = nextValue()
             case "--render-states": options.renderStatesFolder = nextValue()
             case "--sync-only": options.syncOnly = true
+            case "--script": options.scriptPath = nextValue()
             default: break
             }
             index += 1

@@ -77,17 +77,6 @@ struct SetupCheckTests {
         #expect(item?.instructions.contains("leaves the Mac") == true, "the helper is told no audio leaves the Mac while it waits")
     }
 
-    @Test("How to start names the phrase, the chimes and the quiet time")
-    func howToStart() {
-        let text = SetupCheck.howToStart(wakePhrase: "Hey Handsfree", sleepAfterSeconds: 25, alwaysOpen: false)
-        #expect(text.contains("\u{201C}Hey Handsfree\u{201D}"))
-        #expect(text.contains("Hey Handsfree, open Spotify"))
-        #expect(text.contains("rising chime") && text.contains("falling chime"))
-        #expect(text.contains("25 seconds"))
-        let always = SetupCheck.howToStart(wakePhrase: "Hey Handsfree", sleepAfterSeconds: 25, alwaysOpen: true)
-        #expect(always.contains("WAKE_MODE=always"))
-    }
-
     @Test("A missing OpenRouter key is a note, not a blocker")
     func openRouterOptional() {
         let items = SetupCheck.items(for: facts(openRouter: false))

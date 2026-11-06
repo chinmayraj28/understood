@@ -133,3 +133,27 @@ Every package's own tests passed, because each one tested its own wording. Only 
 - A live test sends all 24 real tools to a separate test agent and reads them back. Tests and command-line tools never touch the user's agent again; they use agents named "Handsfree TEST agent" and "Handsfree EVAL agent".
 
 **Rejected.** Only adding the four missing descriptions. That fixes today's fault and leaves the next rejected update just as silent.
+
+## 6 Nov 2026: a stronger model and a rewritten prompt for the voice agent
+
+**The user's complaint.** "It has to be smarter and not just tool call, or shouldn't seem like that."
+
+**How it was decided.** A set of 37 typed test conversations (`Packages/HFVoiceEval`), each checked for the right action, honest wording and no machine words. One run per row:
+
+| Setup | Passed | Time to act |
+|-------|--------|-------------|
+| Old prompt, Haiku 5.5 | 23 of 37 | 0.71 s |
+| New prompt, Haiku 5.5 | 29 of 37 | 0.68 s |
+| New prompt, Sonnet 5.5, no reasoning | 33 of 37 | 1.44 s |
+| New prompt, Haiku 5.5, low reasoning | 34 of 37 | 0.79 s |
+| New prompt, Sonnet 5.5, low reasoning | 36 of 37 | 0.87 s |
+
+**What was chosen.** Sonnet 5.5 with low reasoning, the rewritten prompt, and ElevenLabs' built-in "skip turn" so the agent can stay silent when speech is meant for someone else. It acts about 0.16 seconds later than before and speaks about half a second later.
+
+**Why.** Only this setup never claimed something was done before the result came back, which was the exact fault in the user's first run ("YouTube is open now"). The prompt mattered more than the model: with the old prompt, Sonnet scored lower than Haiku on the first 16 cases.
+
+**What the prompt does differently.** It describes the person and their situation (every word costs them effort, they cannot undo a mistake by hand) rather than listing rules, gives three choices (talk, one quick action, or a task), and says that everything written is spoken aloud.
+
+**Not known.** Each setup ran once, so a difference of one or two cases is noise. The tests are typed, so mishearing and talking over the agent are not covered. Sonnet costs more per conversation than Haiku and that was not measured.
+
+**Also changed.** Task progress is no longer sent as something the agent must answer, because it replied "Nothing to add yet." after every task start. Progress is background information now, and the companion beside the pointer shows it.

@@ -15,11 +15,15 @@ public struct AgentCheck: Sendable, Equatable {
     public var problem: String?
     /// For the log and tests only: the HTTP status and the start of ElevenLabs' answer. Never a key.
     public var detail: String?
+    /// As read back: the agent's model, reasoning setting and built-in tools.
+    public var model: String? = nil
+    public var reasoningEffort: String? = nil
+    public var systemTools: [String] = []
 
     public var toolCount: Int { toolNamesOnAgent.count }
 
     public var summary: String {
-        if inSync { return "in sync: \(toolCount) tools" }
+        if inSync { return "in sync: \(toolCount) tools + \(systemTools.joined(separator: ", ")), model \(model ?? "?"), reasoning \(reasoningEffort ?? "?")" }
         var parts = [problem ?? "not in sync"]
         if !missing.isEmpty { parts.append("missing \(missing.joined(separator: ", "))") }
         if !unexpected.isEmpty { parts.append("unexpected \(unexpected.joined(separator: ", "))") }
@@ -81,36 +85,65 @@ public struct AgentSyncer: Sendable {
     }
 
     /// Reads the agent back and compares its tool names with `tools`.
+    /// Reads the agent back. In step means all three: exactly the app's client tools, the built-in
+    /// skip_turn tool, and the model and reasoning setting the app sent.
     public func verify(tools: [ToolSpec]) async -> AgentCheck {
         let expected = Set(tools.map(\.name))
         do {
-            let names = Set(try await toolNames())
+            let agent = try await readBack()
+            let names = Set(agent.clientTools)
             let missing = expected.subtracting(names).sorted()
             let unexpected = names.subtracting(expected).sorted()
-            let inSync = missing.isEmpty && unexpected.isEmpty
+            var problems: [String] = []
+            if !missing.isEmpty || !unexpected.isEmpty { problems.append("tools") }
+            let hasSkipTurn = agent.systemTools.contains(AgentConfiguration.skipTurnName)
+            if !hasSkipTurn { problems.append("skip_turn") }
+            if agent.model != configuration.llm { problems.append("model") }
+            if agent.reasoningEffort != configuration.reasoningEffort { problems.append("reasoning") }
+            let inSync = problems.isEmpty
             return AgentCheck(
-                inSync: inSync, toolNamesOnAgent: names.sorted(), missing: missing, unexpected: unexpected,
+                inSync: inSync, toolNamesOnAgent: names.sorted(),
+                missing: missing + (hasSkipTurn ? [] : [AgentConfiguration.skipTurnName]), unexpected: unexpected,
                 checkedAt: Date(),
-                problem: inSync ? nil : "The voice agent's tools don't match the app, so I can't start a conversation yet.",
-                detail: nil)
+                problem: inSync ? nil : "The voice agent's set-up doesn't match the app, so I can't start a conversation yet.",
+                detail: inSync ? nil : "differs in: \(problems.joined(separator: ", ")); model \(agent.model ?? "none"), reasoning \(agent.reasoningEffort ?? "none")",
+                model: agent.model, reasoningEffort: agent.reasoningEffort, systemTools: agent.systemTools)
         } catch {
             return .failed("I can't check the voice agent right now.", detail: Self.describe(error), at: Date())
         }
     }
 
-    /// The names of the agent's tools: from its inline list, or, if that is empty, by looking up its tool ids.
-    func toolNames() async throws -> [String] {
+    /// What the agent has on ElevenLabs, as far as being in step goes.
+    struct ReadBack {
+        var clientTools: [String]
+        /// Built-in (system) tools: inline ones of type "system", and the keys of `built_in_tools` that are set.
+        var systemTools: [String]
+        var model: String?
+        var reasoningEffort: String?
+    }
+
+    func readBack() async throws -> ReadBack {
         let agent = try await api.agent(id: agentID)
         let prompt = agent["conversation_config"]?["agent"]?["prompt"]
-        let inline = (prompt?["tools"]?.arrayValue ?? []).compactMap { $0["name"]?.stringValue }
-        if !inline.isEmpty { return inline }
-        var names: [String] = []
-        for id in (prompt?["tool_ids"]?.arrayValue ?? []).compactMap(\.stringValue) {
-            let tool = try await api.call("GET", "/v1/convai/tools/\(id)")
-            if let name = tool["tool_config"]?["name"]?.stringValue ?? tool["name"]?.stringValue { names.append(name) }
+        let inline = prompt?["tools"]?.arrayValue ?? []
+        var clientTools = inline.filter { $0["type"]?.stringValue != "system" }.compactMap { $0["name"]?.stringValue }
+        var systemTools = inline.filter { $0["type"]?.stringValue == "system" }.compactMap { $0["name"]?.stringValue }
+        for (name, value) in prompt?["built_in_tools"]?.objectValue ?? [:] where value != .null {
+            if !systemTools.contains(name) { systemTools.append(name) }
         }
-        return names
+        if inline.isEmpty {
+            // Older agents list tools only by id.
+            for id in (prompt?["tool_ids"]?.arrayValue ?? []).compactMap(\.stringValue) {
+                let tool = try await api.call("GET", "/v1/convai/tools/\(id)")
+                if let name = tool["tool_config"]?["name"]?.stringValue ?? tool["name"]?.stringValue { clientTools.append(name) }
+            }
+        }
+        return ReadBack(clientTools: clientTools, systemTools: systemTools.sorted(),
+                        model: prompt?["llm"]?.stringValue, reasoningEffort: prompt?["reasoning_effort"]?.stringValue)
     }
+
+    /// The names of the agent's client tools (for `hf-voice check` and older callers).
+    func toolNames() async throws -> [String] { try await readBack().clientTools }
 
     private func guardFailure(_ tools: [ToolSpec]) -> AgentCheck? {
         switch role {

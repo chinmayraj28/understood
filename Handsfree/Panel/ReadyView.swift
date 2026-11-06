@@ -32,19 +32,21 @@ struct ReadyView: View {
                                 .panelFont(.body)
                                 .foregroundStyle(DS.Panel.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
             }
 
             if !snapshot.isAlwaysOpen {
-                PanelCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        PanelSectionHeader(title: PanelCopy.soundsTitle).padding(.horizontal, -4)
-                        chimeRow(symbol: "arrow.up.right", text: PanelCopy.risingChime)
-                        chimeRow(symbol: "arrow.down.right", text: PanelCopy.fallingChime(sleepAfterSeconds: sleepAfterSeconds))
-                    }
+                // Quiet lines, not a card: worth knowing, not worth the eye's attention.
+                VStack(alignment: .leading, spacing: 6) {
+                    chimeRow(symbol: "arrow.up.right", text: PanelCopy.risingChime)
+                    chimeRow(symbol: "arrow.down.right", text: PanelCopy.fallingChime(sleepAfterSeconds: sleepAfterSeconds))
                 }
+                .padding(.horizontal, 4)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(PanelCopy.soundsTitle)
             }
 
             if let task = snapshot.task, !task.isCurrent {

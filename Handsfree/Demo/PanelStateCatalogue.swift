@@ -23,7 +23,9 @@ enum PanelStateCatalogue {
     }
 
     static let wakePhrase = "Hey Handsfree"
-    static let sleepAfterSeconds = 25.0
+    /// The settings default (`SLEEP_AFTER_IDLE_S`).
+    static let sleepAfterSeconds = 15.0
+    static let largestTextScale = PanelSnapshot.largestTextScale
     static let goal = "Message Amma: running late, ten minutes"
     static let question = "Send \u{201C}running late, ten minutes\u{201D} to Amma?"
     static let heldAction = "Click \u{201C}Send\u{201D} in WhatsApp"
@@ -147,6 +149,17 @@ enum PanelStateCatalogue {
         examples.append(Example(name: "11-larger-text", snapshot: make(
             facts: facts(), events: waiting, listening: awakeListening(now), now: now), textScale: 1.4))
 
+        // 11b to 11d. The largest text size, for the three busiest layouts. Every state is also drawn at
+        // this size into the render folder's panel/largest/, for checking (see StateSnapshots).
+        examples.append(Example(name: "11b-largest-text-waiting", snapshot: make(
+            facts: facts(), events: waiting, listening: awakeListening(now), now: now), textScale: largestTextScale))
+        examples.append(Example(name: "11c-largest-text-setup", snapshot: make(
+            facts: facts(accessibility: .notAsked, screen: .notAsked),
+            events: [.asleep(wakePhrase: wakePhrase)], now: now), textScale: largestTextScale))
+        examples.append(Example(name: "11d-largest-text-ready", snapshot: make(
+            facts: facts(), events: [.asleep(wakePhrase: wakePhrase)], listening: asleepListening(now), now: now),
+            textScale: largestTextScale))
+
         return examples
     }
 
@@ -177,6 +190,7 @@ enum PanelStateCatalogue {
         }
         var status = listening
         status.wakePhrase = wakePhrase
+        status.sleepAfterIdleSeconds = sleepAfterSeconds
         return PanelSnapshotBuilder.make(PanelSnapshotBuilder.Inputs(
             facts: facts, companion: companion, log: log, listening: status, wakePhrase: wakePhrase,
             sleepAfterSeconds: sleepAfterSeconds, isAlwaysOpen: isAlwaysOpen, isDemo: false, memorySummary: memory,

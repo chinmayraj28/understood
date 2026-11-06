@@ -44,7 +44,7 @@ I chose this so that ElevenLabs minutes are used only while someone is talking, 
 2. `WAKE_ALTERNATIVES`: add a phrase the person can say clearly, such as `Hello Sam's Mac`. A two-word phrase with a greeting first works best.
 3. `WAKE_STRICTNESS=lenient`: last, because it also wakes by mistake more often.
 
-The panel's LISTENING section counts how often the Mac heard speech that was not the phrase (it never stores what was said). If that count goes up when you say the phrase, the Mac hears you but does not recognise the phrase, and the steps above help. If it stays at zero, look at the microphone instead.
+Under "Listening details" at the bottom of the panel, the app counts how often the Mac heard speech that was not the phrase (it never stores what was said). If that count goes up when you say the phrase, the Mac hears you but does not recognise the phrase, and the steps above help. If it stays at zero, look at the microphone instead.
 
 ## Status
 
@@ -125,7 +125,7 @@ scripts/run_app.sh --request-permissions --show-panel
 3. **Microphone:** click Allow.
 4. **Accessibility:** click Open System Settings, switch Handsfree on (macOS may ask for your password). This lets it move the pointer and press keys.
 5. **Screen Recording:** open System Settings > Privacy & Security > Screen & System Audio Recording and switch Handsfree on. Choose Quit & Reopen if macOS offers it. This lets it take screenshots.
-6. In the menu bar panel's LISTENING section, wait for "Wake listener: listening on this Mac for “Hey Handsfree”".
+6. Wait for the panel to change from the setup checklist to "Say “Hey Handsfree”". The wake listener's state is under "Listening details" at the bottom of the panel.
 
 You can grant them one at a time; the app checks every two seconds. The panel lists exactly what is still missing, with a button for each. Voice works without Accessibility and Screen Recording, but tasks then fail with a sentence saying why. On a crowded menu bar, macOS can hide the new icon behind the notch; the panel also opens by itself at launch while setup is incomplete.
 

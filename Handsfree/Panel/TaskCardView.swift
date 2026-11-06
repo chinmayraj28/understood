@@ -3,8 +3,9 @@
 //  Handsfree
 //
 //  The task: its goal, its state as an icon and a word, and its steps as a
-//  short timeline (done steps ticked, the current one gently pulsing), with
-//  how it ended once it has. New for Handsfree.
+//  short timeline (done steps ticked, the current one marked), with how it
+//  ended once it has. While it runs, this card is also the status: a small
+//  moving dot and "Working" in its header. New for Handsfree.
 //
 
 import SwiftUI
@@ -20,18 +21,23 @@ struct TaskCardView: View {
     /// False when the card above already says how the task ended.
     var showsResult = true
 
+    /// Running right now: this card is then the status as well, so there is no separate "Working" card.
+    private var isLive: Bool { task.isCurrent && task.status == .running }
+
     var body: some View {
         PanelCard {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center) {
+                HStack(alignment: .center, spacing: 8) {
                     PanelSectionHeader(title: isLastTask ? PanelCopy.lastTaskTitle : PanelCopy.taskTitle).padding(.horizontal, -4)
-                    // While it runs, the header and the card above already say what it is doing.
-                    if !task.isCurrent && showsResult {
+                    if isLive {
+                        liveIndicator
+                    } else if !task.isCurrent && showsResult {
+                        // Once ended, say how. (While it waits, the amber card above says so.)
                         PanelStatusTag(symbol: statusSymbol, text: PanelCopy.taskStatus(task.status), tone: statusTone)
                     }
                 }
                 Text(task.goal)
-                    .panelFont(.headline)
+                    .panelFont(task.isCurrent ? .title : .headline)
                     .foregroundStyle(DS.Panel.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -90,7 +96,8 @@ struct TaskCardView: View {
 
     @ViewBuilder private func marker(isCurrent: Bool) -> some View {
         if isCurrent && task.status == .running {
-            PanelPulsingDot(tone: .accent, diameter: 7)
+            // Still: the card header already moves.
+            Circle().fill(DS.Panel.accent).frame(width: 7, height: 7)
         } else if isCurrent {
             Image(systemName: "pause.circle.fill")
                 .panelSymbol(11, .semibold)
@@ -100,6 +107,19 @@ struct TaskCardView: View {
                 .panelSymbol(9, .bold)
                 .foregroundStyle(DS.Panel.textTertiary)
         }
+    }
+
+    /// A small moving dot and "Working", in the card header.
+    private var liveIndicator: some View {
+        HStack(spacing: 6) {
+            PanelPulsingDot(tone: .accent, diameter: 7)
+            Text(PanelCopy.taskStatus(.running))
+                .panelFont(.footnote)
+                .fontWeight(.semibold)
+                .foregroundStyle(DS.Panel.accent)
+                .fixedSize()
+        }
+        .accessibilityElement(children: .combine)
     }
 
     /// Steps finished: all of them once the task has ended, all but the current one while it runs.

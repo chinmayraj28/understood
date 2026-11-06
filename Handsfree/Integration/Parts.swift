@@ -58,6 +58,8 @@ protocol VoiceConnecting: AnyObject {
     var agentStatus: AgentStatus? { get }
     /// Why the last open did not open a conversation (the agent is out of step), if it did not.
     var openRefusal: String? { get }
+    /// A typed turn that goes where a heard sentence goes. Test-only (`--script`).
+    func sendTypedTurn(_ text: String) async throws
     /// Waits for the conversation to connect (it retries by itself), up to `timeout` seconds.
     func waitUntilConnected(timeout: TimeInterval) async -> Bool
     /// Makes the agent say a task's question, confirmation or result while the user is silent.

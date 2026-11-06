@@ -179,6 +179,27 @@ struct PanelRedesignTests {
         #expect(try example("09b-trouble-phrase-not-heard").snapshot.canWake)
     }
 
+    @Test("The header agrees with any banner: \u{201C}Needs attention\u{201D}, never \u{201C}Asleep\u{201D} under a red banner")
+    func headerAgreesWithTrouble() throws {
+        for name in ["09-trouble-voice", "09b-trouble-phrase-not-heard", "09c-trouble-not-connected"] {
+            let snapshot = try example(name).snapshot
+            #expect(snapshot.needsAttention, "\(name)")
+            #expect(PanelCopy.status(snapshot.activity, mode: snapshot.mode, needsAttention: snapshot.needsAttention) == "Needs attention")
+        }
+        let calm = try example("04-ready-asleep").snapshot
+        #expect(!calm.needsAttention)
+        #expect(PanelCopy.status(calm.activity, mode: calm.mode, needsAttention: calm.needsAttention) == "Asleep")
+        // Setup outranks trouble in the header.
+        #expect(PanelCopy.status(.asleep, mode: .setup, needsAttention: true) == "Setup needed")
+    }
+
+    @Test("The largest text examples are drawn at the largest size a carer can choose")
+    func largestText() throws {
+        for name in ["11b-largest-text-waiting", "11c-largest-text-setup", "11d-largest-text-ready"] {
+            #expect(try example(name).textScale == PanelSnapshot.largestTextScale)
+        }
+    }
+
     @Test("Trouble: speech heard but never the phrase is a warning, from the third time, and never once it has woken")
     func phraseNotHeard() throws {
         #expect(try example("09b-trouble-phrase-not-heard").snapshot.trouble.map(\.kind) == [.phraseNotHeard])
@@ -325,7 +346,7 @@ struct PanelRedesignTests {
             PanelCopy.setupTitle, PanelCopy.setupIntro, PanelCopy.keysInstructions, PanelCopy.optionalKeyNote, PanelCopy.readySubtitle,
             PanelCopy.alwaysOpenTitle, PanelCopy.alwaysOpenSubtitle, PanelCopy.cannotWakeSubtitle, PanelCopy.risingChime, PanelCopy.fallingChime(sleepAfterSeconds: 25),
             PanelCopy.voiceNotSetUpTitle, PanelCopy.voiceNotSetUpMessage, PanelCopy.notConnectedTitle,
-            PanelCopy.notConnectedMessage(reason: nil), PanelCopy.yesHint, PanelCopy.answerHint, PanelCopy.whereToFind,
+            PanelCopy.notConnectedMessage(reason: nil), PanelCopy.yesHint, PanelCopy.answerHint, PanelCopy.needsAttention, PanelCopy.whereToFind,
             PanelCopy.voiceDetail(isReady: true, checkedAgo: "1 min ago"), PanelCopy.voiceDetail(isReady: false, checkedAgo: nil),
             PanelCopy.voiceDetail(isReady: nil, checkedAgo: nil), PanelCopy.partsDetail(real: 8, total: 9),
         ]
@@ -356,7 +377,8 @@ struct PanelRedesignTests {
         "Handsfree/Panel/PanelCopy.swift", "Handsfree/Panel/PanelRootView.swift", "Handsfree/Panel/SetupChecklistView.swift",
         "Handsfree/Panel/ReadyView.swift", "Handsfree/Panel/ActivityView.swift", "Handsfree/Panel/TaskCardView.swift",
         "Handsfree/Panel/ConversationThreadView.swift", "Handsfree/Panel/TroubleBanner.swift", "Handsfree/Panel/PanelFooter.swift",
-        "Handsfree/Panel/PanelComponents.swift", "Handsfree/Panel/PanelSnapshotBuilder.swift",
+        "Handsfree/Panel/PanelComponents.swift", "Handsfree/Panel/PanelSnapshotBuilder.swift", "Handsfree/Panel/PanelView.swift",
+        "Handsfree/Panel/MenuBarPanelManager.swift",
     ]
 
     /// Every user-visible string in a snapshot.

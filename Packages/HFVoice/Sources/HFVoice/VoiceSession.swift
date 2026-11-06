@@ -520,6 +520,14 @@ public final class VoiceSession {
         notifyTranscriptListeners(text)
     }
 
+    /// A typed turn that goes exactly where a heard sentence goes: to the agent, to the transcript
+    /// listeners (the stop watcher, sign-off detection) and to the companion as `.userSaid`. For the
+    /// app's test-only `--script` runs; `sendText` stays as it was for the older tests.
+    public func sendTypedTurn(_ text: String) async throws {
+        guard isConnected else { throw SpeakableError("The voice connection is not ready.") }
+        try await sayAsUser(text)
+    }
+
     /// Waits until the conversation is connected, up to `timeout` seconds.
     public func waitUntilConnected(timeout: TimeInterval) async -> Bool {
         let deadline = clock() + timeout
@@ -890,6 +898,13 @@ public final class VoiceSession {
         case .toolAnswered:
             // The agent's reply, if any, follows the tool's answer, so the wait restarts here.
             if awaitingReplySince != nil { awaitingReplySince = now }
+            lastActivityAt = now
+        case .silentTurn:
+            // The agent chose to say nothing (skip_turn): the turn is over. Nothing is "on its way",
+            // so task news goes out at once and the idle wait starts now, not after the reply timeout.
+            agentAudible = false  // not "thinking" any more, so it does not hold the conversation open
+            awaitingReplySince = nil
+            pushAwaitingReply = false
             lastActivityAt = now
         case .toolCall(let name, let callID, let parameters):
             lastActivityAt = now

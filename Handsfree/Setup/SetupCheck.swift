@@ -130,11 +130,6 @@ enum SetupCheck {
         return items
     }
 
-    /// Where to find Handsfree again, for the person helping. Shown with the setup steps.
-    static let whereToFindIt = "Handsfree lives in the menu bar at the top right of the screen: a pointer arrow with two small sound waves. "
-        + "On a MacBook with many menu bar icons it can be hidden behind the camera notch. To open this panel at any time, "
-        + "open Handsfree again (double-click Handsfree.app in Finder)."
-
     /// True when nothing blocking is left.
     static func isReady(_ facts: SetupFacts) -> Bool {
         !items(for: facts).contains(where: \.isBlocking)
@@ -191,18 +186,6 @@ enum SetupCheck {
                     + "under Speech Recognition, then quit Handsfree from this panel and open it again.",
                 isBlocking: true, action: .openSettings(.speechRecognition), actionTitle: "Open Settings")
         }
-    }
-
-    /// How the person starts and ends a conversation, for whoever is helping. Shown in the panel.
-    static func howToStart(wakePhrase: String, sleepAfterSeconds: Double, alwaysOpen: Bool) -> String {
-        if alwaysOpen {
-            return "Handsfree is set to listen all the time (WAKE_MODE=always), so everything said near the Mac is sent "
-                + "to the voice service. Remove that line from the keys file to use the wake phrase instead."
-        }
-        return "The person says \u{201C}\(wakePhrase)\u{201D}, then what they want, in one go: "
-            + "\u{201C}\(wakePhrase), open Spotify\u{201D}. A rising chime means it is listening. "
-            + "A falling chime means it has gone back to sleep, after about \(Int(sleepAfterSeconds.rounded())) seconds of quiet "
-            + "or when they say \u{201C}that\u{2019}s all\u{201D}. Until the phrase is heard, nothing they say leaves this Mac."
     }
 
     private static func accessibilityItem(_ status: PermissionStatus) -> SetupItem? {

@@ -12,11 +12,14 @@ public struct AgentConfiguration: Sendable {
     /// The system prompt. The master copy is docs/prompts/voice_agent.md; the
     /// package carries a copy as a resource, and a test fails if they differ.
     public var prompt: String
-    /// Fastest model that passed every behaviour check (78 of 78) in the spike.
-    public var llm = "claude-haiku-5-5"
-    public var reasoningEffort: String? = "none"
-    /// Used in order if the main model fails or is slow.
-    public var backupLLMs = ["claude-haiku-4-5", "gpt-4.1-mini"]
+    /// Chosen on 6 Nov by the wake engineer's 37-case evaluation on the EVAL agent: with the new
+    /// prompt, claude-sonnet-5-5 at low reasoning passed 36 of 37 (the old haiku setup 23 of 37),
+    /// at 0.87 s median to the tool call. With reasoning "none" both models sometimes said their
+    /// reasoning aloud; "low" stopped that for about 0.1 s.
+    public var llm = "claude-sonnet-5-5"
+    public var reasoningEffort: String? = "low"
+    /// Used in order if the main model fails or is slow; both follow the same prompt the same way.
+    public var backupLLMs = ["claude-haiku-5-5", "claude-haiku-4-5"]
     /// "Alice": a clear, calm voice. The user may pick another by ear.
     public var voiceID = "Xb7hH8MSUJpSbSDYk0k2"
     /// Puts the current time in the prompt, which "tomorrow at three" needs.
@@ -63,7 +66,9 @@ public struct AgentConfiguration: Sendable {
         ]
         promptSettings["reasoning_effort"] = reasoningEffort.map { .string($0) } ?? .null
         if let tools {
-            promptSettings["tools"] = .array(tools.map(Self.clientTool))
+            // skip_turn goes in the same list: with tools sent inline, the server rebuilds the built-in
+            // tools from this list, and a separate `built_in_tools.skip_turn` is silently dropped.
+            promptSettings["tools"] = .array(tools.map(Self.clientTool) + [Self.skipTurnTool])
         }
         let placeholders = JSONValue.object(Self.dynamicVariableDefaults.mapValues { .string($0) })
         return [
@@ -105,6 +110,16 @@ public struct AgentConfiguration: Sendable {
             ],
         ]
     }
+
+    /// ElevenLabs' built-in tool for saying nothing this turn. The agent uses it for speech not
+    /// meant for it, stray sounds, after start_task answers "running", and for progress notes; it
+    /// removed the double "On it." in the evaluation. The server stores it as built_in_tools.skip_turn.
+    public static let skipTurnName = "skip_turn"
+    public static let skipTurnTool: JSONValue = [
+        "type": "system", "name": .string(skipTurnName), "pre_tool_speech": "off",
+        "params": ["system_tool_type": .string(skipTurnName)],
+        "description": "Say nothing this turn: call this as your whole reply, with no text before or after it, because any text is spoken aloud. Use it when the sentence was not meant for you (someone talking to another person or another assistant), when it was a stray word or sound with no request in it, after start_task answers that the task is running, and for a progress note that needs no words.",
+    ]
 
     /// One ToolSpec as an ElevenLabs client tool.
     ///

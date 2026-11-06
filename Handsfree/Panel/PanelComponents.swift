@@ -146,7 +146,8 @@ struct PanelStatusTag: View {
                 .fontWeight(.semibold)
         }
         .foregroundStyle(tone.foreground)
-        .padding(.horizontal, 7)
+        // No capsule, no inset: a quiet tag lines up with the text around it.
+        .padding(.horizontal, isQuiet ? 0 : 7)
         .padding(.vertical, 3)
         .background(Capsule().fill(isQuiet ? AnyShapeStyle(Color.clear) : tone.tint))
         .fixedSize()
@@ -200,7 +201,8 @@ struct PanelBrandTile: View {
 
 private struct ContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
-    // The tallest wins: an outer area's content always contains any inner one's.
+    // Siblings combine by the tallest. Each area stops its own value at its edge (see transformPreference
+    // below), so an outer area never sees a nested one's full, unclipped height.
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
@@ -235,6 +237,8 @@ struct CappedScrollArea<Content: View>: View {
                 }
                 .frame(height: max(1, min(contentHeight, maxHeight)))
                 .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+                .transformPreference(ContentHeightKey.self) { $0 = 0 }
+                .scrollBounceBehavior(.basedOnSize)
                 .onAppear { scrollToBottom(proxy, animated: false) }
                 .onChange(of: bottomID) { _, _ in scrollToBottom(proxy, animated: true) }
             }

@@ -582,3 +582,12 @@ An agent update whose tool list has a parameter without a `description`, at any 
 - An update that includes `"name"` renames the agent; `AgentSyncer` leaves the name and tags out.
 - An update that leaves the tool list out keeps the agent's tools (checked live).
 - Pushing 24 tools took 2.3–2.5 s; reading the agent back took 0.19–0.29 s.
+
+## 15. Model and skip_turn (6 Nov)
+
+Chosen from wake's evaluation (Packages/HFVoiceEval): `llm` `claude-sonnet-5-5`, `reasoning_effort` `low`, backups `claude-haiku-5-5` then `claude-haiku-4-5`.
+
+- **skip_turn** is the built-in system tool that lets the agent say nothing, for speech that was not meant for it. It must go in the same inline `prompt.tools` list as the client tools, as `{"type": "system", "name": "skip_turn", "params": {"system_tool_type": "skip_turn"}, "pre_tool_speech": "off", "description": ...}`. Sent separately as `built_in_tools.skip_turn` it is dropped, because the server rebuilds the built-in tools from the inline list. Read back, it appears in both: inline with `type: "system"`, and as `built_in_tools.skip_turn` (with `wait_timeout_secs: -1`). An update without a tool list keeps it (checked live on the TEST agent).
+- When the agent skips, the SDK sends an agent tool response named `skip_turn`. The driver turns that into `ConversationSignal.silentTurn`, and `VoiceSession` treats the turn as finished: task news waiting for "the agent's reply" goes out at once (it waited the full 4.7 s reply timeout before), and the agent no longer counts as thinking.
+- Not available: telling a bystander's sentence apart from the user's. The transcript reaches the listening cycle as "the user spoke" before the agent decides to skip, so a skipped sentence still switches the 8 s unused-wake wait to the 15 s idle wait. The rule is left as it is.
+- `swift run hf-voice check [--test]` prints the client tools, built-in tools, model, reasoning and backups as read back.

@@ -196,6 +196,8 @@ final class FakeVoice: VoiceConnecting {
     }
     var isConversationConnected: Bool { activity.isOpen && connects }
     var agentStatus: AgentStatus?
+    var typedTurns: [String] = []
+    func sendTypedTurn(_ text: String) async throws { typedTurns.append(text) }
     var openRefusal: String?
     func waitUntilConnected(timeout: TimeInterval) async -> Bool { activity.isOpen && (connects || connectsOnRetry) }
     nonisolated func push(_ event: TaskEvent) {}
@@ -562,5 +564,108 @@ struct SleepPhraseTests {
     ])
     func doesNotSignOff(sentence: String) {
         #expect(!SleepPhrases.isSignOff(sentence), "\(sentence)")
+    }
+}
+
+// MARK: - A locked Mac
+
+final class LockSwitch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var locked = false
+    var isLocked: Bool { lock.withLock { locked } }
+    func set(_ value: Bool) { lock.withLock { locked = value } }
+}
+
+final class CountingContext: TaskContext, @unchecked Sendable {
+    var taskID: String { "t1" }
+    var goal: String { "type hello" }
+    var memoryHints: String { "" }
+    var lastAnswer: String { "" }
+    private(set) var steps = 0
+    func askUser(_ question: String, options: [String]) async throws -> String { "" }
+    func confirm(_ action: ScreenAction, spokenQuestion: String?) async throws -> Bool { false }
+    func report(_ progress: String) {}
+    func step() throws { steps += 1 }
+}
+
+/// A screen agent that takes `turns` steps, locking the screen (through `lockAfter`) on the way.
+struct SteppingExecutor: TaskExecuting {
+    let turns: Int
+    let lockAfterStep: Int?
+    let lock: LockSwitch
+    let started: LockSwitch
+    func run(goal: String, context: TaskContext) async throws -> String {
+        started.set(true)
+        for turn in 1...turns {
+            try context.step()
+            if turn == lockAfterStep { lock.set(true) }
+        }
+        return "Typed it."
+    }
+}
+
+@Suite("A locked Mac")
+struct ScreenLockTests {
+    private func tool(_ name: String, tier: ToolSpec.Tier, calls: LockSwitch) -> ToolSpec {
+        ToolSpec(name: name, description: "d", parameters: ["type": "object"], tier: tier) { _ in calls.set(true); return ToolResult.ok() }
+    }
+
+    @Test("A quick tool does nothing while locked and says the one sentence")
+    func quickTool() async {
+        let lock = LockSwitch(), called = LockSwitch()
+        let guarded = ScreenLock.guarding([tool("open_app", tier: .quick, calls: called)], isLocked: { lock.isLocked })[0]
+        lock.set(true)
+        let result = await guarded.handler(["name": "TextEdit"])
+        #expect(!called.isLocked, "nothing ran: no Spotlight, no keys at the login window")
+        #expect(result["ok"]?.boolValue == false)
+        #expect(result["error"]?.stringValue == "The Mac is locked, so I can't use it until someone unlocks it.")
+        #expect(result["note"]?.stringValue?.contains("Do not offer to unlock") == true)
+        lock.set(false)
+        _ = await guarded.handler([:])
+        #expect(called.isLocked, "unlocked, it works as before")
+    }
+
+    @Test("A task does not start while locked; tools that do not use the screen are untouched")
+    func taskStart() async {
+        let lock = LockSwitch(), started = LockSwitch(), remembered = LockSwitch()
+        let tools = ScreenLock.guarding([tool("start_task", tier: .task, calls: started), tool("remember", tier: .meta, calls: remembered)],
+                                       isLocked: { lock.isLocked })
+        lock.set(true)
+        let result = await tools[0].handler(["goal": "type hello in TextEdit"])
+        #expect(!started.isLocked && result["error"]?.stringValue == ScreenLock.sentence)
+        _ = await tools[1].handler([:])
+        #expect(remembered.isLocked, "memory still works while locked")
+    }
+
+    @Test("A task that would start on a locked screen fails before its first look")
+    func lockedAtStart() async {
+        let lock = LockSwitch(), started = LockSwitch()
+        lock.set(true)
+        let executor = LockAwareExecutor(inner: SteppingExecutor(turns: 3, lockAfterStep: nil, lock: lock, started: started), isLocked: { lock.isLocked })
+        await #expect(throws: SpeakableError(ScreenLock.sentence)) { try await executor.run(goal: "g", context: CountingContext()) }
+        #expect(!started.isLocked, "no screenshot, nothing touched")
+    }
+
+    @Test("If the screen locks during a task, it fails at the next step with the same sentence")
+    func locksMidTask() async {
+        let lock = LockSwitch(), started = LockSwitch()
+        let context = CountingContext()
+        let executor = LockAwareExecutor(inner: SteppingExecutor(turns: 5, lockAfterStep: 2, lock: lock, started: started), isLocked: { lock.isLocked })
+        await #expect(throws: SpeakableError(ScreenLock.sentence)) { try await executor.run(goal: "g", context: context) }
+        #expect(context.steps == 2, "stopped at the third step, not timed out")
+    }
+
+    @Test("Any failure while the screen is locked is reported as the lock")
+    func otherErrorsWhileLocked() async {
+        struct NoDisplay: TaskExecuting {
+            let lock: LockSwitch
+            func run(goal: String, context: TaskContext) async throws -> String {
+                lock.set(true)
+                throw SpeakableError("I can't find the main display.")
+            }
+        }
+        let lock = LockSwitch()
+        let executor = LockAwareExecutor(inner: NoDisplay(lock: lock), isLocked: { lock.isLocked })
+        await #expect(throws: SpeakableError(ScreenLock.sentence)) { try await executor.run(goal: "g", context: CountingContext()) }
     }
 }

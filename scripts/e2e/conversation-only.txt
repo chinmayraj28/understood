@@ -1,0 +1,13 @@
+# A typed run through the BUILT app that touches nothing on screen (works with the screen locked).
+# Test only: the TEST agent, no microphone, no sound. Same run command as textedit.txt.
+
+wake What is two plus two?
+expect-reply
+expect-no-tool
+
+say What did you just tell me?
+expect-reply
+expect-reply-without tool,function
+
+say That's all.
+wait-asleep 20

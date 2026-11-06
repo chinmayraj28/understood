@@ -98,6 +98,7 @@ targets:
       - path: Handsfree/Integration/CycleWiring.swift
       - path: Handsfree/Integration/ListeningStatus.swift
       - path: Handsfree/Integration/SleepPhrases.swift
+      - path: Handsfree/Integration/ScreenLock.swift
       - path: Handsfree/Panel/PanelSnapshot.swift
       - path: Handsfree/Panel/PanelCopy.swift
       - path: Handsfree/Panel/PanelSnapshotBuilder.swift

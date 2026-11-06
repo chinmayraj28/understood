@@ -456,7 +456,7 @@ import Testing
         private var count = 0
         var requests: Int { lock.lock(); defer { lock.unlock() }; return count }
         func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-            lock.lock(); count += 1; let number = count; lock.unlock()
+            let number = lock.withLock { count += 1; return count }
             try? await Task.sleep(nanoseconds: 50_000_000)
             let body = Data(#"{"token":"t\#(number)","signed_url":"wss://example/\#(number)"}"#.utf8)
             return (body, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
@@ -575,12 +575,12 @@ import Testing
         var keeper: AgentKeeper {
             AgentKeeper(
                 push: { tools in
-                    self.lock.lock(); self.pushes += 1; let accepts = self.acceptsUpdates; self.lock.unlock()
+                    let accepts = self.lock.withLock { self.pushes += 1; return self.acceptsUpdates }
                     if accepts { self.set(tools.map(\.name)) }
                     return accepts ? self.check(tools)
                         : .failed("ElevenLabs did not accept the agent's tools.", detail: "HTTP 400", at: Date())
                 },
-                verify: { tools in self.lock.lock(); self.verifies += 1; self.lock.unlock(); return self.check(tools) })
+                verify: { tools in self.lock.withLock { self.verifies += 1 }; return self.check(tools) })
         }
     }
 

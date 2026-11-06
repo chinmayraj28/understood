@@ -7,7 +7,9 @@
 //  Screen Recording permission. `scripts/run_app.sh --render-states <folder>`
 //  writes them and quits. Each state is drawn twice, over a light and over a
 //  dark background, beside a drawn pointer, framed like the photographs in
-//  docs/research/screens/ (600 by 340 points at 2x). New for Handsfree.
+//  docs/research/screens/ (600 by 340 points at 2x). It also draws the menu bar panel: from a real
+//  AppModel through PanelView (24, 26), and every state of PanelStateCatalogue, light and dark,
+//  into <folder>/panel/. New for Handsfree.
 //
 
 import AppKit
@@ -73,19 +75,27 @@ enum StateSnapshots {
             } else {
                 app.listening.waitingFor = needsSpeech ? "the Microphone permission and the Speech Recognition permission" : "the Microphone permission"
             }
-            let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in })
-                .frame(width: 372)
-                .environment(\.colorScheme, .dark)
-            let url = folder.appendingPathComponent("\(name).png")
-            if write(panel, to: url) { written.append(url) }
+            // Drawn through PanelView, exactly as the app does, from a real AppModel and CompanionModel.
+            for scheme in [ColorScheme.light, .dark] {
+                let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in })
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(20)
+                    .background(scheme == .dark ? Color(hex: "#121116") : Color(hex: "#D7D6DD"))
+                    .environment(\.colorScheme, scheme)
+                let url = folder.appendingPathComponent("\(name)-\(scheme == .light ? "light" : "dark").png")
+                if write(panel, to: url, palette: true) { written.append(url) }
+            }
         }
         written += renderPanelStates(to: folder.appendingPathComponent("panel"), now: start)
         return written
     }
 
     /// The menu bar panel in every state of `PanelStateCatalogue`, in light and dark, into `folder`.
+    /// Every state is also drawn at the largest text size, light only, into `folder/largest/`, for checking
+    /// that nothing truncates or breaks a word (not kept in docs/).
     static func renderPanelStates(to folder: URL, now: Date) -> [URL] {
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let largest = folder.appendingPathComponent("largest")
+        try? FileManager.default.createDirectory(at: largest, withIntermediateDirectories: true)
         var written: [URL] = []
         for example in PanelStateCatalogue.examples(now: now) {
             for scheme in [ColorScheme.light, .dark] {
@@ -94,6 +104,11 @@ enum StateSnapshots {
                     .environment(\.colorScheme, scheme)
                 if write(frame, to: url, palette: true) { written.append(url) }
             }
+            guard example.textScale == 1 else { continue }
+            var large = example
+            large.textScale = PanelStateCatalogue.largestTextScale
+            let url = largest.appendingPathComponent("\(example.name)-largest.png")
+            if write(PanelSnapshotFrame(example: large).environment(\.colorScheme, .light), to: url, palette: true) { written.append(url) }
         }
         return written
     }

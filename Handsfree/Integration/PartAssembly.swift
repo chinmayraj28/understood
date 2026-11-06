@@ -26,7 +26,8 @@ import HFCore
 @MainActor
 enum PartAssembly {
 
-    static func assemble(settings: HFCore.Settings, bus: ActivityBus) -> AssembledParts {
+    /// - Parameter scriptAgentID: test-only (`--script`): the voice is a text conversation on this agent.
+    static func assemble(settings: HFCore.Settings, bus: ActivityBus, scriptAgentID: String? = nil) -> AssembledParts {
         var wiring: [PartWiring] = []
         var launchHooks: [@Sendable () async -> Void] = []
         var quitHooks: [@Sendable () -> Void] = []
@@ -105,7 +106,7 @@ enum PartAssembly {
         // The voice session. Created before the screen agent, which holds still while the user speaks.
         let voice: any VoiceConnecting
         let isUserSpeaking: @Sendable () -> Bool
-        if let real = RealParts.makeVoice(settings: settings, bus: bus) {
+        if let real = RealParts.makeVoice(settings: settings, bus: bus, scriptAgentID: scriptAgentID) {
             voice = real.voice
             isUserSpeaking = real.isUserSpeaking
             record("Voice session", "HFVoice", real: true, settings.wakeMode == .always
@@ -122,7 +123,8 @@ enum PartAssembly {
         if let real = RealParts.makeScreenAgent(
             settings: settings, hands: hands, eyes: eyes, labels: labels, languageModel: languageModel, holdWhile: isUserSpeaking)
         {
-            executor = real
+            // A locked screen stops a task before its first look and at every step (ScreenLock.swift).
+            executor = LockAwareExecutor(inner: real, isLocked: ScreenLock.isLockedNow)
             record("Screen agent", "HFScreenAgent", real: true, "ScreenAgent with ClaudeClient (\(settings.taskModel)); holds while the user speaks")
         } else {
             executor = StandInExecutor()
@@ -172,7 +174,8 @@ enum PartAssembly {
         return AssembledParts(
             hands: hands, eyes: eyes, labels: labels, classifiers: classifiers, safetyGate: safetyGate,
             memory: memory, executor: executor, taskRunner: taskRunner, stopWatcher: stopWatcher, voice: voice,
-            tools: quickTools + memoryTools + taskRunner.tools + sleepTools,
+            // While the Mac is locked, quick tools and start_task do nothing and say so (ScreenLock.swift).
+            tools: ScreenLock.guarding(quickTools + memoryTools + taskRunner.tools + sleepTools, isLocked: ScreenLock.isLockedNow),
             sleepRequests: sleepRequests,
             wiring: wiring,
             quitHooks: quitHooks,

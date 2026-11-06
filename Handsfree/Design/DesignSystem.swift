@@ -177,8 +177,9 @@ enum DS {
         /// For quiet labels only (eyebrows, the footer). 5.3:1 on white; 5.4:1 on the dark material.
         static let textTertiary = Adaptive(light: "#6A6773", dark: "#9D99A9")
 
-        /// Iris, for text and icons: 5.7:1 on white (iris 600), 5.7:1 on the dark material (iris 400).
-        static let accent = Adaptive(light: "#6B47F5", dark: "#A98BFF")
+        /// Iris, for text and icons: 5.7:1 on white and 4.7:1 on its own tint (iris 600); in dark mode
+        /// iris 300, 7:1 on a card and 5.2:1 on its own tint (iris 400 was only 3.6:1 there).
+        static let accent = Adaptive(light: "#6B47F5", dark: "#C7B6FF")
         /// Fills behind white text: white on iris 600 is 5.7:1, in both appearances.
         static let accentFill = Adaptive(light: "#6B47F5", dark: "#6B47F5")
         static let accentFillPressed = Adaptive(light: "#5733DB", dark: "#5733DB")
@@ -265,10 +266,20 @@ private struct PanelTextScaleKey: EnvironmentKey {
     static let defaultValue: CGFloat = 1
 }
 
+/// How tall the panel's body may grow before it scrolls. MenuBarPanelManager sets it from the screen.
+private struct PanelBodyMaxHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = DS.Panel.bodyMaxHeight
+}
+
 extension EnvironmentValues {
     var panelTextScale: CGFloat {
         get { self[PanelTextScaleKey.self] }
         set { self[PanelTextScaleKey.self] = newValue }
+    }
+
+    var panelBodyMaxHeight: CGFloat {
+        get { self[PanelBodyMaxHeightKey.self] }
+        set { self[PanelBodyMaxHeightKey.self] = newValue }
     }
 }
 

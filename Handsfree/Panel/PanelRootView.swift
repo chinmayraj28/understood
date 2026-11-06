@@ -18,7 +18,6 @@ import SwiftUI
 struct PanelRootView: View {
     let snapshot: PanelSnapshot
     let sleepAfterSeconds: Int
-    var bodyMaxHeight: CGFloat = DS.Panel.bodyMaxHeight
     /// For review renders: show the listening details opened out.
     var expandsDetails = false
     let onAction: (SetupItem.Action) -> Void
@@ -27,6 +26,8 @@ struct PanelRootView: View {
 
     @Environment(\.drawsForSnapshot) private var drawsForSnapshot
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Taller than this, the body scrolls. MenuBarPanelManager lowers it on a small screen.
+    @Environment(\.panelBodyMaxHeight) private var bodyMaxHeight
 
     var body: some View {
         VStack(spacing: 0) {
@@ -76,11 +77,19 @@ private struct PanelHeader: View {
     let snapshot: PanelSnapshot
     let onClose: () -> Void
 
+    /// Setup, then trouble, outrank what it is doing: the header must agree with any banner below it.
+    private var state: (symbol: String, tone: PanelTone, status: String) {
+        let status = PanelCopy.status(snapshot.activity, mode: snapshot.mode, needsAttention: snapshot.needsAttention)
+        if snapshot.mode == .setup { return ("exclamationmark.circle.fill", .hold, status) }
+        if snapshot.needsAttention {
+            let hasError = snapshot.trouble.contains { $0.severity == .error }
+            return ("exclamationmark.triangle.fill", hasError ? .stop : .hold, status)
+        }
+        return (snapshot.activity.symbol, snapshot.activity.tone, status)
+    }
+
     var body: some View {
-        let mode = snapshot.mode
-        let symbol = mode == .setup ? "exclamationmark.circle.fill" : snapshot.activity.symbol
-        let tone: PanelTone = mode == .setup ? .hold : snapshot.activity.tone
-        let status = PanelCopy.status(snapshot.activity, mode: mode)
+        let (symbol, tone, status) = state
 
         HStack(spacing: 10) {
             PanelBrandTile()

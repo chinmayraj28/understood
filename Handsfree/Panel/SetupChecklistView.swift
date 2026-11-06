@@ -88,12 +88,17 @@ private struct SetupStepRow: View {
         HStack(alignment: .top, spacing: 12) {
             PanelIconTile(symbol: symbol, tone: step.isDone ? .success : (isNext ? .accent : .neutral))
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(step.title)
-                        .panelFont(.headline)
-                        .foregroundStyle(DS.Panel.textPrimary)
-                    Spacer(minLength: 4)
-                    PanelStatusTag(symbol: stateSymbol, text: step.stateLabel, tone: stateTone, isQuiet: !step.isDone && !isNext)
+                // The name and its state share a line when they fit; at large text sizes the state goes below.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        title.fixedSize()
+                        Spacer(minLength: 4)
+                        stateTag
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        title.fixedSize(horizontal: false, vertical: true)
+                        stateTag
+                    }
                 }
                 // A finished step needs no explaining: one line keeps the list short.
                 if !step.isDone {
@@ -110,9 +115,21 @@ private struct SetupStepRow: View {
             .padding(.top, step.isDone ? 4 : 0)
             .accessibilityElement(children: .contain)
         }
+        // Full width whether or not the name and state share a line, so rows never shift sideways.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, step.isDone ? 8 : 12)
         .background(isNext ? AnyShapeStyle(DS.Panel.accentTint.opacity(0.5)) : AnyShapeStyle(Color.clear))
+    }
+
+    private var title: some View {
+        Text(step.title)
+            .panelFont(.headline)
+            .foregroundStyle(DS.Panel.textPrimary)
+    }
+
+    private var stateTag: some View {
+        PanelStatusTag(symbol: stateSymbol, text: step.stateLabel, tone: stateTone, isQuiet: !step.isDone && !isNext)
     }
 
     @ViewBuilder private var nextStepDetail: some View {

@@ -59,6 +59,9 @@ struct IdleExecutor: TaskExecuting {
         if let detail = check.detail { print("SYNC: \(detail)") }
         #expect(check.inSync, "\(check.summary) \(check.detail ?? "")")
         #expect(check.toolNamesOnAgent == names)
+        #expect(check.systemTools.contains("skip_turn"), "skip_turn is on the agent: \(check.systemTools)")
+        #expect(check.model == "claude-sonnet-5-5", "model read back: \(check.model ?? "none")")
+        #expect(check.reasoningEffort == "low", "reasoning read back: \(check.reasoningEffort ?? "none")")
 
         let verifyStarted = Date()
         let again = await syncer.verify(tools: tools)
@@ -73,5 +76,6 @@ struct IdleExecutor: TaskExecuting {
         let afterSetup = await syncer.verify(tools: tools)
         print("SYNC: after a setup-style update without tools: \(afterSetup.summary)")
         #expect(afterSetup.inSync, "an update without the tool list must keep the tools")
+        #expect(afterSetup.systemTools.contains("skip_turn"), "and keep skip_turn")
     }
 }

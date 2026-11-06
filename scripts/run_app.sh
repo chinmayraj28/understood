@@ -13,6 +13,7 @@
 #   scripts/run_app.sh --wait ...              block until the app quits
 #   scripts/run_app.sh --wait --render-states DIR   draw the companion's states to PNGs and quit
 #   scripts/run_app.sh --sync-only --quit-after 12  update and check the voice agent, no listening (no microphone)
+#   scripts/run_app.sh --wait --script scripts/e2e/textedit.txt   test only: typed flow on the TEST agent, no mic, no sound
 #
 # Only one copy runs. If Handsfree is already running, it is never stopped from here: a plain
 # start asks it to show its panel; a demo or test launch refuses with one line; --render-states
@@ -34,8 +35,18 @@ fi
 
 WAIT_FLAG=()
 APP_ARGUMENTS=()
+SCRIPT_RUN=0
+previous=""
 for argument in "$@"; do
-  if [ "$argument" = "--wait" ]; then WAIT_FLAG=(-W); else APP_ARGUMENTS+=("$argument"); fi
+  if [ "$argument" = "--wait" ]; then WAIT_FLAG=(-W); previous="$argument"; continue; fi
+  # The app does not start in this folder, so a relative path after --script or --render-states
+  # is made absolute here.
+  if { [ "$previous" = "--script" ] || [ "$previous" = "--render-states" ]; } && [ "${argument#/}" = "$argument" ]; then
+    argument="$PWD/$argument"
+  fi
+  [ "$argument" = "--script" ] && SCRIPT_RUN=1
+  APP_ARGUMENTS+=("$argument")
+  previous="$argument"
 done
 
 # Only one copy of Handsfree may run (the app enforces it too: a second copy asks the first to
@@ -45,7 +56,7 @@ TEST_MODE=0
 for argument in ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"}; do
   case "$argument" in
     --render-states) RENDERS_ONLY=1 ;;
-    --demo|--freeze|--loop|--backdrop|--capturable|--quit-after|--moment-log|--request-permissions|--sync-only) TEST_MODE=1 ;;
+    --demo|--freeze|--loop|--backdrop|--capturable|--quit-after|--moment-log|--request-permissions|--sync-only|--script) TEST_MODE=1 ;;
   esac
 done
 running_pid="$(pgrep -x Handsfree | head -n 1 || true)"
@@ -62,4 +73,12 @@ fi
 open -n ${WAIT_FLAG[@]+"${WAIT_FLAG[@]}"} "$APP_PATH" --args ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"}
 if [ ${#WAIT_FLAG[@]} -eq 0 ] && [ "$TEST_MODE" -eq 1 ] && ! printf '%s\n' ${APP_ARGUMENTS[@]+"${APP_ARGUMENTS[@]}"} | grep -qx -- '--quit-after'; then
   echo "Started without --quit-after: it keeps running until you quit it from its panel (or: pkill -x Handsfree)."
+fi
+# A waited-for script run prints its report, so the result is visible without opening the file.
+if [ ${#WAIT_FLAG[@]} -gt 0 ] && [ "$SCRIPT_RUN" -eq 1 ]; then
+  REPORT="${HANDSFREE_DATA_DIR:-$HOME/Library/Application Support/Handsfree}/script-run.json"
+  if [ -f "$REPORT" ]; then
+    echo "Report: $REPORT"
+    cat "$REPORT"; echo
+  fi
 fi

@@ -348,6 +348,26 @@ private let question = TaskEvent(taskID: "t1", kind: .question, status: .needsIn
         #expect(harness.driver.userMessages.last?.contains("Sent to Amma.") == true)
     }
 
+    @Test func aSilentTurnReleasesHeldNewsAtOnceAndIsNotThinking() async {
+        let harness = Harness(mode: .text)
+        await harness.start()
+        // Someone speaks; the agent decides it was not for it and calls skip_turn.
+        harness.driver.emit(.userTranscript("Did you feed the cat?"))
+        harness.driver.emit(.agentActivity(.thinking))
+        harness.driver.emit(.toolRequested)
+        harness.session.push(TaskEvent(taskID: "t1", kind: .result, status: .done, text: "Sent to Amma."))
+        await harness.settle()
+        #expect(harness.driver.userMessages.isEmpty, "a reply may be on its way")
+        harness.driver.emit(.silentTurn)
+        await harness.settle()
+        #expect(harness.driver.userMessages.count == 1, "the turn is over, so the result goes out without waiting for the reply timeout")
+        #expect(harness.driver.userMessages.first?.contains("Sent to Amma.") == true)
+        harness.driver.emit(.agentResponse("Your message to Amma was sent."))
+        harness.driver.emit(.silentTurn)
+        await harness.settle()
+        #expect(!harness.session.isAgentSpeaking, "a skipped turn does not count as the agent thinking")
+    }
+
     @Test func anAnswerRelayedSilentlyHoldsAConfirmationForAtMostTheReplyTimeout() async {
         let harness = Harness(mode: .text)
         let answerTask = ToolSpec(name: "answer_task", description: "d", parameters: ["type": "object"], tier: .task) { _ in ToolResult.ok() }

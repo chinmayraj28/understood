@@ -21,7 +21,8 @@ struct ActivityView: View {
                     isConfirmation: snapshot.activity == .waitingForYes || snapshot.task?.status == .waitingForYes,
                     question: snapshot.task?.question,
                     heldAction: snapshot.task?.heldAction)
-            } else {
+            } else if snapshot.task?.isCurrent != true {
+                // While a task runs, its card is the status; this card is for everything else.
                 PanelStatusCard(activity: snapshot.activity, subtitle: subtitle)
             }
 
@@ -42,9 +43,7 @@ struct ActivityView: View {
         snapshot.task?.summary != nil && [.done, .failed, .stopped].contains(snapshot.activity)
     }
 
-    /// While working, the newest step says more than a general line does.
     private var subtitle: String {
-        if snapshot.activity == .working, let step = snapshot.task?.steps.last { return step }
         if showsResultAbove, let summary = snapshot.task?.summary { return summary }
         return PanelCopy.activitySubtitle(snapshot.activity, sleepAfterSeconds: sleepAfterSeconds, isAlwaysOpen: snapshot.isAlwaysOpen)
     }
@@ -57,7 +56,7 @@ private struct PanelStatusCard: View {
 
     var body: some View {
         PanelCard {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 PanelIconTile(symbol: activity.symbol, tone: activity.tone, size: 40)
                     .overlay(alignment: .topTrailing) {
                         // A small live dot while something is happening now.

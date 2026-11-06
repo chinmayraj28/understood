@@ -76,7 +76,8 @@ final class AppCoordinator {
         }
         logger.notice("Handsfree starting. Demo: \(self.options.isDemo, privacy: .public)")
         companion.start()
-        cues.start()
+        // A script run makes no sound (the user may be asleep in the room): no chimes.
+        if options.scriptPath == nil { cues.start() }
         pointer.start()
         showOverlays()
         panel = MenuBarPanelManager(isCapturable: options.overlayIsCapturable, makePanelContent: { [unowned self] in
@@ -204,7 +205,13 @@ final class AppCoordinator {
 
     /// Creates every part and starts the voice session if the essentials are in place.
     private func connectParts() {
-        let assembled = PartAssembly.assemble(settings: settings, bus: bus)
+        var scriptAgentID: String?
+        if options.scriptPath != nil {
+            guard let testAgent = scriptTestAgentID() else { return }
+            scriptAgentID = testAgent
+            scriptToolLog = ToolCallLog()
+        }
+        let assembled = PartAssembly.assemble(settings: settings, bus: bus, scriptAgentID: scriptAgentID)
         parts = assembled
         appModel.wiring = assembled.wiring
         for part in assembled.wiring {
@@ -220,7 +227,9 @@ final class AppCoordinator {
         recordCycle(real: Self.usesWakePhrase(settings: settings) || settings.wakeMode == .always,
                     note: "Not started yet: it starts once \(appModel.setupFacts.needsSpeechRecognition ? "the Microphone and Speech Recognition permissions" : "the Microphone permission") and the ElevenLabs key are in place.")
         prepareVoice(parts: assembled)
-        if options.syncOnly {
+        if let scriptPath = options.scriptPath {
+            startScriptRun(path: scriptPath)
+        } else if options.syncOnly {
             logger.notice("--sync-only: the agent is updated and checked; no listening is started.")
         } else {
             startListeningIfReady()
@@ -375,7 +384,9 @@ final class AppCoordinator {
         Task {
             let memorySummary = await parts.memory.summaryForPrompt(maxCharacters: 1200)
             guard !self.isShuttingDown else { return }
-            parts.voice.prepareConversations(tools: parts.tools, memorySummary: memorySummary, onUserSentence: { sentence in
+            // A script run records every tool call (`ToolCallLog`); otherwise the tools are as built.
+            let tools = self.scriptToolLog?.wrap(parts.tools) ?? parts.tools
+            parts.voice.prepareConversations(tools: tools, memorySummary: memorySummary, onUserSentence: { sentence in
                 // "Stop listening", "that's all" and the like end the conversation, decided here rather than
                 // left to the agent; they are not a stop of the task, so the stop watcher never hears them.
                 if SleepPhrases.isSignOff(sentence) {
@@ -384,6 +395,80 @@ final class AppCoordinator {
                     stopWatcher.hear(sentence)
                 }
             })
+        }
+    }
+
+    // MARK: - Script runs (test only)
+
+    /// Set in a `--script` run: every tool call, with its time.
+    private var scriptToolLog: ToolCallLog?
+
+    /// The TEST agent's id from the keys file (ELEVENLABS_TEST_AGENT_ID). A script never runs on
+    /// the user's agent: without a test agent, or if it is the user's, it refuses and quits.
+    private func scriptTestAgentID() -> String? {
+        let text = (try? String(contentsOfFile: Self.keysFilePath(), encoding: .utf8)) ?? ""
+        let id = (ProcessInfo.processInfo.environment["ELEVENLABS_TEST_AGENT_ID"]
+            ?? HFCore.Settings.parseEnvFile(text)["ELEVENLABS_TEST_AGENT_ID"] ?? "").trimmingCharacters(in: .whitespaces)
+        guard !id.isEmpty, id != settings.elevenLabsAgentID else {
+            logger.error("--script refused: no ELEVENLABS_TEST_AGENT_ID, or it is the app's own agent. Run an HFVoice live test once to create the test agent.")
+            writeScriptReport(["passed": false, "error": "no test agent (ELEVENLABS_TEST_AGENT_ID), or it is the app's own agent"])
+            Self.quitSoon()
+            return nil
+        }
+        return id
+    }
+
+    /// Builds the same cycle a normal launch does, with a wake listener that never opens the
+    /// microphone, runs the script, writes the report and quits. Needs no Microphone permission.
+    private func startScriptRun(path: String) {
+        guard let parts, let toolLog = scriptToolLog,
+            let script = try? String(contentsOfFile: path, encoding: .utf8)
+        else {
+            writeScriptReport(["passed": false, "error": "could not read the script at \(path)"])
+            Self.quitSoon()
+            return
+        }
+        let listener = ScriptWakeListener()
+        let hooks = CycleWiring.hooks(voice: parts.voice, runner: parts.taskRunner, memory: parts.memory)
+        guard let scriptCycle = RealParts.makeListeningCycle(
+            settings: settings, hooks: hooks, bus: bus, onListenerEvent: { _ in }, listener: listener)
+        else {
+            writeScriptReport(["passed": false, "error": "HFWake is not linked into this build"])
+            Self.quitSoon()
+            return
+        }
+        cycle = scriptCycle
+        hasStartedListening = true
+        recordCycle(real: true, note: "Script run: HFWake's cycle with a script wake listener (no microphone), text conversation on the TEST agent")
+        parts.sleepRequests.setHandler { [weak self] in await self?.userAskedToSleep() ?? .notAvailable }
+        CycleWiring.wakeForNews(voice: parts.voice, cycle: scriptCycle)
+        let run = ScriptRun(
+            steps: ScriptRun.parse(script), voice: parts.voice, cycle: scriptCycle, listener: listener, tools: toolLog,
+            labels: parts.labels, hands: parts.hands, safetyGate: parts.safetyGate, bus: bus)
+        Task {
+            await scriptCycle.start()
+            let report = await run.run()
+            self.writeScriptReport(report)
+            self.logger.notice("Script run finished: \((report["passed"] as? Bool) == true ? "passed" : "FAILED", privacy: .public)")
+            Self.quitSoon()
+        }
+    }
+
+    /// Quits from a run-loop timer. Calling `NSApp.terminate` from inside a main-actor task hangs:
+    /// quitting waits for shutdown work that needs the main actor, which that task still holds
+    /// (seen in the first script run, 6 Nov; the same trap as the old `--quit-after`).
+    private static func quitSoon() {
+        let timer = Timer(timeInterval: 0.1, repeats: false) { _ in
+            MainActor.assumeIsolated { NSApp.terminate(nil) }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func writeScriptReport(_ report: [String: Any]) {
+        let url = settings.dataDirectory.appendingPathComponent("script-run.json")
+        try? FileManager.default.createDirectory(at: settings.dataDirectory, withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: url, options: .atomic)
         }
     }
 

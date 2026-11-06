@@ -100,7 +100,8 @@ final class ElevenLabsDriver: ConversationDriving {
             onError: { error in Self.logger.error("Conversation error: \(String(describing: error), privacy: .public)") },
             onAgentResponse: { text, _ in emit(.agentResponse(text)) },
             onUserTranscript: { text, _ in emit(.userTranscript(text)) },
-            onAgentToolResponse: { _ in emit(.toolAnswered) },
+            // skip_turn is the agent choosing to say nothing: its turn is over, and no reply will come.
+            onAgentToolResponse: { event in emit(event.toolName == AgentConfiguration.skipTurnName ? .silentTurn : .toolAnswered) },
             onAgentToolRequest: { _ in emit(.toolRequested) },
             onInterruption: { _ in emit(.interruption) },
             onVadScore: { score in emit(.voiceActivity(score)) },

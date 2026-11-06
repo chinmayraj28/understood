@@ -17,6 +17,8 @@ public enum ConversationSignal: Sendable, Equatable {
     case toolCall(name: String, callID: String, parameters: Data)
     case toolRequested
     case toolAnswered
+    /// The agent ended its turn without speaking (ElevenLabs' built-in skip_turn tool). No reply follows.
+    case silentTurn
     /// The conversation ended without the session asking it to.
     case disconnected(reason: String)
 }

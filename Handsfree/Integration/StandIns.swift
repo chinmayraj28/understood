@@ -169,6 +169,7 @@ final class StandInVoice: VoiceConnecting {
     func closeConversation() async {}
     var isConversationConnected: Bool { false }
     var agentStatus: AgentStatus? { nil }
+    func sendTypedTurn(_ text: String) async throws { throw SpeakableError("The voice package is not installed in this build yet.") }
     var openRefusal: String? { nil }
     func waitUntilConnected(timeout: TimeInterval) async -> Bool { false }
     nonisolated func push(_ event: TaskEvent) {}

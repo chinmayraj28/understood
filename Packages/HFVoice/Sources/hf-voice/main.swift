@@ -57,11 +57,17 @@ func runCheck(test: Bool) async -> Int32 {
     do {
         let agent = try await api.agent(id: agentID)
         let prompt = agent["conversation_config"]?["agent"]?["prompt"]
-        let names = (prompt?["tools"]?.arrayValue ?? []).compactMap { $0["name"]?.stringValue }.sorted()
+        let names = (prompt?["tools"]?.arrayValue ?? []).filter { $0["type"]?.stringValue != "system" }
+            .compactMap { $0["name"]?.stringValue }.sorted()
         let ids = (prompt?["tool_ids"]?.arrayValue ?? []).compactMap(\.stringValue).sorted()
-        print("\(test ? "TEST" : "APP") agent \(agentID) \"\(agent["name"]?.stringValue ?? "")\": \(names.count) tools")
+        print("\(test ? "TEST" : "APP") agent \(agentID) \"\(agent["name"]?.stringValue ?? "")\": \(names.count) client tools")
         print("tools: \(names.joined(separator: ", "))")
         print("tool_ids: \(ids.joined(separator: ", "))")
+        let builtIn = (prompt?["built_in_tools"]?.objectValue ?? [:]).filter { $0.value != .null }.keys.sorted()
+        print("built-in tools: \(builtIn.isEmpty ? "none" : builtIn.joined(separator: ", "))")
+        print("model: \(prompt?["llm"]?.stringValue ?? "none"), reasoning: \(prompt?["reasoning_effort"]?.stringValue ?? "none")")
+        let backups = (prompt?["backup_llm_config"]?["order"]?.arrayValue ?? []).compactMap(\.stringValue)
+        print("backups: \(backups.isEmpty ? "none" : backups.joined(separator: ", "))")
         return 0
     } catch {
         print("Could not read the agent: \(AgentSyncer.describe(error))")

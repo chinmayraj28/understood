@@ -236,9 +236,11 @@ enum RealParts {
     /// screen agent's hold. The closure captures the concrete VoiceSession, because
     /// `isUserSpeaking` is nonisolated there and must be read without hopping to the main actor.
     /// While no conversation is open it is always false, so nothing is held.
-    static func makeVoice(settings: HFCore.Settings, bus: ActivityBus) -> (voice: any VoiceConnecting, isUserSpeaking: @Sendable () -> Bool)? {
+    /// `scriptAgentID`: test-only (`--script`): a text conversation, no microphone, on that agent.
+    static func makeVoice(settings: HFCore.Settings, bus: ActivityBus, scriptAgentID: String? = nil) -> (voice: any VoiceConnecting, isUserSpeaking: @Sendable () -> Bool)? {
         #if canImport(HFVoice)
-        let session = VoiceSession(settings: settings, mode: .voice, bus: bus)
+        let session = scriptAgentID.map { VoiceSession(settings: settings, agentID: $0, mode: .text, bus: bus) }
+            ?? VoiceSession(settings: settings, mode: .voice, bus: bus)
         // The always-open cycle is used in wake mode "always" and when HFWake is not linked;
         // the agent is then told there is no wake phrase and no go_to_sleep.
         session.keepsConversationOpen = settings.wakeMode == .always || !linkedPackages.contains("HFWake")
@@ -286,10 +288,11 @@ enum RealParts {
     /// `onListenerEvent` is told what the wake listener does, as counts-only events (never what was said).
     static func makeListeningCycle(
         settings: HFCore.Settings, hooks: CycleHooks, bus: ActivityBus,
-        onListenerEvent: @escaping @Sendable (WakeListenerEvent) -> Void
+        onListenerEvent: @escaping @Sendable (WakeListenerEvent) -> Void,
+        listener scriptListener: (any WakeListening)? = nil
     ) -> (any ListeningCycling)? {
         #if canImport(HFWake)
-        return WakeCycleAdapter(settings: settings, hooks: hooks, bus: bus, onListenerEvent: onListenerEvent)
+        return WakeCycleAdapter(settings: settings, hooks: hooks, bus: bus, onListenerEvent: onListenerEvent, listener: scriptListener)
         #else
         return nil
         #endif
@@ -388,11 +391,13 @@ final class GateQuickActionGuard: QuickActionGuarding, @unchecked Sendable {
 final class WakeCycleAdapter: ListeningCycling {
     nonisolated static let logger = Logger(subsystem: "com.handsfree", category: "wake")
     private let cycle: ListeningCycle
-    private let listener: WakeListener
+    private let listener: any WakeListening
     private let mirror = ActivityMirror()
     private let hooks: CycleHooks
 
-    init(settings: HFCore.Settings, hooks: CycleHooks, bus: ActivityBus, onListenerEvent: @escaping @Sendable (WakeListenerEvent) -> Void) {
+    /// - Parameter scriptListener: test-only (`--script`): a listener that never opens the microphone.
+    init(settings: HFCore.Settings, hooks: CycleHooks, bus: ActivityBus, onListenerEvent: @escaping @Sendable (WakeListenerEvent) -> Void,
+         listener scriptListener: (any WakeListening)? = nil) {
         self.hooks = hooks
         let mirror = self.mirror
         // Recognition stays on the Mac. Permissions are asked for by the setup flow, not here,
@@ -405,10 +410,10 @@ final class WakeCycleAdapter: ListeningCycling {
         listener.onDiagnostic = { diagnostic in
             if let event = WakeCycleAdapter.event(for: diagnostic) { onListenerEvent(event) }
         }
-        self.listener = listener
+        self.listener = scriptListener ?? listener
         cycle = ListeningCycle(
             settings: settings,
-            listener: listener,
+            listener: scriptListener ?? listener,
             openConversation: { firstUtterance in try await hooks.open(firstUtterance) },
             closeConversation: { await hooks.close() },
             currentActivity: {

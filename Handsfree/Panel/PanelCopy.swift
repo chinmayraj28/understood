@@ -31,8 +31,11 @@ enum PanelCopy {
     static func version(_ version: String) -> String { "Version \(version)" }
 
     /// The word or two beside the status icon in the header.
-    static func status(_ activity: PanelSnapshot.Activity, mode: PanelSnapshot.Mode) -> String {
+    static let needsAttention = "Needs attention"
+
+    static func status(_ activity: PanelSnapshot.Activity, mode: PanelSnapshot.Mode, needsAttention: Bool = false) -> String {
         if mode == .setup { return "Setup needed" }
+        if needsAttention { return Self.needsAttention }
         switch activity {
         case .asleep: return "Asleep"
         case .waking: return "Waking up"
@@ -164,7 +167,7 @@ enum PanelCopy {
         let requests: [(String, String)] = [
             ("message", "message Amma that I\u{2019}m running late"),
             ("music.note", "play my liked songs on Spotify"),
-            ("calendar", "open my calendar for tomorrow"),
+            ("calendar", "open tomorrow\u{2019}s calendar"),
         ]
         return requests.map { symbol, request in
             if isAlwaysOpen { return Example(symbol: symbol, text: "\u{201C}\(request.prefix(1).uppercased() + request.dropFirst())\u{201D}") }
@@ -211,7 +214,7 @@ enum PanelCopy {
         case .listening:
             return isAlwaysOpen
                 ? "Say what you want."
-                : "Say what you want. It goes back to sleep after \(sleepAfterSeconds) seconds of quiet."
+                : "Say what you want. After a quiet spell it goes back to sleep."
         case .hearing: return "Go on, it is listening."
         case .speaking: return "Handsfree is answering."
         case .working: return "Watch the pointer: it is doing this on the screen."

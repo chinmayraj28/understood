@@ -25,7 +25,6 @@ final class AppModel: ObservableObject {
     /// The wake listener, the conversation, and what has been heard (counts only).
     @Published var listening = ListeningStatus()
 
-    var setupItems: [SetupItem] { SetupCheck.items(for: setupFacts) }
     var isReady: Bool { SetupCheck.isReady(setupFacts) }
 
     init(setupFacts: SetupFacts) {

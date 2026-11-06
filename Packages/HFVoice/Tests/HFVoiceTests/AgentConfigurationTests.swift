@@ -23,8 +23,9 @@ private func spec(_ name: String, timeout: Int = 20) -> ToolSpec {
 
     @Test func modelVoiceAndPrompt() {
         let agent = definition["conversation_config"]?["agent"]
-        #expect(agent?["prompt"]?["llm"]?.stringValue == "claude-haiku-5-5")
-        #expect(agent?["prompt"]?["reasoning_effort"]?.stringValue == "none")
+        #expect(agent?["prompt"]?["llm"]?.stringValue == "claude-sonnet-5-5")
+        #expect(agent?["prompt"]?["reasoning_effort"]?.stringValue == "low")
+        #expect(agent?["prompt"]?["backup_llm_config"]?["order"]?.arrayValue == ["claude-haiku-5-5", "claude-haiku-4-5"])
         #expect(agent?["prompt"]?["temperature"]?.doubleValue == 0)
         #expect(agent?["first_message"]?.stringValue == "")
         #expect(definition["conversation_config"]?["tts"]?["expressive_mode"]?.boolValue == false)
@@ -36,7 +37,7 @@ private func spec(_ name: String, timeout: Int = 20) -> ToolSpec {
 
     @Test func eachToolSpecBecomesAClientTool() {
         let tools = definition["conversation_config"]?["agent"]?["prompt"]?["tools"]?.arrayValue ?? []
-        #expect(tools.count == 3)
+        #expect(tools.count == 4, "three client tools and skip_turn")
         let volume = tools[0]
         #expect(volume["type"]?.stringValue == "client")
         #expect(volume["name"]?.stringValue == "set_volume")
@@ -50,6 +51,17 @@ private func spec(_ name: String, timeout: Int = 20) -> ToolSpec {
         // The server accepts 1 to 120 seconds.
         #expect(tools[1]["response_timeout_secs"]?.intValue == 120)
         #expect(tools[2]["response_timeout_secs"]?.intValue == 1)
+    }
+
+    @Test func skipTurnIsInTheSameToolList() {
+        let tools = definition["conversation_config"]?["agent"]?["prompt"]?["tools"]?.arrayValue ?? []
+        let skip = tools.last
+        #expect(skip?["type"]?.stringValue == "system")
+        #expect(skip?["name"]?.stringValue == "skip_turn")
+        #expect(skip?["params"]?["system_tool_type"]?.stringValue == "skip_turn")
+        #expect(skip?["pre_tool_speech"]?.stringValue == "off")
+        #expect(tools.filter { $0["name"]?.stringValue == "skip_turn" }.count == 1)
+        #expect(definition["conversation_config"]?["agent"]?["prompt"]?["built_in_tools"] == nil, "a separate built_in_tools entry is dropped by the server")
     }
 
     @Test func leavingToolsOutKeepsTheAgentsTools() {
