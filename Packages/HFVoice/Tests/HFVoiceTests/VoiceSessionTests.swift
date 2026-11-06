@@ -49,12 +49,22 @@ final class Harness {
     var drivers: [FakeDriver] = []
     var failNextStarts = 0
     var session: VoiceSession!
+    /// Every tool list sent to the agent's definition.
+    let syncs = Recorder<[String]>()
+    let prefetches = Recorder<Bool>()
     private var busTask: Task<Void, Never>?
 
-    init(mode: VoiceSession.Mode = .voice, agentID: String = "agent_1") {
+    /// - Parameter sync: what updating the agent does; nil means the session has no sync at all.
+    init(mode: VoiceSession.Mode = .voice, agentID: String = "agent_1",
+         sync: (@Sendable ([ToolSpec]) async -> Bool)? = nil,
+         tune: (inout VoiceSession.Tuning) -> Void = { _ in }) {
         var tuning = VoiceSession.Tuning()
         tuning.pumpInterval = 0.01
-        let clock = clock, sleeps = sleeps
+        tune(&tuning)
+        let clock = clock, sleeps = sleeps, syncs = syncs, prefetches = prefetches
+        let recordingSync: (@Sendable ([ToolSpec]) async -> Bool)? = sync.map { sync in
+            { tools in syncs.add(tools.map(\.name)); return await sync(tools) }
+        }
         session = VoiceSession(
             agentID: agentID, mode: mode, bus: bus, tuning: tuning,
             makeDriver: { [unowned self] in
@@ -65,7 +75,8 @@ final class Harness {
             },
             clock: { clock.now },
             sleep: { seconds in sleeps.add(seconds); try? await Task.sleep(nanoseconds: 1_000_000) },
-            syncAgent: nil)
+            syncAgent: recordingSync,
+            prepareNextConnection: { start in prefetches.add(start.textOnly) })
         let stream = bus.events()
         let posted = posted
         busTask = Task { for await event in stream { posted.add(event) } }

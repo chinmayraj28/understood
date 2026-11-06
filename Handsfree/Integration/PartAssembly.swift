@@ -108,7 +108,9 @@ enum PartAssembly {
         if let real = RealParts.makeVoice(settings: settings, bus: bus) {
             voice = real.voice
             isUserSpeaking = real.isUserSpeaking
-            record("Voice session", "HFVoice", real: true, "VoiceSession (ElevenLabs), always-on microphone")
+            record("Voice session", "HFVoice", real: true, settings.wakeMode == .always
+                   ? "VoiceSession (ElevenLabs), kept open (WAKE_MODE=always)"
+                   : "VoiceSession (ElevenLabs), opened on the wake phrase, closed after \(Int(settings.sleepAfterIdleSeconds)) s of quiet")
         } else {
             voice = StandInVoice(bus: bus)
             isUserSpeaking = { false }
@@ -157,10 +159,21 @@ enum PartAssembly {
             record("Stop watcher", "HFDecisions", real: false, RealParts.missingNote("HFDecisions") + " The stand-in stops on a short word list.")
         }
 
+        // "That's all, thanks": the agent asks the listening cycle to sleep. Refused while a
+        // task is running or waiting for an answer, so a task can never be left unheard.
+        // Only offered when something can go to sleep: wake-phrase mode with HFWake linked.
+        // In wake mode "always" the agent would say "Okay." and keep listening.
+        let sleepRequests = SleepRequestRelay()
+        let canSleep = settings.wakeMode == .phrase && RealParts.linkedPackages.contains("HFWake")
+        let sleepTools = !canSleep ? [] : RealParts.makeSleepTool(
+            isTaskActive: { [taskRunner] in CycleWiring.isTaskActive(taskRunner) },
+            onSleep: { [sleepRequests] in sleepRequests.request() }).map { [$0] } ?? []
+
         return AssembledParts(
             hands: hands, eyes: eyes, labels: labels, classifiers: classifiers, safetyGate: safetyGate,
             memory: memory, executor: executor, taskRunner: taskRunner, stopWatcher: stopWatcher, voice: voice,
-            tools: quickTools + memoryTools + taskRunner.tools,
+            tools: quickTools + memoryTools + taskRunner.tools + sleepTools,
+            sleepRequests: sleepRequests,
             wiring: wiring,
             quitHooks: quitHooks,
             launchHooks: launchHooks)

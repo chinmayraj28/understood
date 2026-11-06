@@ -13,9 +13,11 @@
 
 import Foundation
 
-/// The three macOS permissions the app needs.
+/// The four macOS permissions the app needs. Speech Recognition is needed only to listen
+/// for the wake phrase (wake mode "phrase", the default).
 enum PermissionKind: String, CaseIterable, Identifiable {
     case microphone
+    case speechRecognition
     case accessibility
     case screenRecording
 
@@ -26,6 +28,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone: return "Microphone"
         case .accessibility: return "Accessibility"
         case .screenRecording: return "Screen Recording"
+        case .speechRecognition: return "Speech Recognition"
         }
     }
 
@@ -35,6 +38,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone: return "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
         case .accessibility: return "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         case .screenRecording: return "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        case .speechRecognition: return "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
         }
     }
 }
@@ -77,6 +81,9 @@ struct SetupFacts: Equatable {
     var microphone: PermissionStatus
     var accessibility: PermissionStatus
     var screenRecording: PermissionStatus
+    var speechRecognition: PermissionStatus
+    /// False in wake mode "always", which keeps a conversation open and listens for no phrase.
+    var needsSpeechRecognition: Bool
     /// Where the keys file is or should go, shown to the carer.
     var keysFilePath: String
 }
@@ -90,6 +97,7 @@ enum SetupCheck {
         // Permissions first: they need someone at the Mac, and macOS asks for a
         // restart of the app after Screen Recording, so do that one last.
         if let item = microphoneItem(facts.microphone) { items.append(item) }
+        if facts.needsSpeechRecognition, let item = speechRecognitionItem(facts.speechRecognition) { items.append(item) }
         if let item = accessibilityItem(facts.accessibility) { items.append(item) }
         if let item = screenRecordingItem(facts.screenRecording) { items.append(item) }
 
@@ -136,6 +144,7 @@ enum SetupCheck {
     static func missingPermissions(_ facts: SetupFacts) -> [PermissionKind] {
         var missing: [PermissionKind] = []
         if facts.microphone != .granted { missing.append(.microphone) }
+        if facts.needsSpeechRecognition && facts.speechRecognition != .granted { missing.append(.speechRecognition) }
         if facts.accessibility != .granted { missing.append(.accessibility) }
         if facts.screenRecording != .granted { missing.append(.screenRecording) }
         return missing
@@ -161,6 +170,39 @@ enum SetupCheck {
                     + "then quit Handsfree from this panel and open it again.",
                 isBlocking: true, action: .openSettings(.microphone), actionTitle: "Open Settings")
         }
+    }
+
+    private static func speechRecognitionItem(_ status: PermissionStatus) -> SetupItem? {
+        switch status {
+        case .granted:
+            return nil
+        case .notAsked:
+            return SetupItem(
+                id: "speechRecognition",
+                title: "Speech Recognition",
+                instructions: "Handsfree waits for its wake phrase using speech recognition on this Mac, so nothing they say "
+                    + "leaves the Mac until they say it. Click Ask macOS, then allow it in the box that appears.",
+                isBlocking: true, action: .askMacOS(.speechRecognition), actionTitle: "Ask macOS")
+        case .notGranted:
+            return SetupItem(
+                id: "speechRecognition",
+                title: "Speech Recognition is off",
+                instructions: "Without it Handsfree cannot hear its wake phrase. Click Open Settings, switch Handsfree on "
+                    + "under Speech Recognition, then quit Handsfree from this panel and open it again.",
+                isBlocking: true, action: .openSettings(.speechRecognition), actionTitle: "Open Settings")
+        }
+    }
+
+    /// How the person starts and ends a conversation, for whoever is helping. Shown in the panel.
+    static func howToStart(wakePhrase: String, sleepAfterSeconds: Double, alwaysOpen: Bool) -> String {
+        if alwaysOpen {
+            return "Handsfree is set to listen all the time (WAKE_MODE=always), so everything said near the Mac is sent "
+                + "to the voice service. Remove that line from the keys file to use the wake phrase instead."
+        }
+        return "The person says \u{201C}\(wakePhrase)\u{201D}, then what they want, in one go: "
+            + "\u{201C}\(wakePhrase), open Spotify\u{201D}. A rising chime means it is listening. "
+            + "A falling chime means it has gone back to sleep, after about \(Int(sleepAfterSeconds.rounded())) seconds of quiet "
+            + "or when they say \u{201C}that\u{2019}s all\u{201D}. Until the phrase is heard, nothing they say leaves this Mac."
     }
 
     private static func accessibilityItem(_ status: PermissionStatus) -> SetupItem? {

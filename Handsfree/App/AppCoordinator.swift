@@ -37,7 +37,13 @@ final class AppCoordinator {
     private var demoPlayer: DemoPlayer?
     private var demoBackdropWindow: DemoBackdropWindow?
     private var setupRefreshTimer: Timer?
-    private var hasStartedVoice = false
+    /// Asleep, waking and awake: opens the conversation on the wake phrase, closes it when idle.
+    private var cycle: (any ListeningCycling)?
+    private var hasStartedListening = false
+    /// Set when quitting starts, so a cycle still being started cannot open the microphone during quit.
+    private var isShuttingDown = false
+    /// The waking and sleeping sounds.
+    private let cues = CuePlayer(bus: .shared)
     /// Result of the click-through check: nil until it has run.
     private var overlayLetsClicksThrough: Bool?
 
@@ -48,11 +54,22 @@ final class AppCoordinator {
         self.pointer = PointerTracker(mode: options.isDemo ? .simulated : .realPointer)
         self.appModel = AppModel(setupFacts: Self.currentSetupFacts(settings: settings))
         appModel.isDemo = options.isDemo
+        appModel.wakePhrase = settings.wakePhrase
+        appModel.sleepAfterIdleSeconds = settings.sleepAfterIdleSeconds
+        appModel.isAlwaysOpen = settings.wakeMode == .always && !options.isDemo
     }
 
     func start() {
+        if let folder = options.renderStatesFolder {
+            // Design review only: draw the states to files and quit, touching nothing else.
+            let written = StateSnapshots.render(to: URL(fileURLWithPath: folder))
+            logger.notice("Rendered \(written.count, privacy: .public) state snapshots to \(folder, privacy: .public)")
+            NSApp.terminate(nil)
+            return
+        }
         logger.notice("Handsfree starting. Demo: \(self.options.isDemo, privacy: .public)")
         companion.start()
+        cues.start()
         pointer.start()
         showOverlays()
         panel = MenuBarPanelManager(isCapturable: options.overlayIsCapturable, makePanelContent: { [unowned self] in
@@ -79,9 +96,13 @@ final class AppCoordinator {
         startSetupRefresh()
 
         if let seconds = options.quitAfterSeconds {
-            DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-                NSApp.terminate(nil)
+            // A run-loop timer, not DispatchQueue.main.asyncAfter: quitting waits for shutdown work
+            // that runs on the main queue, and the main queue cannot run it while it is still
+            // inside the block that called terminate. That deadlock left the app hanging (6 Nov).
+            let timer = Timer(timeInterval: seconds, repeats: false) { _ in
+                MainActor.assumeIsolated { NSApp.terminate(nil) }
             }
+            RunLoop.main.add(timer, forMode: .common)
         }
     }
 
@@ -90,6 +111,7 @@ final class AppCoordinator {
     /// web-content switches) run off the main thread, because restoring can take
     /// over a second per app that does not answer. They get at most 4 seconds.
     func shutDown(completion: @escaping () -> Void) {
+        isShuttingDown = true
         demoPlayer?.stop()
         pointer.stop()
         companion.stop()
@@ -97,6 +119,8 @@ final class AppCoordinator {
         guard let parts else { completion(); return }
         let quitHooks = parts.quitHooks
         let voice = parts.voice
+        let cycle = self.cycle
+        cues.stop()
         let hooksFinished = DispatchGroup()
         hooksFinished.enter()
         DispatchQueue.global(qos: .userInitiated).async {
@@ -104,7 +128,13 @@ final class AppCoordinator {
             hooksFinished.leave()
         }
         Task { @MainActor in
-            await voice.stop()
+            // Stop listening for the phrase first, so nothing wakes a conversation during quit.
+            // Both are bounded: a stuck SDK call must never stop the app quitting.
+            let stopped = await Self.finishes(within: 3) {
+                await cycle?.stop()
+                await voice.stop()
+            }
+            if !stopped { self.logger.error("The listening cycle or the voice session did not stop within 3 s; quitting anyway.") }
             let deadline = DispatchTime.now() + 4
             DispatchQueue.global().async {
                 let result = hooksFinished.wait(timeout: deadline)
@@ -112,6 +142,29 @@ final class AppCoordinator {
                     if result == .timedOut { self.logger.error("Quit hooks did not finish within 4 s; quitting anyway.") }
                     completion()
                 }
+            }
+        }
+    }
+
+    /// Runs `work` and returns true if it finished within `seconds`, false if time ran out
+    /// first (the work is left to finish on its own). Not a task group: a group would wait for it.
+    private static func finishes(within seconds: Double, _ work: @escaping @MainActor () async -> Void) async -> Bool {
+        let lock = NSLock()
+        var answered = false
+        func answerOnce(_ value: Bool, _ continuation: CheckedContinuation<Bool, Never>) {
+            lock.lock(); defer { lock.unlock() }
+            guard !answered else { return }
+            answered = true
+            continuation.resume(returning: value)
+        }
+        return await withCheckedContinuation { continuation in
+            Task { @MainActor in
+                await work()
+                answerOnce(true, continuation)
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                answerOnce(false, continuation)
             }
         }
     }
@@ -152,28 +205,81 @@ final class AppCoordinator {
         Task.detached(priority: .utility) {
             for hook in launchHooks { await hook() }
         }
-        startVoiceIfReady()
+        recordCycle(real: Self.usesWakePhrase(settings: settings) || settings.wakeMode == .always,
+                    note: "Not started yet: it starts once \(Self.usesWakePhrase(settings: settings) ? "the Microphone and Speech Recognition permissions" : "the Microphone permission") and the ElevenLabs key are in place.")
+        startListeningIfReady()
     }
 
-    /// The voice session needs the microphone and the ElevenLabs key. Without
-    /// them the companion says it is not connected and the panel says why.
-    private func startVoiceIfReady() {
-        guard !hasStartedVoice, let parts else { return }
+    /// Whether this run listens for the wake phrase: wake mode "phrase" and HFWake linked.
+    /// Otherwise a conversation is kept open, as before wake phrases.
+    private static func usesWakePhrase(settings: HFCore.Settings) -> Bool {
+        settings.wakeMode == .phrase && RealParts.linkedPackages.contains("HFWake")
+    }
+
+    /// Starts the listening cycle once the microphone, the ElevenLabs key and (for the wake
+    /// phrase) Speech Recognition are in place. Without them the companion says it is not
+    /// connected and the panel says why.
+    ///
+    /// The conversation is not opened here. In wake-phrase mode the app starts asleep, opens a
+    /// conversation when it hears the phrase and closes it after a short silence with nothing
+    /// going on. In wake mode "always", or without HFWake, one conversation is kept open.
+    private func startListeningIfReady() {
+        guard !hasStartedListening, !isShuttingDown, let parts else { return }
         let facts = appModel.setupFacts
-        guard facts.microphone == .granted, facts.hasElevenLabsKey else {
-            bus.post(.voiceDisconnected(reason: facts.microphone != .granted
-                ? "Waiting for the Microphone permission."
-                : "Waiting for the ElevenLabs key."))
+        let needsSpeech = facts.needsSpeechRecognition
+        guard facts.microphone == .granted, facts.hasElevenLabsKey, !needsSpeech || facts.speechRecognition == .granted else {
+            let reason: String
+            if facts.microphone != .granted {
+                reason = "Waiting for the Microphone permission."
+            } else if !facts.hasElevenLabsKey {
+                reason = "Waiting for the ElevenLabs key."
+            } else {
+                reason = "Waiting for the Speech Recognition permission."
+            }
+            bus.post(.voiceDisconnected(reason: reason))
             return
         }
-        hasStartedVoice = true
+        hasStartedListening = true
+
+        let hooks = CycleWiring.hooks(voice: parts.voice, runner: parts.taskRunner, memory: parts.memory)
+        let newCycle: any ListeningCycling
+        if Self.usesWakePhrase(settings: settings), let real = RealParts.makeListeningCycle(settings: settings, hooks: hooks, bus: bus) {
+            newCycle = real
+            recordCycle(real: true, note: "ListeningCycle with the on-device wake listener: asleep until \u{201C}\(settings.wakePhrase)\u{201D}, asleep again after \(Int(settings.sleepAfterIdleSeconds)) s of quiet")
+        } else {
+            newCycle = AlwaysOpenCycle(hooks: hooks)
+            recordCycle(real: settings.wakeMode == .always, note: settings.wakeMode == .always
+                ? "WAKE_MODE=always: one conversation kept open"
+                : RealParts.missingNote("HFWake") + " The conversation is kept open instead.")
+        }
+        cycle = newCycle
+        // "That's all, thanks" reaches the cycle through the go_to_sleep tool.
+        parts.sleepRequests.setHandler { [weak newCycle] in newCycle?.requestSleep() }
+        // A task's news arriving while asleep (it should not happen: a task keeps it awake) wakes it to say it.
+        parts.voice.onNewsWhileClosed = { [weak newCycle] in newCycle?.wakeWithoutPhrase() }
+
         let stopWatcher = parts.stopWatcher
         Task {
             let memorySummary = await parts.memory.summaryForPrompt(maxCharacters: 1200)
-            await parts.voice.start(tools: parts.tools, memorySummary: memorySummary, onUserSentence: { sentence in
+            // Once per launch: the tools, and the agent's definition brought in step with them,
+            // in the background, so no wake waits for it.
+            // Quitting may have started while the summary was read: then start nothing.
+            guard !self.isShuttingDown else { return }
+            parts.voice.prepareConversations(tools: parts.tools, memorySummary: memorySummary, onUserSentence: { sentence in
                 stopWatcher.hear(sentence)
             })
+            await newCycle.start()
+            // And if quitting started while the cycle was starting, stop it again at once.
+            if self.isShuttingDown { await newCycle.stop() }
         }
+    }
+
+    private func recordCycle(real: Bool, note: String) {
+        let part = PartWiring(part: "Listening cycle", package: "HFWake", isReal: real, note: note)
+        appModel.wiring.removeAll { $0.part == part.part }
+        appModel.wiring.append(part)
+        logger.notice("part Listening cycle: \(real ? "real" : "stand-in", privacy: .public). \(note, privacy: .public)")
+        writeStatusFile()
     }
 
     private func refreshMemorySummary() async {
@@ -191,6 +297,8 @@ final class AppCoordinator {
             microphone: PermissionChecker.status(of: .microphone),
             accessibility: PermissionChecker.status(of: .accessibility),
             screenRecording: PermissionChecker.status(of: .screenRecording),
+            speechRecognition: PermissionChecker.status(of: .speechRecognition),
+            needsSpeechRecognition: usesWakePhrase(settings: settings),
             keysFilePath: keysFilePath())
     }
 
@@ -200,7 +308,7 @@ final class AppCoordinator {
             appModel.setupFacts = facts
             panel?.refitPanel()
             writeStatusFile()
-            if !options.isDemo { startVoiceIfReady() }
+            if !options.isDemo { startListeningIfReady() }
         }
     }
 
@@ -236,8 +344,13 @@ final class AppCoordinator {
     /// Shows macOS's own dialogs, one after another, for whatever is not granted yet.
     private func requestAllPermissions() {
         PermissionChecker.request(.microphone)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { PermissionChecker.request(.accessibility) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { PermissionChecker.request(.screenRecording) }
+        var delay = 1.0
+        if appModel.setupFacts.needsSpeechRecognition {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { PermissionChecker.request(.speechRecognition) }
+            delay += 1.0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { PermissionChecker.request(.accessibility) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + 1.0) { PermissionChecker.request(.screenRecording) }
     }
 
     // MARK: - Keys file
@@ -344,6 +457,11 @@ final class AppCoordinator {
             "microphone": describe(facts.microphone),
             "accessibility": describe(facts.accessibility),
             "screen_recording": describe(facts.screenRecording),
+            "speech_recognition": facts.needsSpeechRecognition ? describe(facts.speechRecognition) : "not needed",
+            "wake_mode": settings.wakeMode.rawValue,
+            "wake_phrase": settings.wakePhrase,
+            "sleep_after_idle_seconds": settings.sleepAfterIdleSeconds,
+            "listens_for_wake_phrase": facts.needsSpeechRecognition,
             "keys_present": [
                 "ELEVENLABS_API_KEY": facts.hasElevenLabsKey,
                 "ANTHROPIC_API_KEY": facts.hasAnthropicKey,

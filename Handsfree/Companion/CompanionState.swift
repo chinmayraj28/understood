@@ -28,6 +28,8 @@ enum CompanionTiming {
     static let finishedSeconds = 4.5
     static let disconnectedCaptionSeconds = 8.0
     static let reconnectedCaptionSeconds = 2.5
+    /// "Listening", shown when a conversation has opened after the wake phrase.
+    static let awakeCaptionSeconds = 2.5
     /// No new microphone level for this long means the user has stopped talking.
     static let userSpeakingSilenceSeconds = 0.7
     static let clickRippleSeconds = 1.1
@@ -54,6 +56,10 @@ struct CompanionState: Equatable {
     /// The voice connection, from HFVoice's events.
     enum VoiceStatus: Equatable {
         case connecting
+        /// No conversation is open; the Mac is listening only for the wake phrase.
+        case asleep
+        /// The wake phrase was heard; the conversation is opening.
+        case waking
         case listening
         case userSpeaking
         case agentSpeaking
@@ -80,6 +86,7 @@ struct CompanionState: Equatable {
     /// The one symbol drawn beside the pointer. Worked out from voice and activity
     /// by `glyph`, in a fixed priority order.
     enum Glyph: Equatable {
+        case asleep, waking
         case connecting, listening, userSpeaking, agentSpeaking
         case thinking, moving, clicking, typing, scrolling
         case holding, asking
@@ -90,6 +97,7 @@ struct CompanionState: Equatable {
     /// The colour family of a caption.
     enum Tone: Equatable {
         case heard  // what the user said
+        case awake  // it heard the wake phrase, or it is now listening
         case spoken  // what the agent said
         case progress  // what the agent is doing
         case success
@@ -140,6 +148,10 @@ struct CompanionState: Equatable {
     // MARK: - State
 
     var voice: VoiceStatus = .connecting
+    /// What to say to wake it, shown while asleep.
+    var wakePhrase = "Hey Handsfree"
+    /// True when a wake's conversation failed to open and is being retried.
+    var wokeWithoutConnecting = false
     /// 0...1, for the waveform.
     var voiceLevel: Double = 0
     var lastVoiceLevelAt: Date?
@@ -164,6 +176,10 @@ struct CompanionState: Equatable {
         if voice == .userSpeaking { return .userSpeaking }
         if activity == .holding { return .holding }
         if activity == .asking { return .asking }
+        // Being heard, and being asleep, outrank whatever was last shown: the user must
+        // know at a glance whether it is listening to them.
+        if voice == .waking { return .waking }
+        if voice == .asleep { return .asleep }
         if voice == .disconnected { return .disconnected }
         switch activity {
         case .thinking: return .thinking
@@ -184,17 +200,52 @@ struct CompanionState: Equatable {
     /// When nothing is happening the companion shrinks to a small calm dot.
     var isResting: Bool { glyph == .listening && caption == nil && prompt == nil }
 
+    /// Asleep, with nothing else to show: the companion is the "say the phrase" hint.
+    var isAsleep: Bool { glyph == .asleep }
+
+    /// The hint shown beside the pointer while asleep, e.g. `Say “Hey Handsfree”`.
+    var sleepHint: String? {
+        guard isAsleep, caption == nil, prompt == nil else { return nil }
+        return "Say \u{201C}\(wakePhrase)\u{201D}"
+    }
+
     // MARK: - Events
 
     /// Folds one event into the state.
     mutating func apply(_ event: ActivityEvent, now: Date) {
         switch event {
+        case .asleep(let phrase):
+            let trimmed = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { wakePhrase = trimmed }
+            voice = .asleep
+            voiceLevel = 0
+            voiceExpiresAt = nil
+            wokeWithoutConnecting = false
+            // Nothing from the conversation stays up: the hint is what to read now. A problem
+            // just reported ("I heard you, but I couldn't reach the voice service...") stays
+            // until it times out, so the user learns why it went back to sleep.
+            if caption?.tone != .muted { caption = nil }
+            prompt = nil
+            target = nil
+            if !Self.isFinished(activity) { setActivity(.idle, until: nil) }
+
+        case .waking:
+            voice = .waking
+            voiceLevel = 0
+            voiceExpiresAt = nil
+            // Replaced by "Listening" when the conversation is ready, usually within a second.
+            caption = Caption(text: "Heard you", tone: .awake, expiresAt: now.addingTimeInterval(CompanionTiming.disconnectedCaptionSeconds))
+
         case .listening:
             let wasDisconnected = voice == .disconnected
+            let wasWaking = voice == .waking || (wasDisconnected && wokeWithoutConnecting)
             voice = .listening
             voiceLevel = 0
             voiceExpiresAt = nil
-            if wasDisconnected {
+            wokeWithoutConnecting = false
+            if wasWaking {
+                caption = Caption(text: "Listening", tone: .awake, expiresAt: now.addingTimeInterval(CompanionTiming.awakeCaptionSeconds))
+            } else if wasDisconnected {
                 // Replace "Not connected" at once, so the caption never contradicts the glyph.
                 caption = Caption(text: "Connected again", tone: .success, expiresAt: now.addingTimeInterval(CompanionTiming.reconnectedCaptionSeconds))
             }
@@ -228,12 +279,21 @@ struct CompanionState: Equatable {
                 caption = Caption(text: trimmed, tone: .spoken, expiresAt: now.addingTimeInterval(speakingSeconds))
             }
 
-        case .voiceDisconnected:
+        case .voiceDisconnected(let reason):
+            // While waking, a conversation that could not open: the next `.listening` is still the wake.
+            // While asleep, the wake listener itself failed, so the hint must go: it would claim
+            // the phrase is being listened for. In both cases the reason is what the user needs
+            // ("I can't hear the wake phrase..."), not a generic "trying again" that may be untrue.
+            // (A wake that failed once is already shown as disconnected when the cycle's own
+            // reason arrives, so `wokeWithoutConnecting` counts too.)
+            let aboutWaking = voice == .waking || voice == .asleep || wokeWithoutConnecting
+            if voice == .waking { wokeWithoutConnecting = true }
             voice = .disconnected
             voiceLevel = 0
             voiceExpiresAt = nil
+            let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
             caption = Caption(
-                text: "Not connected. Trying again\u{2026}", tone: .muted,
+                text: aboutWaking && !trimmedReason.isEmpty ? trimmedReason : "Not connected. Trying again\u{2026}", tone: .muted,
                 expiresAt: now.addingTimeInterval(CompanionTiming.disconnectedCaptionSeconds))
 
         case .thinking(let text):

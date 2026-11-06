@@ -35,6 +35,9 @@ import HFScreenAgent
 #if canImport(HFVoice)
 import HFVoice
 #endif
+#if canImport(HFWake)
+import HFWake
+#endif
 
 @MainActor
 enum RealParts {
@@ -70,6 +73,9 @@ enum RealParts {
         #endif
         #if canImport(HFVoice)
         linked.append("HFVoice")
+        #endif
+        #if canImport(HFWake)
+        linked.append("HFWake")
         #endif
         return linked
     }
@@ -228,6 +234,7 @@ enum RealParts {
     /// The voice session, and a thread-safe "is the user speaking right now" for the
     /// screen agent's hold. The closure captures the concrete VoiceSession, because
     /// `isUserSpeaking` is nonisolated there and must be read without hopping to the main actor.
+    /// While no conversation is open it is always false, so nothing is held.
     static func makeVoice(settings: HFCore.Settings, bus: ActivityBus) -> (voice: any VoiceConnecting, isUserSpeaking: @Sendable () -> Bool)? {
         #if canImport(HFVoice)
         let session = VoiceSession(settings: settings, mode: .voice, bus: bus)
@@ -236,7 +243,57 @@ enum RealParts {
         return nil
         #endif
     }
+
+    /// The tool the agent calls when the user ends the conversation ("that's all, thanks").
+    /// It refuses while a task is running or waiting for an answer.
+    static func makeSleepTool(isTaskActive: @escaping @Sendable () -> Bool, onSleep: @escaping @Sendable () -> Void) -> ToolSpec? {
+        #if canImport(HFVoice)
+        return SleepTool.make(isTaskActive: isTaskActive, onSleep: onSleep)
+        #else
+        return nil
+        #endif
+    }
+
+    // MARK: - HFWake
+
+    /// The listening cycle for wake-phrase mode: asleep at launch, wakes on the phrase,
+    /// sleeps after `sleepAfterIdleSeconds` with nothing going on.
+    /// `onListenerEvent` is told what the wake listener does, as counts-only events (never what was said).
+    static func makeListeningCycle(
+        settings: HFCore.Settings, hooks: CycleHooks, bus: ActivityBus,
+        onListenerEvent: @escaping @Sendable (WakeListenerEvent) -> Void
+    ) -> (any ListeningCycling)? {
+        #if canImport(HFWake)
+        return WakeCycleAdapter(settings: settings, hooks: hooks, bus: bus, onListenerEvent: onListenerEvent)
+        #else
+        return nil
+        #endif
+    }
 }
+
+#if canImport(HFVoice)
+/// VoiceSession as the app's VoiceConnecting.
+extension VoiceSession: VoiceConnecting {
+    func prepareConversations(tools: [ToolSpec], memorySummary: String, onUserSentence: @escaping @Sendable (String) -> Void) {
+        prepare(tools: tools, memorySummary: memorySummary, onUserSentence: onUserSentence)
+    }
+
+    func openConversation(firstUtterance: String, memorySummary: String?) async {
+        await open(firstUtterance: firstUtterance, memorySummary: memorySummary)
+    }
+
+    func closeConversation() async { await close() }
+
+    var isConversationConnected: Bool { isConnected }
+
+    var conversationActivity: VoiceActivity {
+        let now = activity
+        return VoiceActivity(
+            isOpen: now.isOpen, isUserSpeaking: now.isUserSpeaking, isAgentSpeaking: now.isAgentSpeaking,
+            hasUnspokenNews: now.hasUnspokenNews, lastActivityAt: now.lastActivityAt)
+    }
+}
+#endif
 
 #if canImport(HFDecisions)
 /// HFDecisions's StopWatcher as the app's StopWatching.
@@ -266,11 +323,6 @@ final class TaskRunnerAdapter: TaskRunnerPart, @unchecked Sendable {
 }
 #endif
 
-#if canImport(HFVoice)
-/// VoiceSession already has exactly the app's interface.
-extension VoiceSession: VoiceConnecting {}
-#endif
-
 #if canImport(HFHands)
 /// The quick tools' guard: names what an action would land on, from what is really
 /// focused or under the point right now, and asks the safety gate. Only "safe" goes ahead.
@@ -293,6 +345,79 @@ final class GateQuickActionGuard: QuickActionGuarding, @unchecked Sendable {
             frontApp: front.app, frontWindow: front.window, frontAppBundleIdentifier: bundleIdentifier)
         let decision = await safetyGate.check(action)
         return decision.label == .safe ? .allow : .refuse()
+    }
+}
+#endif
+
+#if canImport(HFWake)
+/// HFWake's listening cycle as the app's ListeningCycling, with its on-device wake listener.
+@MainActor
+final class WakeCycleAdapter: ListeningCycling {
+    private let cycle: ListeningCycle
+    private let listener: WakeListener
+    private let mirror = ActivityMirror()
+    private let hooks: CycleHooks
+
+    init(settings: HFCore.Settings, hooks: CycleHooks, bus: ActivityBus, onListenerEvent: @escaping @Sendable (WakeListenerEvent) -> Void) {
+        self.hooks = hooks
+        let mirror = self.mirror
+        // Recognition stays on the Mac. Permissions are asked for by the setup flow, not here,
+        // so a restart in the background never pops up a dialog.
+        let listener = WakeListener(configuration: WakeListener.Configuration(settings: settings))
+        // Counts only: `heardAs`, `restOfSentence` and transcripts are dropped here and never
+        // stored, logged or shown (revealTranscripts stays off).
+        listener.onDiagnostic = { diagnostic in
+            if let event = WakeCycleAdapter.event(for: diagnostic) { onListenerEvent(event) }
+        }
+        self.listener = listener
+        cycle = ListeningCycle(
+            settings: settings,
+            listener: listener,
+            openConversation: { firstUtterance in try await hooks.open(firstUtterance) },
+            closeConversation: { await hooks.close() },
+            currentActivity: {
+                let now = mirror.current
+                return HFWake.ConversationActivity(
+                    someoneSpeaking: now.someoneSpeaking, taskRunning: now.taskRunning, awaitingAnswer: now.awaitingAnswer)
+            },
+            bus: bus,
+            // Shown on the companion and in the panel. The cycle reports each problem once.
+            onProblem: { problem in bus.post(.voiceDisconnected(reason: problem.spokenMessage)) })
+    }
+
+    func start() async {
+        mirror.startRefreshing(from: hooks.snapshot)
+        await cycle.start()
+    }
+
+    func stop() async {
+        await cycle.stop()
+        mirror.stopRefreshing()
+    }
+
+    func requestSleep() {
+        let cycle = self.cycle
+        Task { _ = await cycle.requestSleep() }
+    }
+
+    /// HFWake's cycle has no way yet to wake without the phrase. Task news that arrives while
+    /// asleep waits in the voice session's queue and is said in the next conversation.
+    func wakeWithoutPhrase() {}
+
+    func currentState() async -> String { await cycle.state.rawValue }
+    var isListenerRunning: Bool { listener.isListening }
+
+    /// HFWake's diagnostics as the app's word-free events.
+    nonisolated static func event(for diagnostic: WakeDiagnostic) -> WakeListenerEvent? {
+        switch diagnostic {
+        case .started(let recognizer): return .started(recognizer: recognizer)
+        case .phraseHeard: return .phraseHeard
+        case .woke: return .woke
+        case .restarting: return .restarting
+        case .restartFailed(let problem, _): return .cannotListen(reason: problem.spokenMessage)
+        // `.speechWithoutPhrase` is requested from HFWake; until it exists nothing else maps.
+        default: return nil
+        }
     }
 }
 #endif

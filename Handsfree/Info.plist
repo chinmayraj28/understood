@@ -27,8 +27,10 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Handsfree. Contains code adapted from Clicky (MIT, Farza).</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Handsfree listens all the time so you can run your Mac by speaking. Nothing is recorded to disk.</string>
+	<string>Handsfree listens for its wake phrase on this Mac, then hears what you ask it to do. Nothing is recorded to disk.</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Handsfree looks at your screen so it can find the button or field it is about to use for you.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Handsfree recognises its wake phrase on this Mac, so nothing you say leaves the Mac until you say it.</string>
 </dict>
 </plist>

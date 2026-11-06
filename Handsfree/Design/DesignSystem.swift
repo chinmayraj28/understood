@@ -128,6 +128,12 @@ enum DS {
         static let cardDetailFont = Font.system(size: 13, weight: .medium, design: .rounded)
         static let cardHintFont = Font.system(size: 14, weight: .semibold, design: .rounded)
 
+        /// Asleep: a smaller, dimmer disc than any awake state, so "not listening to you" reads
+        /// at a glance, and a quiet hint with the wake phrase.
+        static let asleepGlyphScale: CGFloat = 0.85
+        static let sleepHintFont = Font.system(size: 14, weight: .semibold, design: .rounded)
+        static let sleepHintSurfaceOpacity: Double = 0.86
+
         static let targetRingDiameter: CGFloat = 46
         static let targetRingWidth: CGFloat = 3
 

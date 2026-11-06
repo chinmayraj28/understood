@@ -9,8 +9,10 @@
 /* Begin PBXBuildFile section */
 		00A6F8ABED3CC194045E9E5B /* HFEyes in Frameworks */ = {isa = PBXBuildFile; productRef = F36DCCE562BA2CD86E7F4148 /* HFEyes */; };
 		06D9640053BE73F3C618DAAD /* SetupCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7404D9EC5B165A1675B897EF /* SetupCheck.swift */; };
+		0C729C745675FD9489B38EA8 /* CycleWiring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1D92E991E94F4E08E5D4E /* CycleWiring.swift */; };
+		10961DB997DCDA8139761EF7 /* HFCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6FF43AA297AB46FB0582785B /* HFCore */; };
 		1347EC5B7DECE58376DD08C3 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4147E5849B329D450C8476 /* AppModel.swift */; };
-		138C59F0C2B7511AC33E0CE2 /* HFCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6FF43AA297AB46FB0582785B /* HFCore */; };
+		138C59F0C2B7511AC33E0CE2 /* HFWake in Frameworks */ = {isa = PBXBuildFile; productRef = FCEE692212E79EF136EC74F3 /* HFWake */; };
 		18FD1DEF9F2F415E2E962E2E /* DemoBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFDA0A491B00724ACD12E543 /* DemoBackdrop.swift */; };
 		1BF1F9BCE1B817E16267A2D2 /* OverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D0EB49AA83C987D3C44E1EA /* OverlayWindow.swift */; };
 		1E96527A5C3377DA38875170 /* SessionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FBA00C3F81E1DBAD2F1D61 /* SessionLog.swift */; };
@@ -19,12 +21,15 @@
 		27BFE9DF492CE1EF200E78CD /* SetupAndLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF57EBF81AA6EDEB78FC72C /* SetupAndLogTests.swift */; };
 		2860D2125E48BEA5317F37D7 /* BrandMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9A82A01D3E575C2E0BD0B8 /* BrandMarks.swift */; };
 		289AFA8E5F7AEA6468A0FA5C /* HFScreenAgent in Frameworks */ = {isa = PBXBuildFile; productRef = 280F09AB09D9383DB73D2E36 /* HFScreenAgent */; };
+		332205C5CC767107543370B9 /* Parts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D699160FBF478A6FD49ABAE /* Parts.swift */; };
 		332E557F172F3216FBF4D889 /* DemoPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E080185EEEB5151CB8F907 /* DemoPlayer.swift */; };
 		3A4E7F74F3081E510F744C79 /* HFMemory in Frameworks */ = {isa = PBXBuildFile; productRef = C0F1A478D2F87236D913280D /* HFMemory */; };
 		424362B045AA69A17E281BE5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15680A1A8D6560F78419273A /* DesignSystem.swift */; };
+		4649CB262D1A39477866BB62 /* SoundCues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D28874D73CB1A60B47431BC /* SoundCues.swift */; };
 		4892EE5487DBB1BB935E9536 /* TargetMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D0671378A8FC12F7252088 /* TargetMarkerView.swift */; };
 		493D98D312D9AB0774B09B27 /* StandIns.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79633DCC171C8B4DA328C291 /* StandIns.swift */; };
 		4B075A0E7CBE970CAFCCBE18 /* SetupCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7404D9EC5B165A1675B897EF /* SetupCheck.swift */; };
+		5645D4BF930787FFB2D21815 /* CuePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D5674B9909991CC4C3DF8A0 /* CuePlayer.swift */; };
 		603ECB36539227B732A727A8 /* LaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */; };
 		62B8ED2BDBEE98BB52BCD926 /* CompanionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4058C9A42C12D2E41BEA24AF /* CompanionOverlayView.swift */; };
 		731326FBB461FFCCE09CE517 /* HFDecisions in Frameworks */ = {isa = PBXBuildFile; productRef = 0747AD69BAD0A88DF65F8678 /* HFDecisions */; };
@@ -32,6 +37,7 @@
 		794A5889B5C10778557B42F8 /* SessionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FBA00C3F81E1DBAD2F1D61 /* SessionLog.swift */; };
 		8437EED51A6885FC02C171F9 /* PermissionChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8FA641322CD2FA5B8E65A95 /* PermissionChecker.swift */; };
 		84DEBE877362CCA9C69097A0 /* PointerTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E115A3E76D35A88F7CA068D2 /* PointerTracker.swift */; };
+		893F29175550DBD45360E552 /* StateSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDDD48356A069D1F4EF178C /* StateSnapshots.swift */; };
 		8C062E71ACEE878A3568AC1D /* DemoScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC289DE41FF93CDCF86E731 /* DemoScript.swift */; };
 		9393D65989D733EB6189D128 /* HFCore in Frameworks */ = {isa = PBXBuildFile; productRef = 33AA00B22515D43E4E00F227 /* HFCore */; };
 		95E95FB642FCEF85ECB6A5C2 /* CompanionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B8A76D3B38CDA27C8EE91A /* CompanionStateTests.swift */; };
@@ -42,12 +48,15 @@
 		AFD52C59FBFB5375AE026D3F /* HandsfreeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FB2108AECCB4EA69DACC48 /* HandsfreeApp.swift */; };
 		B495AE1C67E8007F849CB89D /* CompanionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F0E41C3E4B474F3886BD6B /* CompanionModel.swift */; };
 		B7A3286964CE2A971A439815 /* MenuBarPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D57772024CEDA1B2D75FBDC /* MenuBarPanelManager.swift */; };
+		BB4A5D543B9BEB3ABE4ED020 /* SoundCues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D28874D73CB1A60B47431BC /* SoundCues.swift */; };
 		BFE35A4921A56FB8F7C74A53 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A8A3BE92F14C082816F1CA20 /* Assets.xcassets */; };
 		C5DF105903DB3E10EBF2B208 /* OverlayGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */; };
+		C7751858B252D5D99E0C8AD4 /* WakeAndSleepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302D323B02F8D75A28A3F516 /* WakeAndSleepTests.swift */; };
 		CB17A0327BE93D9F96CFDBAE /* HFTasks in Frameworks */ = {isa = PBXBuildFile; productRef = 067C2CD41B42536A33F2F72D /* HFTasks */; };
 		CF9C8606886E2B2772609FFE /* OverlayGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */; };
 		DBF19256549556E3E7E8E81A /* CompanionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */; };
 		E3A6A62CBFA3A8F01D7C3537 /* DemoScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC289DE41FF93CDCF86E731 /* DemoScript.swift */; };
+		EA6F4D4EF164E611DC4D760D /* CycleWiring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1D92E991E94F4E08E5D4E /* CycleWiring.swift */; };
 		F029A79C32062750A051A51E /* LaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */; };
 		F3E11D297CEBE26227FED3C8 /* CompanionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */; };
 		FA5CE22248A72D00B5D3646A /* HFHands in Frameworks */ = {isa = PBXBuildFile; productRef = 6710DDD967C73E1E7DFAF0A3 /* HFHands */; };
@@ -56,12 +65,16 @@
 /* Begin PBXFileReference section */
 		083EC59394083B8C946037E4 /* HFScreenAgent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFScreenAgent; path = Packages/HFScreenAgent; sourceTree = SOURCE_ROOT; };
 		124575B1A30C339A5551AA6F /* RealParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealParts.swift; sourceTree = "<group>"; };
+		13E1D92E991E94F4E08E5D4E /* CycleWiring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CycleWiring.swift; sourceTree = "<group>"; };
 		15680A1A8D6560F78419273A /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		156EB28CA7CFEC29D6B61E73 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		167415E6786C7C980793EB78 /* Handsfree.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Handsfree.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1680B5ACB91D55732E6671CF /* HandsfreeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HandsfreeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D28874D73CB1A60B47431BC /* SoundCues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundCues.swift; sourceTree = "<group>"; };
+		1EDDD48356A069D1F4EF178C /* StateSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateSnapshots.swift; sourceTree = "<group>"; };
 		23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionState.swift; sourceTree = "<group>"; };
 		28C5A9F893B98174657A75A4 /* HFDecisions */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFDecisions; path = Packages/HFDecisions; sourceTree = SOURCE_ROOT; };
+		302D323B02F8D75A28A3F516 /* WakeAndSleepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeAndSleepTests.swift; sourceTree = "<group>"; };
 		35F14EBBE603BA49ECCE3BE7 /* HFVoice */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFVoice; path = Packages/HFVoice; sourceTree = SOURCE_ROOT; };
 		3D0EB49AA83C987D3C44E1EA /* OverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindow.swift; sourceTree = "<group>"; };
 		3D699160FBF478A6FD49ABAE /* Parts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Parts.swift; sourceTree = "<group>"; };
@@ -73,6 +86,8 @@
 		5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOptions.swift; sourceTree = "<group>"; };
 		68B710BC5FEC29D784621C24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayGeometry.swift; sourceTree = "<group>"; };
+		6C7BA47554B861B26EAF4428 /* HFWake */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFWake; path = Packages/HFWake; sourceTree = SOURCE_ROOT; };
+		6D5674B9909991CC4C3DF8A0 /* CuePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CuePlayer.swift; sourceTree = "<group>"; };
 		7404D9EC5B165A1675B897EF /* SetupCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCheck.swift; sourceTree = "<group>"; };
 		74FB2108AECCB4EA69DACC48 /* HandsfreeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsfreeApp.swift; sourceTree = "<group>"; };
 		77B8A76D3B38CDA27C8EE91A /* CompanionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionStateTests.swift; sourceTree = "<group>"; };
@@ -117,7 +132,8 @@
 				CB17A0327BE93D9F96CFDBAE /* HFTasks in Frameworks */,
 				289AFA8E5F7AEA6468A0FA5C /* HFScreenAgent in Frameworks */,
 				759AEA50F624F180A9553FF7 /* HFVoice in Frameworks */,
-				138C59F0C2B7511AC33E0CE2 /* HFCore in Frameworks */,
+				138C59F0C2B7511AC33E0CE2 /* HFWake in Frameworks */,
+				10961DB997DCDA8139761EF7 /* HFCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,6 +146,7 @@
 				EFDA0A491B00724ACD12E543 /* DemoBackdrop.swift */,
 				B1E080185EEEB5151CB8F907 /* DemoPlayer.swift */,
 				3EC289DE41FF93CDCF86E731 /* DemoScript.swift */,
+				1EDDD48356A069D1F4EF178C /* StateSnapshots.swift */,
 			);
 			path = Demo;
 			sourceTree = "<group>";
@@ -148,6 +165,7 @@
 			children = (
 				77B8A76D3B38CDA27C8EE91A /* CompanionStateTests.swift */,
 				ADF57EBF81AA6EDEB78FC72C /* SetupAndLogTests.swift */,
+				302D323B02F8D75A28A3F516 /* WakeAndSleepTests.swift */,
 			);
 			path = HandsfreeTests;
 			sourceTree = "<group>";
@@ -172,6 +190,7 @@
 				083EC59394083B8C946037E4 /* HFScreenAgent */,
 				7C590580290224DD83706E6D /* HFTasks */,
 				35F14EBBE603BA49ECCE3BE7 /* HFVoice */,
+				6C7BA47554B861B26EAF4428 /* HFWake */,
 			);
 			path = Packages;
 			sourceTree = "<group>";
@@ -219,6 +238,7 @@
 		BC321F02203B1A2489A2F215 /* Integration */ = {
 			isa = PBXGroup;
 			children = (
+				13E1D92E991E94F4E08E5D4E /* CycleWiring.swift */,
 				4199AC1CF7DBADDD5CFF9528 /* PartAssembly.swift */,
 				3D699160FBF478A6FD49ABAE /* Parts.swift */,
 				124575B1A30C339A5551AA6F /* RealParts.swift */,
@@ -251,9 +271,11 @@
 				E7F0E41C3E4B474F3886BD6B /* CompanionModel.swift */,
 				4058C9A42C12D2E41BEA24AF /* CompanionOverlayView.swift */,
 				23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */,
+				6D5674B9909991CC4C3DF8A0 /* CuePlayer.swift */,
 				6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */,
 				3D0EB49AA83C987D3C44E1EA /* OverlayWindow.swift */,
 				E115A3E76D35A88F7CA068D2 /* PointerTracker.swift */,
+				1D28874D73CB1A60B47431BC /* SoundCues.swift */,
 				D1D0671378A8FC12F7252088 /* TargetMarkerView.swift */,
 			);
 			path = Companion;
@@ -302,6 +324,7 @@
 				067C2CD41B42536A33F2F72D /* HFTasks */,
 				280F09AB09D9383DB73D2E36 /* HFScreenAgent */,
 				EBD50D0BE97E5B54B0DE9BED /* HFVoice */,
+				FCEE692212E79EF136EC74F3 /* HFWake */,
 				6FF43AA297AB46FB0582785B /* HFCore */,
 			);
 			productName = Handsfree;
@@ -343,6 +366,7 @@
 				1B968BF06F5AB20A718E129D /* XCLocalSwiftPackageReference "Packages/HFScreenAgent" */,
 				F6541CA69B4B8746E7C54FD3 /* XCLocalSwiftPackageReference "Packages/HFTasks" */,
 				028777EF49C2F7668D08BB0D /* XCLocalSwiftPackageReference "Packages/HFVoice" */,
+				5CF5BEEEAD14088A3F8A3E75 /* XCLocalSwiftPackageReference "Packages/HFWake" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 87D3F41198615D81CA2A17D5 /* Products */;
@@ -378,6 +402,8 @@
 				B495AE1C67E8007F849CB89D /* CompanionModel.swift in Sources */,
 				62B8ED2BDBEE98BB52BCD926 /* CompanionOverlayView.swift in Sources */,
 				DBF19256549556E3E7E8E81A /* CompanionState.swift in Sources */,
+				5645D4BF930787FFB2D21815 /* CuePlayer.swift in Sources */,
+				EA6F4D4EF164E611DC4D760D /* CycleWiring.swift in Sources */,
 				18FD1DEF9F2F415E2E962E2E /* DemoBackdrop.swift in Sources */,
 				332E557F172F3216FBF4D889 /* DemoPlayer.swift in Sources */,
 				8C062E71ACEE878A3568AC1D /* DemoScript.swift in Sources */,
@@ -395,7 +421,9 @@
 				AD702A4C5751F46B58B345F1 /* RealParts.swift in Sources */,
 				1E96527A5C3377DA38875170 /* SessionLog.swift in Sources */,
 				06D9640053BE73F3C618DAAD /* SetupCheck.swift in Sources */,
+				4649CB262D1A39477866BB62 /* SoundCues.swift in Sources */,
 				493D98D312D9AB0774B09B27 /* StandIns.swift in Sources */,
+				893F29175550DBD45360E552 /* StateSnapshots.swift in Sources */,
 				4892EE5487DBB1BB935E9536 /* TargetMarkerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -406,12 +434,16 @@
 			files = (
 				F3E11D297CEBE26227FED3C8 /* CompanionState.swift in Sources */,
 				95E95FB642FCEF85ECB6A5C2 /* CompanionStateTests.swift in Sources */,
+				0C729C745675FD9489B38EA8 /* CycleWiring.swift in Sources */,
 				E3A6A62CBFA3A8F01D7C3537 /* DemoScript.swift in Sources */,
 				F029A79C32062750A051A51E /* LaunchOptions.swift in Sources */,
 				C5DF105903DB3E10EBF2B208 /* OverlayGeometry.swift in Sources */,
+				332205C5CC767107543370B9 /* Parts.swift in Sources */,
 				794A5889B5C10778557B42F8 /* SessionLog.swift in Sources */,
 				27BFE9DF492CE1EF200E78CD /* SetupAndLogTests.swift in Sources */,
 				4B075A0E7CBE970CAFCCBE18 /* SetupCheck.swift in Sources */,
+				BB4A5D543B9BEB3ABE4ED020 /* SoundCues.swift in Sources */,
+				C7751858B252D5D99E0C8AD4 /* WakeAndSleepTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -674,6 +706,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/HFEyes;
 		};
+		5CF5BEEEAD14088A3F8A3E75 /* XCLocalSwiftPackageReference "Packages/HFWake" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFWake;
+		};
 		9C416CF09CF1184223872880 /* XCLocalSwiftPackageReference "Packages/HFHands" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/HFHands;
@@ -724,6 +760,10 @@
 		F36DCCE562BA2CD86E7F4148 /* HFEyes */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HFEyes;
+		};
+		FCEE692212E79EF136EC74F3 /* HFWake */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFWake;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

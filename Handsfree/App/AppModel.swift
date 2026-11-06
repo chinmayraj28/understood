@@ -17,6 +17,11 @@ final class AppModel: ObservableObject {
     @Published var wiring: [PartWiring] = []
     @Published var memorySummary = ""
     @Published var isDemo = false
+    /// What wakes it, and how long it stays awake with nothing going on (from Settings).
+    @Published var wakePhrase = "Hey Handsfree"
+    @Published var sleepAfterIdleSeconds = 25.0
+    /// WAKE_MODE=always: a conversation is kept open and no phrase is needed.
+    @Published var isAlwaysOpen = false
 
     var setupItems: [SetupItem] { SetupCheck.items(for: setupFacts) }
     var isReady: Bool { SetupCheck.isReady(setupFacts) }

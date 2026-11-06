@@ -18,6 +18,18 @@ public enum VoiceDiagnostics {
             "resolved processing: \(manager.audioProcessingState)",
         ].joined(separator: "\n")
     }
+
+    /// True while LiveKit's audio engine runs, which in voice mode means it holds the microphone.
+    /// After a voice session closes this should be false, so the wake listener can use the microphone.
+    @MainActor
+    public static var isAudioEngineRunning: Bool { AudioManager.shared.isEngineRunning }
+
+    /// How many SDK conversations this process created are still in memory, and how many of
+    /// those are still connected. Both should be 0 once every session has closed.
+    @MainActor
+    public static var leftoverConversations: (inMemory: Int, active: Int) {
+        (ElevenLabsDriver.conversationsStillInMemory, ElevenLabsDriver.conversationsStillActive)
+    }
 }
 
 // MARK: - Measurements

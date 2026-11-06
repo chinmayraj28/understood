@@ -4,6 +4,64 @@ import Foundation
 import HFCore
 import os
 
+/// What a conversation needs before it can connect: a LiveKit token for a voice conversation,
+/// or a signed websocket URL for a text one. Fetching one takes 0.15 to 0.3 s (measured on
+/// 6 Nov), which would be added to every wake. So one is fetched ahead of time, after each
+/// conversation closes, and used by the next wake if it is still fresh.
+///
+/// Each prefetched credential is used once. Tokens are valid for 15 minutes (the token's own
+/// `exp` minus `nbf` was 900 s); one older than `maximumAge` is thrown away and a new one
+/// fetched while connecting, as before.
+actor ConnectionCredentials {
+    private let api: ElevenLabsAPI
+    private let maximumAge: TimeInterval
+    private var cached: (key: String, value: String, fetchedAt: Date)?
+    private var fetching: Task<String?, Never>?
+    private var fetchingKey: String?
+
+    init(api: ElevenLabsAPI, maximumAge: TimeInterval = 600) {
+        self.api = api
+        self.maximumAge = maximumAge
+    }
+
+    private static func key(agentID: String, textOnly: Bool) -> String { "\(agentID)|\(textOnly)" }
+
+    /// Fetches one for the next conversation, unless a fresh one is waiting already.
+    func prefetch(agentID: String, textOnly: Bool) async {
+        let key = Self.key(agentID: agentID, textOnly: textOnly)
+        if let cached, cached.key == key, Date().timeIntervalSince(cached.fetchedAt) < maximumAge { return }
+        if fetchingKey == key, let fetching { _ = await fetching.value; return }
+        let api = self.api
+        let task = Task<String?, Never> {
+            try? await (textOnly ? api.signedURL(agentID: agentID) : api.conversationToken(agentID: agentID))
+        }
+        fetching = task
+        fetchingKey = key
+        let value = await task.value
+        // If a conversation took this fetch while it was on its way, it is used already: keep nothing.
+        guard let current = fetching, current == task else { return }
+        fetching = nil
+        fetchingKey = nil
+        if let value { cached = (key, value, Date()) }
+    }
+
+    /// A credential for a conversation starting now: the prefetched one if it is fresh, else a new one.
+    func take(agentID: String, textOnly: Bool) async throws -> String {
+        let key = Self.key(agentID: agentID, textOnly: textOnly)
+        if fetchingKey == key, let task = fetching {
+            // Take over the fetch on its way, so the same credential is never used twice.
+            fetching = nil
+            fetchingKey = nil
+            if let value = await task.value { return value }
+        }
+        if let cached, cached.key == key, Date().timeIntervalSince(cached.fetchedAt) < maximumAge {
+            self.cached = nil
+            return cached.value
+        }
+        return try await textOnly ? api.signedURL(agentID: agentID) : api.conversationToken(agentID: agentID)
+    }
+}
+
 /// `ConversationDriving` on the ElevenLabs Swift SDK.
 ///
 /// Voice sessions use WebRTC (LiveKit), whose macOS audio runs through Apple's
@@ -11,14 +69,16 @@ import os
 /// on laptop speakers. Text sessions use a websocket and no microphone.
 @MainActor
 final class ElevenLabsDriver: ConversationDriving {
-    private let api: ElevenLabsAPI
+    private let credentials: ConnectionCredentials
     private var conversation: Conversation?
     private var observers: Set<AnyCancellable> = []
     private var endedByUs = false
     private var reportedEnd = false
     nonisolated private static let logger = Logger(subsystem: "com.handsfree", category: "HFVoice")
 
-    init(api: ElevenLabsAPI) { self.api = api }
+    init(credentials: ConnectionCredentials) { self.credentials = credentials }
+
+    convenience init(api: ElevenLabsAPI) { self.init(credentials: ConnectionCredentials(api: api)) }
 
     func start(_ start: ConversationStart, onSignal: @escaping @MainActor @Sendable (ConversationSignal) -> Void) async throws {
         // The SDK calls these from the main actor, in the order the server sent them. Handle
@@ -49,15 +109,30 @@ final class ElevenLabsDriver: ConversationDriving {
             }
         )
         let auth: ElevenLabsConfiguration
+        let credentials = self.credentials
+        let agentID = start.agentID
         if start.textOnly {
-            auth = try ElevenLabsConfiguration.signedWebSocketURL(try await api.signedURL(agentID: start.agentID))
+            auth = try ElevenLabsConfiguration.signedWebSocketURL(try await credentials.take(agentID: agentID, textOnly: true))
         } else {
-            let api = self.api
-            let agentID = start.agentID
-            auth = .customTokenProvider({ try await api.conversationToken(agentID: agentID) })
+            // The SDK fetches the token first, then connects the room and turns the microphone on.
+            // Failing here when the session was closed meanwhile stops it before the microphone.
+            let closedCheck = ClosedCheck(self)
+            auth = .customTokenProvider({
+                let token = try await credentials.take(agentID: agentID, textOnly: false)
+                if await closedCheck.isClosed() { throw CancellationError() }
+                return token
+            })
         }
+        // Closed while getting ready: never open the room (and the microphone) for nothing.
+        if endedByUs { throw CancellationError() }
         let conversation = try await ElevenLabs.startConversation(auth: auth, config: config)
+        Self.track(conversation)
         self.conversation = conversation
+        if endedByUs {
+            // `end()` was called while this was still connecting: end it now, so nothing is left open.
+            await end()
+            return
+        }
         if !start.textOnly {
             // In voice mode the SDK knows when the agent's audio is playing.
             conversation.$agentState
@@ -77,6 +152,9 @@ final class ElevenLabsDriver: ConversationDriving {
                 if case .ended = state { Task { @MainActor in self?.reportEnd("The conversation ended.", emit: emit) } }
             }
             .store(in: &observers)
+        if let metrics = conversation.startupMetrics {
+            Self.logger.notice("Startup: total \(metrics.total ?? -1, privacy: .public) s, token \(metrics.tokenFetch ?? -1, privacy: .public) s, room \(metrics.roomConnect ?? -1, privacy: .public) s, agent \(metrics.agentReady ?? -1, privacy: .public) s, init \(metrics.conversationInit ?? -1, privacy: .public) s")
+        }
     }
 
     func sendUserMessage(_ text: String) async throws {
@@ -95,8 +173,11 @@ final class ElevenLabsDriver: ConversationDriving {
     func end() async {
         endedByUs = true
         observers.removeAll()
-        await conversation?.endConversation()
+        let ending = conversation
         conversation = nil
+        // Ends the room or the socket. In voice mode that unpublishes the microphone track,
+        // so LiveKit's audio engine lets go of the microphone for the wake listener.
+        await ending?.endConversation()
     }
 
     private func active() throws -> Conversation {
@@ -118,5 +199,42 @@ final class ElevenLabsDriver: ConversationDriving {
         case .user: return "The session was ended."
         case .error: return "The voice connection dropped."
         }
+    }
+
+    /// Lets the SDK's token callback, which runs off the main actor, ask whether the session
+    /// was closed meanwhile, without holding on to the driver.
+    private final class ClosedCheck: @unchecked Sendable {
+        private weak var driver: ElevenLabsDriver?
+        init(_ driver: ElevenLabsDriver) { self.driver = driver }
+        @MainActor func isClosed() -> Bool { driver?.endedByUs ?? true }
+    }
+
+    // MARK: Checking that nothing is left behind
+
+    private final class WeakConversation {
+        weak var conversation: Conversation?
+        init(_ conversation: Conversation) { self.conversation = conversation }
+    }
+    private static var tracked: [WeakConversation] = []
+
+    private static func track(_ conversation: Conversation) {
+        tracked.removeAll { $0.conversation == nil }
+        tracked.append(WeakConversation(conversation))
+    }
+
+    /// How many SDK conversations created by this process still exist. After every session
+    /// has closed, this should be 0: a closed conversation that stays in memory would keep
+    /// its socket or room, and in voice mode perhaps the microphone.
+    static var conversationsStillInMemory: Int {
+        tracked.removeAll { $0.conversation == nil }
+        return tracked.count
+    }
+
+    /// How many of them are still connected or connecting.
+    static var conversationsStillActive: Int {
+        tracked.filter { conversation in
+            guard let state = conversation.conversation?.state else { return false }
+            return state.isActive || state == .connecting
+        }.count
     }
 }

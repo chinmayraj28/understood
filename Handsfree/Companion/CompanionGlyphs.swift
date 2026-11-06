@@ -35,6 +35,10 @@ struct CompanionGlyphView: View {
                 if glyph == .holding || glyph == .asking {
                     PulsingRing(color: DS.Colors.hold)
                 }
+                if glyph == .waking {
+                    // A ripple going out: "I heard you".
+                    PulsingRing(color: DS.Colors.accent)
+                }
                 symbol
                     .id(glyph)
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
@@ -43,8 +47,8 @@ struct CompanionGlyphView: View {
             .overlay(Circle().stroke(DS.Companion.surfaceEdge, lineWidth: 1).padding(-1))
             .shadow(color: glowColor.opacity(0.55), radius: 10)
             .shadow(color: DS.Companion.shadow, radius: 6, y: 2)
-            .opacity(isResting ? 0 : 1)
-            .scaleEffect(isResting ? 0.35 : 1)
+            .opacity(isResting ? 0 : (glyph == .asleep ? 0.9 : 1))
+            .scaleEffect(isResting ? 0.35 : (glyph == .asleep ? DS.Companion.asleepGlyphScale : 1))
         }
         .frame(width: DS.Companion.glyphDiameter + 20, height: DS.Companion.glyphDiameter + 20)
         .animation(DS.Companion.stateSpring, value: isResting)
@@ -53,6 +57,15 @@ struct CompanionGlyphView: View {
 
     @ViewBuilder private var symbol: some View {
         switch glyph {
+        case .asleep:
+            // Still and dim: no breathing, no glow. It is not listening to the user.
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DS.Colors.iris300.opacity(0.8))
+        case .waking:
+            Image(systemName: "ear.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
         case .userSpeaking:
             WaveformBars(level: voiceLevel)
         case .agentSpeaking:
@@ -102,6 +115,9 @@ struct CompanionGlyphView: View {
         case .done: return DS.Colors.success
         case .failed: return DS.Colors.stop
         case .cancelled, .disconnected, .connecting: return DS.Colors.muted
+        // A night-time tint of the companion's own colour: still Handsfree, clearly not the
+        // grey of "not connected", and much dimmer than the bright ring of an awake state.
+        case .asleep: return DS.Colors.accent.opacity(0.4)
         case .thinking: return DS.Colors.accent.opacity(0.35)
         default: return DS.Colors.accent
         }
@@ -112,7 +128,7 @@ struct CompanionGlyphView: View {
         case .holding, .asking: return DS.Colors.hold
         case .stopped, .failed: return DS.Colors.stop
         case .done: return DS.Colors.success
-        case .cancelled, .disconnected, .connecting: return .clear
+        case .cancelled, .disconnected, .connecting, .asleep: return .clear
         default: return DS.Colors.accent
         }
     }

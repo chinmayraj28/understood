@@ -12,17 +12,79 @@
 import Foundation
 import HFCore
 
-/// The live voice conversation (HFVoice's VoiceSession).
+/// What the listening cycle needs to know about the conversation, read at one moment.
+struct VoiceActivity: Equatable, Sendable {
+    /// A conversation is open, or being opened or reconnected.
+    var isOpen: Bool
+    var isUserSpeaking: Bool
+    /// Talking, working out a reply, or waiting for a tool.
+    var isAgentSpeaking: Bool
+    /// A task's question, confirmation or result has not been said yet.
+    var hasUnspokenNews: Bool
+    /// The last time anyone spoke or the agent did anything (`ProcessInfo.systemUptime`).
+    var lastActivityAt: TimeInterval
+
+    static let closed = VoiceActivity(isOpen: false, isUserSpeaking: false, isAgentSpeaking: false, hasUnspokenNews: false, lastActivityAt: -.infinity)
+}
+
+/// The voice conversation (HFVoice's VoiceSession). Prepared once, then opened on every
+/// wake and closed on every sleep.
 @MainActor
 protocol VoiceConnecting: AnyObject {
-    /// Starts the always-on conversation with these tools. Never throws: a
-    /// problem shows on the companion as `.voiceDisconnected`.
-    /// `onUserSentence` is called for every finished sentence the user says.
-    func start(tools: [ToolSpec], memorySummary: String, onUserSentence: @escaping @Sendable (String) -> Void) async
+    /// Once at launch: the tools, memory's summary, and the listener for every finished
+    /// sentence the user says (the stop watcher). Opens nothing.
+    func prepareConversations(tools: [ToolSpec], memorySummary: String, onUserSentence: @escaping @Sendable (String) -> Void)
+    /// Opens a conversation and says `firstUtterance` (the rest of the wake sentence) as the
+    /// user's first turn. Returns once connected or the first attempt failed. Never throws:
+    /// a problem shows on the companion as `.voiceDisconnected`.
+    func openConversation(firstUtterance: String, memorySummary: String?) async
+    /// Ends the conversation, leaving no connection or microphone open.
+    func closeConversation() async
+    /// True once the open conversation can hear the user.
+    var isConversationConnected: Bool { get }
+    /// Waits for the conversation to connect (it retries by itself), up to `timeout` seconds.
+    func waitUntilConnected(timeout: TimeInterval) async -> Bool
     /// Makes the agent say a task's question, confirmation or result while the user is silent.
     /// Callable from any thread, so the task runner's sink calls it directly and events keep their order.
     nonisolated func push(_ event: TaskEvent)
+    var conversationActivity: VoiceActivity { get }
+    /// Called when a task event the user must hear arrives while no conversation is open.
+    var onNewsWhileClosed: (@MainActor () -> Void)? { get set }
     func stop() async
+}
+
+/// Decides when the app is asleep and when a conversation is open (HFWake's listening
+/// cycle, or the app's always-open one). Asleep at start in wake-phrase mode.
+@MainActor
+protocol ListeningCycling: AnyObject {
+    func start() async
+    /// On quit: stops listening and closes any conversation.
+    func stop() async
+    /// The user ended the conversation (the go_to_sleep tool): sleep as soon as nothing is going on.
+    func requestSleep()
+    /// Something must be said while asleep: open a conversation as if the phrase had been heard.
+    func wakeWithoutPhrase()
+    /// For the panel and app-status.json: asleep, waking, awake, falling asleep, cannot listen, stopped.
+    func currentState() async -> String
+    /// True while the wake listener has the microphone and is recognising.
+    var isListenerRunning: Bool { get }
+}
+
+/// Lets the go_to_sleep tool, built with the other tools, reach the listening cycle,
+/// which is created later. Thread-safe.
+final class SleepRequestRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handler: (@MainActor () -> Void)?
+
+    func setHandler(_ handler: @escaping @MainActor () -> Void) {
+        lock.lock(); self.handler = handler; lock.unlock()
+    }
+
+    func request() {
+        lock.lock(); let handler = self.handler; lock.unlock()
+        guard let handler else { return }
+        Task { @MainActor in handler() }
+    }
 }
 
 /// The task runner (HFTasks's TaskRunner plus TaskTools). Named "Part" so it
@@ -71,6 +133,8 @@ struct AssembledParts {
     let voice: any VoiceConnecting
     /// Every package's voice tools, registered with the voice session.
     let tools: [ToolSpec]
+    /// The go_to_sleep tool's way to the listening cycle.
+    let sleepRequests: SleepRequestRelay
     let wiring: [PartWiring]
     /// Run when the app quits: release the hands, stop the runner, and undo
     /// anything a package switched on in other apps.

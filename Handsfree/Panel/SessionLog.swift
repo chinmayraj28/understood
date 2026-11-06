@@ -55,8 +55,11 @@ struct SessionLog: Equatable {
             // The voice package may post a sentence more than once as it streams; keep one.
             if transcript.last?.speaker == .assistant && transcript.last?.text == text { return }
             appendLine(.assistant, text, time)
-        case .listening:
+        case .listening, .asleep:
+            // Asleep is not a problem: it is how the app waits for the wake phrase.
             voiceProblem = nil
+        case .waking:
+            break
         case .voiceDisconnected(let reason):
             voiceProblem = reason
         case .taskStarted(let goal):

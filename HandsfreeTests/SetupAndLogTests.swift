@@ -15,11 +15,13 @@ struct SetupCheckTests {
     func facts(
         elevenLabs: Bool = true, anthropic: Bool = true, openRouter: Bool = true,
         microphone: PermissionStatus = .granted, accessibility: PermissionStatus = .granted,
-        screenRecording: PermissionStatus = .granted
+        screenRecording: PermissionStatus = .granted, speech: PermissionStatus = .granted,
+        needsSpeech: Bool = true
     ) -> SetupFacts {
         SetupFacts(
             hasElevenLabsKey: elevenLabs, hasAnthropicKey: anthropic, hasOpenRouterKey: openRouter,
             microphone: microphone, accessibility: accessibility, screenRecording: screenRecording,
+            speechRecognition: speech, needsSpeechRecognition: needsSpeech,
             keysFilePath: "/repo/.env")
     }
 
@@ -31,17 +33,21 @@ struct SetupCheckTests {
 
     @Test("Each missing permission is blocking, with the right button")
     func missingPermissions() {
-        let notAsked = SetupCheck.items(for: facts(microphone: .notAsked, accessibility: .notAsked, screenRecording: .notAsked))
-        #expect(notAsked.map(\.id) == ["microphone", "accessibility", "screenRecording"])
+        let notAsked = SetupCheck.items(for: facts(microphone: .notAsked, accessibility: .notAsked, screenRecording: .notAsked, speech: .notAsked))
+        #expect(notAsked.map(\.id) == ["microphone", "speechRecognition", "accessibility", "screenRecording"])
         #expect(notAsked.allSatisfy { $0.isBlocking })
         #expect(notAsked[0].action == .askMacOS(.microphone))
-        #expect(notAsked[1].action == .askMacOS(.accessibility))
-        #expect(notAsked[2].action == .askMacOS(.screenRecording))
+        #expect(notAsked[1].action == .askMacOS(.speechRecognition))
+        #expect(notAsked[2].action == .askMacOS(.accessibility))
+        #expect(notAsked[3].action == .askMacOS(.screenRecording))
 
-        let refused = SetupCheck.items(for: facts(microphone: .notGranted, accessibility: .notGranted, screenRecording: .notGranted))
+        let refused = SetupCheck.items(for: facts(microphone: .notGranted, accessibility: .notGranted, screenRecording: .notGranted, speech: .notGranted))
         #expect(refused[0].action == .openSettings(.microphone))
-        #expect(refused[1].action == .openSettings(.accessibility))
-        #expect(refused[2].action == .openSettings(.screenRecording))
+        #expect(refused[1].action == .openSettings(.speechRecognition))
+        #expect(refused[2].action == .openSettings(.accessibility))
+        #expect(refused[3].action == .openSettings(.screenRecording))
+        #expect(SetupCheck.missingPermissions(facts(speech: .notGranted)) == [.speechRecognition])
+        #expect(!SetupCheck.isReady(facts(speech: .notAsked)))
         #expect(!SetupCheck.isReady(facts(accessibility: .notGranted)))
         #expect(SetupCheck.missingPermissions(facts(accessibility: .notGranted)) == [.accessibility])
     }
@@ -60,6 +66,28 @@ struct SetupCheckTests {
         #expect(twoMissing[0].instructions.contains("ELEVENLABS_API_KEY and ANTHROPIC_API_KEY"))
     }
 
+    @Test("Speech Recognition is only asked for when the wake phrase is used")
+    func speechOnlyForTheWakePhrase() {
+        let alwaysOpen = facts(speech: .notAsked, needsSpeech: false)
+        #expect(SetupCheck.items(for: alwaysOpen).isEmpty)
+        #expect(SetupCheck.isReady(alwaysOpen))
+        #expect(SetupCheck.missingPermissions(alwaysOpen).isEmpty)
+        let item = SetupCheck.items(for: facts(speech: .notAsked)).first
+        #expect(item?.instructions.contains("wake phrase") == true)
+        #expect(item?.instructions.contains("leaves the Mac") == true, "the helper is told no audio leaves the Mac while it waits")
+    }
+
+    @Test("How to start names the phrase, the chimes and the quiet time")
+    func howToStart() {
+        let text = SetupCheck.howToStart(wakePhrase: "Hey Handsfree", sleepAfterSeconds: 25, alwaysOpen: false)
+        #expect(text.contains("\u{201C}Hey Handsfree\u{201D}"))
+        #expect(text.contains("Hey Handsfree, open Spotify"))
+        #expect(text.contains("rising chime") && text.contains("falling chime"))
+        #expect(text.contains("25 seconds"))
+        let always = SetupCheck.howToStart(wakePhrase: "Hey Handsfree", sleepAfterSeconds: 25, alwaysOpen: true)
+        #expect(always.contains("WAKE_MODE=always"))
+    }
+
     @Test("A missing OpenRouter key is a note, not a blocker")
     func openRouterOptional() {
         let items = SetupCheck.items(for: facts(openRouter: false))
@@ -72,8 +100,8 @@ struct SetupCheckTests {
     func wording() {
         let everything = SetupCheck.items(for: facts(
             elevenLabs: false, anthropic: false, openRouter: false,
-            microphone: .notAsked, accessibility: .notGranted, screenRecording: .notAsked))
-        #expect(everything.count == 5)
+            microphone: .notAsked, accessibility: .notGranted, screenRecording: .notAsked, speech: .notAsked))
+        #expect(everything.count == 6)
         for item in everything {
             #expect(!item.instructions.isEmpty)
             #expect(item.instructions.hasSuffix("."))
@@ -131,6 +159,9 @@ struct SessionLogTests {
         #expect(log.voiceProblem == "No network")
         log.record(.listening, at: start)
         #expect(log.voiceProblem == nil)
+        log.record(.voiceDisconnected(reason: "No network"), at: start)
+        log.record(.asleep(wakePhrase: "Hey Handsfree"), at: start)
+        #expect(log.voiceProblem == nil, "asleep is how it waits, not a problem")
     }
 }
 
@@ -148,6 +179,8 @@ struct LaunchOptionsTests {
         #expect(options.demoFreezeMoment == "holding")
         #expect(options.overlayIsCapturable)
         #expect(options.demoMomentLogPath == "/tmp/moments.log")
+        #expect(LaunchOptions.parse(["--render-states", "/tmp/states"]).renderStatesFolder == "/tmp/states")
+        #expect(LaunchOptions.parse([]).renderStatesFolder == nil)
         #expect(!options.requestsPermissionsAtLaunch)
     }
 
@@ -261,13 +294,15 @@ struct DemoScriptTests {
             time += 1.0 / 60.0
         }
         let everyGlyph: [CompanionState.Glyph] = [
+            .asleep, .waking,
             .listening, .userSpeaking, .agentSpeaking, .thinking, .moving, .clicking, .typing, .scrolling,
             .holding, .asking, .stopped, .done, .failed, .disconnected,
         ]
         for glyph in everyGlyph {
             #expect(seen.contains(String(describing: glyph)), "the demo never shows \(glyph)")
         }
-        #expect(state.isResting, "the demo ends at rest")
+        #expect(state.isAsleep, "the demo ends asleep, as the app does after a quiet spell")
+        #expect(state.sleepHint == "Say \u{201C}\(DemoScript.wakePhrase)\u{201D}")
     }
 
     @Test("Pointer targets land inside the practice window's controls")

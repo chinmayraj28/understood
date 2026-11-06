@@ -20,6 +20,7 @@ import AppKit
 import ApplicationServices
 import AVFoundation
 import CoreGraphics
+import Speech
 
 @MainActor
 enum PermissionChecker {
@@ -39,6 +40,12 @@ enum PermissionChecker {
         case .screenRecording:
             if CGPreflightScreenCaptureAccess() { return .granted }
             return hasAsked(.screenRecording) ? .notGranted : .notAsked
+        case .speechRecognition:
+            switch SFSpeechRecognizer.authorizationStatus() {
+            case .authorized: return .granted
+            case .notDetermined: return .notAsked
+            default: return .notGranted
+            }
         }
     }
 
@@ -59,6 +66,9 @@ enum PermissionChecker {
             _ = AXIsProcessTrustedWithOptions(options)
         case .screenRecording:
             _ = CGRequestScreenCaptureAccess()
+        case .speechRecognition:
+            // Needs NSSpeechRecognitionUsageDescription in Info.plist (set in project.yml).
+            SFSpeechRecognizer.requestAuthorization { _ in }
         }
     }
 

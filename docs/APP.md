@@ -19,11 +19,16 @@ scripts/run_app.sh --demo --loop              # repeat the demo
 scripts/run_app.sh --demo --freeze holding    # stop at one moment and hold it still
 scripts/run_app.sh --quit-after 20            # quit by itself (keeps test runs short)
 scripts/run_app.sh --show-panel               # open the menu bar panel at launch
-scripts/run_app.sh --request-permissions      # show macOS's three permission dialogs
+scripts/run_app.sh --request-permissions      # show macOS's permission dialogs (four in wake-phrase mode)
 scripts/run_app.sh --capturable               # let screenshots include the overlay (design review only)
+scripts/run_app.sh --wait --render-states DIR # draw the companion's states into PNGs in DIR and quit
 ```
 
-Moments for `--freeze`: listening, speaking, heard, thinking, progress, moving, clicked, typing, asking, holding, answering, done, stopped, disconnected, reconnected, failed.
+Moments for `--freeze`: asleep, waking, listening, speaking, heard, thinking, progress, moving, clicked, typing, asking, holding, answering, done, stopped, disconnected, reconnected, failed, asleep-again.
+
+`--render-states` is for design review without the Screen Recording permission: it draws the companion's real SwiftUI views for asleep, waking, awake and a few existing states, over a light and a dark background, framed like the photographs in `docs/research/screens/`, plus the panel. It puts nothing on screen. (The offscreen renderer cannot draw AppKit buttons, so in the panel image they appear as yellow placeholder boxes; the real panel draws them.)
+
+**Wake settings** (in `.env`, all optional): `WAKE_PHRASE` (default `Hey Handsfree`), `WAKE_MODE` (`phrase`, the default, or `always` to keep one conversation open as before, for demos and testing), `SLEEP_AFTER_IDLE_S` (default 25, at least 5).
 
 Quit the app from its panel ("Quit Handsfree"), or with `pkill -x Handsfree`. It never adds itself as a login item.
 
@@ -42,16 +47,19 @@ Handsfree/
     CompanionModel.swift       listens to ActivityBus and feeds CompanionState
     OverlayWindow.swift        the transparent, click-through window per screen
     CompanionOverlayView.swift the glyph, caption and question/confirmation card
-    CompanionGlyphs.swift      waveform, spinner, resting dot, symbols
+    CompanionGlyphs.swift      waveform, spinner, resting dot, asleep moon, waking ear, symbols
     TargetMarkerView.swift     the ring where the agent is about to click, the halo when it does
     OverlayGeometry.swift      coordinate conversions and placement (unit tested)
     PointerTracker.swift       where the pointer is, 60 times a second
+    SoundCues.swift            when the waking and sleeping sounds play, and the tones (pure, unit tested)
+    CuePlayer.swift            plays them as the ActivityBus reports waking and sleeping
   Panel/                     menu bar icon and panel, session log (transcript and task)
   Setup/                     permission checks and the first-run wording for a carer
-  Demo/                      demo script, player and practice backdrop
+  Demo/                      demo script, player, practice backdrop, state snapshots (--render-states)
   Integration/               connecting the packages:
-    Parts.swift                small app-side interfaces for voice, runner, stop watcher
+    Parts.swift                small app-side interfaces for voice, runner, stop watcher, listening cycle
     PartAssembly.swift         creates one of each part and connects them
+    CycleWiring.swift          "is anything going on", the cycle's hooks, the always-open cycle (unit tested)
     RealParts.swift            the adapters for each real package
     StandIns.swift             what is used while a package is missing
   Design/                    DS design tokens, menu bar icon
@@ -72,9 +80,14 @@ scripts/build_app.sh, run_app.sh, render_app_icon.swift
 7. Screen agent: `ScreenAgent(hands:eyes:labels:client:configuration:)`.
 8. Task runner: `TaskRunner(executor: screenAgent, gate:, answerClassifier:, memory:, sink: speak via voice, onCancel: hands.halt, onTaskEnd: hands.resume)` and `TaskTools.make(runner:)`.
 9. Stop watcher: `StopWatcher(classifier:, isTaskRunning:, isAwaitingAnswer:, currentTaskID:, cancel: runner.cancel)`.
-10. Voice: started with every tool (quick, memory, task) and memory's summary. Every sentence the user says goes to the stop watcher.
+10. Voice: `VoiceSession` is *prepared* once with every tool (quick, memory, task, and HFVoice's `go_to_sleep`) and memory's summary. That updates the agent's definition on ElevenLabs once, in the background, and fetches a connection token ahead of the first wake. Every sentence the user says goes to the stop watcher. No conversation is opened here.
+11. Listening cycle: HFWake's `ListeningCycle` with its on-device `WakeListener` (wake mode "phrase", the default). The app starts **asleep**; on the phrase the cycle posts `.waking`, stops the wake listener so the conversation can have the microphone, and opens a conversation with the rest of the sentence as the user's first turn; after `SLEEP_AFTER_IDLE_S` with nothing going on it closes the conversation, posts `.asleep` and listens for the phrase again. "Nothing going on" is built in `CycleWiring.snapshot`: no task running or waiting for an answer, nobody speaking, the agent not talking or thinking or running a tool, and no task event still to be said. In wake mode "always", or if HFWake is not linked, `AlwaysOpenCycle` keeps one conversation open, as before.
 
-On quit, the runner shuts down (its cancel halts the hands), the hands are halted, and `restoreWebContentSwitches()` undoes the web-accessibility switch AccessibilityLabels turned on in Chrome and Electron apps.
+The cycle starts only once the Microphone permission, the Speech Recognition permission (wake-phrase mode only) and the ElevenLabs key are in place; until then the companion says what it is waiting for.
+
+**Why a task keeps it awake:** a spoken "stop" is heard by the voice session and passed to the stop watcher. While a task runs or waits for an answer, the cycle never closes the conversation, so there is always a session to hear "stop", and the hold-while-speaking signal (`isUserSpeaking`) works as before. While asleep there is no task, `isUserSpeaking` is false, and nothing is held.
+
+On quit, the listening cycle stops (wake listener off, any conversation closed), the runner shuts down (its cancel halts the hands), the hands are halted, and `restoreWebContentSwitches()` undoes the web-accessibility switch AccessibilityLabels turned on in Chrome and Electron apps.
 
 ## Linking a package, and why a broken package cannot break the app
 
@@ -90,9 +103,22 @@ One more trap the script handles: when the set of linked packages changes, it de
 
 To unlink a package by hand, comment out its line in `LinkedPackages.txt`.
 
-## Integration checklist (5 Nov 2026, 21:42)
+## Integration checklist (6 Nov 2026, 03:00)
 
-7 of 8 parts are real. Checked by launching the app and reading `~/Library/Application Support/Handsfree/app-status.json`, which the app writes at launch (it never contains a key).
+All 9 parts are real: every package, including HFVoice and HFWake, is linked and its adapter written. Checked by launching the app (permissions not yet granted) and reading `~/Library/Application Support/Handsfree/app-status.json`, which the app writes at launch (it never contains a key). It now also records `wake_mode`, `wake_phrase`, `sleep_after_idle_seconds`, `listens_for_wake_phrase` and `speech_recognition`.
+
+| Part | Package | Status (6 Nov) |
+|---|---|---|
+| Voice session | HFVoice | **Real**: `VoiceSession`, prepared once at launch, opened on each wake, closed on each sleep. Text-mode live tests pass against the real agent (5 wakes in a row, nothing left open). |
+| Listening cycle | HFWake | **Real**: `ListeningCycle` with the on-device `WakeListener`, adapted in `RealParts.swift` (`WakeCycleAdapter`). Not yet run with a microphone: it starts only after Microphone and Speech Recognition are granted, and no live microphone run was allowed. |
+| Sleep tool | HFVoice | **Real**: `go_to_sleep`, refused in code while a task is running or waiting for an answer. |
+| All other parts | | As in the table below (unchanged). |
+
+What still has to happen: the user grants the four permissions, then one spoken run with a person: "Hey Handsfree" alone, "Hey Handsfree, open Spotify", "that's all", a task with "stop" in the middle, and 25 s of silence.
+
+### Before wake phrases (5 Nov 2026, 21:42)
+
+7 of 8 parts were real.
 
 | Part | Package | Status |
 |---|---|---|
@@ -103,9 +129,7 @@ To unlink a package by hand, comment out its line in `LinkedPackages.txt`.
 | Memory | HFMemory | **Real**: `Memory` at `<data dir>/memory.db`, `MemoryTools` (6 tools) |
 | Screen agent | HFScreenAgent | **Real**: `ScreenAgent` with `ClaudeClient` (`claude-sonnet-5-5`) |
 | Task runner | HFTasks | **Real**: `TaskRunner`, `TaskTools`; cancel halts the hands first |
-| Voice session | HFVoice | **Stand-in.** The package links, but it has no `VoiceSession` yet, only `AgentConfiguration`. The adapter goes in `RealParts.makeVoice`: a class conforming to `VoiceConnecting` (start with tools, memory summary and a transcript listener; push a task event; stop). Until then the companion shows "Not connected" and the panel says why. |
-
-What still has to happen to call the integration done: the voice adapter, then one real spoken run with all permissions granted.
+| Voice session | HFVoice | Then a stand-in; now real (see above). |
 
 ## Signing and permissions: what was found
 
@@ -127,9 +151,12 @@ What still has to happen to call the integration done: the voice adapter, then o
 **What the user (or a helper) must do once:**
 1. Run `scripts/run_app.sh --request-permissions --show-panel`.
 2. Microphone dialog: click **Allow**.
-3. Accessibility dialog: click **Open System Settings**, switch **Handsfree** on (macOS may ask for the password).
-4. System Settings > Privacy & Security > **Screen & System Audio Recording**: switch **Handsfree** on, and choose **Quit & Reopen** if offered (macOS applies this one only after a restart).
-The panel lists exactly what is still missing, in words written for whoever is helping, with an "Ask macOS" or "Open Settings" button for each.
+3. Speech Recognition dialog: click **Allow** (the wake phrase is recognised on this Mac; nothing said leaves the Mac until the phrase is heard).
+4. Accessibility dialog: click **Open System Settings**, switch **Handsfree** on (macOS may ask for the password).
+5. System Settings > Privacy & Security > **Screen & System Audio Recording**: switch **Handsfree** on, and choose **Quit & Reopen** if offered (macOS applies this one only after a restart).
+The panel lists exactly what is still missing, in words written for whoever is helping, with an "Ask macOS" or "Open Settings" button for each. Speech Recognition is asked for only in wake mode "phrase" (the default). Its usage text is `NSSpeechRecognitionUsageDescription` in `project.yml`.
+
+The panel's **TO START** section tells the helper how it is used: "The person says “Hey Handsfree”, then what they want, in one go: “Hey Handsfree, open Spotify”. A rising chime means it is listening. A falling chime means it has gone back to sleep, after about 25 seconds of quiet or when they say “that’s all”. Until the phrase is heard, nothing they say leaves this Mac."
 
 Caveats: if the signing certificate is ever replaced by one with a different name, the grants will be asked for again. On a crowded menu bar, macOS can hide a new status item behind the MacBook's notch; on this Mac the Handsfree icon appears to land there. The panel opens by itself at launch while setup is incomplete, and `--show-panel` opens it any time.
 
@@ -148,10 +175,14 @@ The overlay covers every screen, so it must let every click through (`ignoresMou
 
 ## The companion's states
 
-Photographed from the demo over the practice backdrop, in `docs/research/screens/` (01 to 16, plus 17 for the panel).
+Photographed from the demo over the practice backdrop, in `docs/research/screens/` (01 to 16, plus 17 for the panel). Asleep, waking and awake (6 Nov) were drawn with `--render-states`, because this Mac's terminal no longer has the Screen Recording permission that `screencapture` needs; they show the same SwiftUI views the overlay draws.
 
-| State | What the user sees | It ends when |
+| State | What the user sees (and hears) | It ends when |
 |---|---|---|
+| Asleep | A smaller, still disc in a dim night tint of iris (not the grey of "Not connected") with a moon, and a quiet pill: "Asleep. Say “Hey Handsfree”", the phrase in bright white. No glow, no motion. A falling two-note chime plays when it goes to sleep after a conversation (never at launch) | The phrase is heard |
+| Waking | Full-size disc with a bright iris ring, an ear, and a ripple going out; "Heard you". Shown the moment the phrase is heard, before the conversation has opened | The conversation is ready (typically 0.3 s in text mode; voice mode not yet measured) |
+| Awake | The iris dot, with "Listening" (ear icon) for 2.5 s. A rising two-note chime plays at this moment: it means "it can hear you now" | Something happens |
+| Wake that could not connect | The reason as the caption ("I heard you, but I couldn't reach the voice service. Say the wake phrase to try again."), then asleep again. The session retries once by itself first (a wake that connects on that retry plays only the rising chime); if it still cannot connect within about 4 s it closes everything and a low double note plays as it goes back to sleep, instead of the falling chime | 8 s, then the asleep hint |
 | Listening | A small iris dot beside the pointer, slowly breathing | Something happens |
 | User speaking | The dot grows into a dark disc with a white waveform that follows the voice | 0.7 s of silence |
 | Heard | The sentence in quotes, with a microphone icon | 4 s |
@@ -171,8 +202,10 @@ Placement: the companion sits below and to the right of the pointer's tip, never
 
 ## Demo mode
 
-`scripts/run_app.sh --demo` plays `Handsfree/Demo/DemoScript.swift` (about 54 seconds) on the real ActivityBus, so the companion and the panel react exactly as they would to the real packages: a message to "Amma" with a which-chat question and a held Send, a task stopped mid-glide, a dropped connection, and a failure. It uses no network and no permissions, and moves a drawn pointer, never the real one. `--backdrop` puts a plain mock chat app behind it (it covers the Dock but not the menu bar), so recordings show nothing private.
+`scripts/run_app.sh --demo` plays `Handsfree/Demo/DemoScript.swift` (about 60 seconds) on the real ActivityBus, so the companion and the panel react exactly as they would to the real packages: asleep with the hint, the phrase heard (waking, then "Listening" with the rising chime), a message to "Amma" with a which-chat question and a held Send, a task stopped mid-glide, a dropped connection, a failure, and back to sleep (falling chime). The demo plays the chimes, so it makes sound. It uses no network and no permissions, and moves a drawn pointer, never the real one. `--backdrop` puts a plain mock chat app behind it (it covers the Dock but not the menu bar), so recordings show nothing private.
 
 ## Tests
 
-`scripts/build_app.sh --test` runs 44 tests in `HandsfreeTests/` (not hosted in the app, so no overlay appears): the event-to-companion mapping, including every state ending by itself; first-run checks and their wording; the session log; launch options; coordinate conversions and placement at every edge and corner; and the demo script, which is checked to reach every glyph and to end at rest.
+`scripts/build_app.sh --test` runs 68 tests in `HandsfreeTests/` (not hosted in the app, so no overlay appears): the event-to-companion mapping, including every state ending by itself and the asleep and waking states; first-run checks and their wording, including Speech Recognition and the "to start" text; the session log; launch options; coordinate conversions and placement at every edge and corner; the demo script, which is checked to reach every glyph, asleep and waking included, and to end asleep; when each chime plays, and that each generated tone is a short valid WAV with no click; and the listening cycle's wiring with a fake voice session and task runner ("is anything going on", the first utterance and fresh memory on open, a wake that cannot connect closes the session and throws, wake mode "always" never sleeps, the thread-safe mirror, the sleep tool's relay).
+
+**Fixed on 6 Nov:** `--quit-after` used to hang the app for ever. It called `NSApp.terminate` from inside a `DispatchQueue.main.asyncAfter` block; quitting waits for shutdown work that runs on the main queue, which cannot run while it is still inside that block. It now uses a run-loop timer, and the app quits on time (checked: asked to quit after 6 s, it was gone after 7). Quitting from the panel's button was never affected.

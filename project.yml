@@ -52,7 +52,9 @@ targets:
         # Menu bar only: no Dock icon, no app menu.
         LSUIElement: true
         NSHumanReadableCopyright: "Handsfree. Contains code adapted from Clicky (MIT, Farza)."
-        NSMicrophoneUsageDescription: "Handsfree listens all the time so you can run your Mac by speaking. Nothing is recorded to disk."
+        NSMicrophoneUsageDescription: "Handsfree listens for its wake phrase on this Mac, then hears what you ask it to do. Nothing is recorded to disk."
+        # The wake phrase is recognised on the Mac itself; no audio leaves it while Handsfree is asleep.
+        NSSpeechRecognitionUsageDescription: "Handsfree recognises its wake phrase on this Mac, so nothing you say leaves the Mac until you say it."
         NSScreenCaptureUsageDescription: "Handsfree looks at your screen so it can find the button or field it is about to use for you."
     entitlements:
       path: Handsfree/Handsfree.entitlements
@@ -90,6 +92,9 @@ targets:
       - path: Handsfree/Setup/SetupCheck.swift
       - path: Handsfree/Demo/DemoScript.swift
       - path: Handsfree/App/LaunchOptions.swift
+      - path: Handsfree/Companion/SoundCues.swift
+      - path: Handsfree/Integration/Parts.swift
+      - path: Handsfree/Integration/CycleWiring.swift
     dependencies:
       - package: HFCore
     settings:

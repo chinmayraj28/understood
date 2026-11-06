@@ -30,6 +30,9 @@ struct LaunchOptions: Equatable {
     /// Demo only: append each named moment and its time to this file, so a script
     /// can photograph each state as it happens.
     var demoMomentLogPath: String?
+    /// Design review: draw the companion's states into PNG files in this folder and quit.
+    /// Needs no permission and puts nothing on screen.
+    var renderStatesFolder: String?
 
     /// Unknown arguments are ignored, because macOS adds its own (for example `-NSDocumentRevisionsDebugMode`).
     static func parse(_ arguments: [String]) -> LaunchOptions {
@@ -56,6 +59,7 @@ struct LaunchOptions: Equatable {
             case "--show-panel": options.showsPanelAtLaunch = true
             case "--request-permissions": options.requestsPermissionsAtLaunch = true
             case "--moment-log": options.demoMomentLogPath = nextValue()
+            case "--render-states": options.renderStatesFolder = nextValue()
             default: break
             }
             index += 1

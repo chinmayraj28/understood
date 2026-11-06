@@ -152,4 +152,5 @@ Hiya grades understanding as well as the result, and requires `ai.md`.
 <!-- claude-reflect: learned rules (saved from the band; edit freely) -->
 ## Learned rules
 - Control the laptop like a human user: operate it by seeing the screen and clicking, not by scripting apps programmatically.
+- Open apps the way a user would: click them in the Dock or search for them, and do not configure default profiles.
 <!-- end claude-reflect -->

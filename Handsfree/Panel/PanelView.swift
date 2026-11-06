@@ -35,6 +35,15 @@ struct PanelView: View {
                 hairline
             }
 
+            section("TO START") {
+                Text(SetupCheck.howToStart(wakePhrase: app.wakePhrase, sleepAfterSeconds: app.sleepAfterIdleSeconds, alwaysOpen: app.isAlwaysOpen))
+                    .font(.system(size: 12))
+                    .foregroundColor(app.isAlwaysOpen ? DS.Colors.holdText : DS.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            hairline
+
             section(taskSectionTitle) { taskSection }
             hairline
 
@@ -117,6 +126,8 @@ struct PanelView: View {
         case .failed: return "Couldn\u{2019}t finish"
         case .cancelled: return "Cancelled"
         case .listening: return "Listening"
+        case .asleep: return "Asleep"
+        case .waking: return "Waking"
         }
     }
 
@@ -125,7 +136,7 @@ struct PanelView: View {
         switch companion.state.glyph {
         case .holding, .asking: return DS.Colors.hold
         case .stopped, .failed: return DS.Colors.stop
-        case .disconnected, .connecting, .cancelled: return DS.Colors.muted
+        case .disconnected, .connecting, .cancelled, .asleep: return DS.Colors.muted
         case .done: return DS.Colors.success
         default: return DS.Colors.accent
         }
@@ -177,6 +188,9 @@ struct PanelView: View {
     private var permissionSummary: some View {
         HStack(spacing: 14) {
             permissionDot("Microphone", app.setupFacts.microphone)
+            if app.setupFacts.needsSpeechRecognition {
+                permissionDot("Speech", app.setupFacts.speechRecognition)
+            }
             permissionDot("Accessibility", app.setupFacts.accessibility)
             permissionDot("Screen", app.setupFacts.screenRecording)
         }
@@ -266,7 +280,9 @@ struct PanelView: View {
     @ViewBuilder private var transcript: some View {
         let lines = companion.log.transcript.suffix(8)
         if lines.isEmpty {
-            Text(companion.log.voiceProblem ?? "Nothing said yet.")
+            Text(companion.log.voiceProblem ?? (companion.state.glyph == .asleep
+                ? "Asleep. Nothing is heard until someone says \u{201C}\(companion.state.wakePhrase)\u{201D}."
+                : "Nothing said yet."))
                 .font(.system(size: 12))
                 .foregroundColor(DS.Colors.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)

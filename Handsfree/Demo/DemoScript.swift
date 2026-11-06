@@ -3,7 +3,7 @@
 //  Handsfree
 //
 //  A scripted sequence of ActivityBus events that walks the companion through
-//  every state: listening, the user speaking, a heard sentence, thinking,
+//  every state: asleep, waking on the phrase, listening, the user speaking, a heard sentence, thinking,
 //  progress, the pointer travelling, clicks, typing, a question, an action held
 //  for a yes, done, stop, a dropped connection and a failure. No network and
 //  no permissions, so the look and motion can be reviewed and recorded before
@@ -87,16 +87,25 @@ enum DemoScript {
 
     /// Every moment the script names, in order. `--freeze` accepts any of these.
     static let moments = [
+        "asleep", "waking",
         "listening", "speaking", "heard", "thinking", "progress", "moving", "clicked", "typing",
         "asking", "holding", "answering", "done", "stopped", "disconnected", "reconnected", "failed",
+        "asleep-again",
     ]
+
+    /// The phrase the demo pretends to hear.
+    static let wakePhrase = "Hey Handsfree"
+    /// Seconds the opening wake scene takes; the rest of the script starts after it.
+    static let wakeSceneSeconds = 4.0
 
     /// The whole script for a screen of the given size (in points). Positions are
     /// HFCore screen points (origin top left), as the real hands would post them.
     static func steps(screen: CGSize) -> [DemoStep] {
         var steps: [DemoStep] = []
+        // Times below are written from the start of each part; this moves them along.
+        var offset = 0.0
         func at(_ time: Double, _ event: ActivityEvent?, moment: String? = nil) {
-            steps.append(DemoStep(time: time, event: event, moment: moment))
+            steps.append(DemoStep(time: offset + time, event: event, moment: moment))
         }
         func speech(from start: Double, to end: Double, moment: String? = nil, momentAt: Double? = nil) {
             var time = start
@@ -121,8 +130,15 @@ enum DemoScript {
         let composer = center(DemoLayout.composerRect(screen: screen))
         let sendButton = center(DemoLayout.sendButtonRect(screen: screen))
 
+        // Scene 0: asleep, until the phrase is heard. While asleep nothing leaves the Mac, so the
+        // user's voice is not drawn (the voice service is not hearing it). The phrase was heard at
+        // 2.0 s; the conversation is ready about a second later, when the rising chime plays.
+        at(0.0, .asleep(wakePhrase: wakePhrase), moment: "asleep")
+        at(2.0, .waking, moment: "waking")
+        offset = wakeSceneSeconds
+
         // Scene 1: a message, with a question and a held Send.
-        at(0.0, .listening, moment: "listening")
+        at(-0.9, .listening, moment: "listening")
         speech(from: 1.2, to: 3.4, moment: "speaking", momentAt: 2.0)
         at(3.45, .userSaid("Message Amma: running late, ten minutes"), moment: "heard")
         at(4.2, .agentSpeaking("Okay, messaging Amma."))
@@ -177,6 +193,9 @@ enum DemoScript {
         at(44.1, .thinking(caption: "Looking at the screen"))
         at(46.0, .taskEnded(status: .failed, summary: "I couldn\u{2019}t find an invoice from March."), moment: "failed")
         at(53.0, .listening)
+
+        // Scene 5: nothing more is said, so it goes back to sleep (in the app, after 25 s of quiet).
+        at(54.5, .asleep(wakePhrase: wakePhrase), moment: "asleep-again")
         return steps
     }
 

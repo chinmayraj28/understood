@@ -109,6 +109,10 @@ struct CompanionStack: View {
 
     var body: some View {
         VStack(alignment: alignsTrailing ? .trailing : .leading, spacing: 8) {
+            if state.sleepHint != nil {
+                SleepHintPill(wakePhrase: state.wakePhrase)
+                    .transition(.opacity)
+            }
             if let caption = state.caption {
                 CaptionPill(caption: caption)
                     .id(caption.text)
@@ -123,6 +127,29 @@ struct CompanionStack: View {
         }
         .animation(DS.Companion.stateSpring, value: state.caption?.text)
         .animation(DS.Companion.stateSpring, value: state.prompt)
+        .animation(DS.Companion.fadeOut, value: state.sleepHint)
+    }
+}
+
+/// While asleep: that it is not listening, and what to say to wake it. "Asleep" is quiet; the
+/// phrase is bright, because it is the one thing to read. No animation and a dimmer surface,
+/// because it stays up all the time the app is asleep, beside a pointer the user cannot move away.
+struct SleepHintPill: View {
+    let wakePhrase: String
+
+    var body: some View {
+        (Text("Asleep. ").foregroundColor(DS.Colors.textTertiary)
+            + Text("Say ").foregroundColor(DS.Colors.textSecondary)
+            + Text("\u{201C}\(wakePhrase)\u{201D}").foregroundColor(DS.Colors.textPrimary))
+            .font(DS.Companion.sleepHintFont)
+            .lineLimit(1)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(hex: "#0F0E13").opacity(DS.Companion.sleepHintSurfaceOpacity))
+                    .overlay(Capsule(style: .continuous).strokeBorder(DS.Companion.surfaceEdge, lineWidth: 1))
+                    .shadow(color: DS.Companion.shadow, radius: 8, y: 3))
     }
 }
 
@@ -159,6 +186,7 @@ struct CaptionPill: View {
     private var symbolName: String? {
         switch caption.tone {
         case .heard: return "mic.fill"
+        case .awake: return "ear"
         case .spoken: return "speaker.wave.2.fill"
         case .progress: return "arrow.forward"
         case .success: return "checkmark.circle.fill"
@@ -171,7 +199,7 @@ struct CaptionPill: View {
     private var symbolColor: Color {
         switch caption.tone {
         case .heard: return DS.Colors.textSecondary
-        case .spoken, .progress: return DS.Colors.accentText
+        case .spoken, .progress, .awake: return DS.Colors.accentText
         case .success: return DS.Colors.success
         case .problem: return DS.Colors.holdText
         case .stop: return DS.Colors.stopText

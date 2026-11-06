@@ -27,6 +27,14 @@ struct UserSpeechDetector: Sendable {
     private var lastVoiceAt: TimeInterval = -.infinity
     private var awaitingTranscript = false
 
+    /// Forgets everything heard, keeping the settings. Called when a conversation closes,
+    /// so a sentence cut off by the close cannot hold the screen agent afterwards.
+    mutating func reset() {
+        speakingSince = nil
+        lastVoiceAt = -.infinity
+        awaitingTranscript = false
+    }
+
     /// A voice-activity score from the server.
     mutating func heard(level: Double, at now: TimeInterval) {
         guard level >= settings.threshold else { return }

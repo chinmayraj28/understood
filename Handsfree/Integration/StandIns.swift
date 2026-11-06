@@ -162,9 +162,15 @@ final class StandInVoice: VoiceConnecting {
     private let bus: ActivityBus
     init(bus: ActivityBus) { self.bus = bus }
 
-    func start(tools: [ToolSpec], memorySummary: String, onUserSentence: @escaping @Sendable (String) -> Void) async {
+    func prepareConversations(tools: [ToolSpec], memorySummary: String, onUserSentence: @escaping @Sendable (String) -> Void) {}
+    func openConversation(firstUtterance: String, memorySummary: String?) async {
         bus.post(.voiceDisconnected(reason: "The voice package is not installed in this build yet."))
     }
+    func closeConversation() async {}
+    var isConversationConnected: Bool { false }
+    func waitUntilConnected(timeout: TimeInterval) async -> Bool { false }
     nonisolated func push(_ event: TaskEvent) {}
+    var conversationActivity: VoiceActivity { .closed }
+    var onNewsWhileClosed: (@MainActor () -> Void)?
     func stop() async {}
 }
