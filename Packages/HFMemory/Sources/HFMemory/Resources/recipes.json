@@ -1,0 +1,185 @@
+{
+  "format": 1,
+  "about": "Built-in starter recipes for the screen agent. Advice only: the agent checks every step on screen, and every send, invite or other risky click still goes through the safety gate. Edit the text freely; bump a recipe's version when you change it so existing installs pick up the new text. Mostly written from general knowledge and not yet checked against the real apps (to do); a recipe's checked field says what has been confirmed on this Mac. On this macOS Spotlight has no window when closed, and one Escape only collapses it to the search field while a second closes it. Matching: phrases in match_any and not_if match whole words, ignoring case; {day} and {time} are placeholders defined in docs/MEMORY.md Part B section 3 (phrase_match); selection rules in section 6.3.",
+  "recipes": [
+    {
+      "id": "whatsapp.send_message",
+      "version": 2,
+      "task": "send a whatsapp message",
+      "app": "whatsapp",
+      "app_names": [
+        "whatsapp"
+      ],
+      "match_any": [
+        "message",
+        "text",
+        "tell",
+        "send",
+        "reply",
+        "chat"
+      ],
+      "not_if": [
+        "call",
+        "video call",
+        "voice note"
+      ],
+      "how": "Open WhatsApp with Spotlight (Cmd+Space, type WhatsApp, Return; if Spotlight is still showing, press Escape twice). Click the search field above the chat list, type the name, click the matching chat and check the name in the header. Click the text area \"Compose message\" and type. The button at the send position reads \"Voice message\" until text is typed, then \"Send\". Press Return or click Send only after the user confirms.",
+      "checked": "5 Nov on this Mac: the send-position button label and the message box name. The rest is from general knowledge."
+    },
+    {
+      "id": "chrome.calendar_event_with_meet",
+      "version": 1,
+      "task": "create a google calendar event with a meet link and a guest",
+      "app": "chrome",
+      "app_names": [
+        "google calendar",
+        "calendar"
+      ],
+      "match_any": [
+        "invite",
+        "event",
+        "schedule",
+        "meeting",
+        "meet",
+        "calendar",
+        "{day}",
+        "{time}"
+      ],
+      "not_if": [
+        "right now",
+        "instant"
+      ],
+      "how": "In Chrome open calendar.google.com (Cmd+L, type it, Return); check the account picture at the top right is the right account. Click Create, then More options. Type the title, set the date and start time, click Add Google Meet video conferencing, then type the guest under Add guests and pick the right person from the list. Click Save only after the user confirms; then choose Send to email the guest."
+    },
+    {
+      "id": "chrome.instant_meet",
+      "version": 1,
+      "task": "start an instant google meet",
+      "app": "chrome",
+      "app_names": [
+        "google meet"
+      ],
+      "match_any": [
+        "meet",
+        "call",
+        "now",
+        "instant",
+        "quick",
+        "link"
+      ],
+      "not_if": [
+        "invite",
+        "calendar",
+        "schedule",
+        "{day}",
+        "{time}"
+      ],
+      "how": "In Chrome press Cmd+T, type meet.new and press Return. A new meeting opens on the join screen; check the camera and microphone buttons, then click Join now. The meeting link is in the address bar."
+    },
+    {
+      "id": "chrome.youtube_play",
+      "version": 1,
+      "task": "play a video on youtube",
+      "app": "chrome",
+      "app_names": [
+        "youtube"
+      ],
+      "match_any": [
+        "play",
+        "watch",
+        "video"
+      ],
+      "not_if": [],
+      "how": "In Chrome press Cmd+T, type youtube.com and press Return. Click the search box at the top, type what to play and press Return. Click the first matching video title, skipping results marked Ad or Sponsored. If an ad plays, wait for Skip and click it."
+    },
+    {
+      "id": "spotify.play",
+      "version": 2,
+      "task": "play music in spotify",
+      "app": "spotify",
+      "app_names": [
+        "spotify"
+      ],
+      "match_any": [
+        "play",
+        "music",
+        "song",
+        "playlist",
+        "album",
+        "listen",
+        "put on"
+      ],
+      "not_if": [
+        "youtube",
+        "video"
+      ],
+      "how": "Open Spotify with Spotlight (Cmd+Space, type Spotify, Return; if Spotlight is still showing, press Escape twice). Click the search box at the top (or press Cmd+K), type the song, artist or playlist. Click the top result, then the large green play button. Check the player bar at the bottom shows it playing."
+    },
+    {
+      "id": "chrome.gmail_reply",
+      "version": 1,
+      "task": "reply to an email in gmail",
+      "app": "chrome",
+      "app_names": [
+        "gmail",
+        "email",
+        "mail"
+      ],
+      "match_any": [
+        "reply",
+        "respond",
+        "answer",
+        "email",
+        "mail"
+      ],
+      "not_if": [
+        "new email",
+        "compose"
+      ],
+      "how": "In Chrome open mail.google.com. Click the search box at the top, type the sender's name and press Return, then click the newest matching email and check the sender and subject. Click Reply under the message and type the reply in the box. Read the draft to the user and click Send only after they confirm."
+    },
+    {
+      "id": "notes.add",
+      "version": 2,
+      "task": "add something to apple notes",
+      "app": "notes",
+      "app_names": [
+        "notes",
+        "apple notes",
+        "a note"
+      ],
+      "match_any": [
+        "note",
+        "notes",
+        "write down",
+        "jot",
+        "save"
+      ],
+      "not_if": [],
+      "how": "Open Notes with Spotlight (Cmd+Space, type Notes, Return; if Spotlight is still showing, press Escape twice). Press Cmd+N for a new note, or click the note to add to in the list. Type the text; the first line becomes the title. Notes saves by itself."
+    },
+    {
+      "id": "chrome.look_up",
+      "version": 1,
+      "task": "look something up on the web",
+      "app": "chrome",
+      "app_names": [
+        "google search",
+        "the web",
+        "online"
+      ],
+      "match_any": [
+        "look up",
+        "search",
+        "find out",
+        "weather",
+        "what is",
+        "what's",
+        "how much",
+        "when is"
+      ],
+      "not_if": [],
+      "how": "In Chrome press Cmd+T, type the question in the address bar and press Return to search. Read the answer from the top of the results; open a result only if the answer is not shown there."
+    }
+  ]
+}

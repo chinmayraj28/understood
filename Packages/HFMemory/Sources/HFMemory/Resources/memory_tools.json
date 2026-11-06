@@ -1,0 +1,133 @@
+{
+  "format": 1,
+  "about": "Memory voice tools: name, description (for the voice agent's LLM) and JSON Schema parameters. Behaviour and return shapes: docs/MEMORY.md section 9. Tier 0, timeout 10 s each.",
+  "tools": [
+    {
+      "name": "remember",
+      "description": "Save something the user explicitly asks you to remember about them, so you never have to ask again. Use it only when the user says \"remember\", \"always\", \"from now on\", \"by default\" or \"X is Y\" about a lasting preference. Examples: \"Remember that Mum is Amma on WhatsApp\" -> kind \"alias\", key \"Mum\", value \"Amma\", app \"whatsapp\". \"Always use my work account\" -> kind \"preference\", key \"google account\", value \"work\". \"Talk a bit slower\" said as a standing wish -> kind \"style\", key \"speech speed\", value \"slower\". \"My morning routine is mail, calendar and the news\" -> kind \"routine\", key \"morning routine\", value \"open mail, calendar and the news\". Do NOT use it for one-off instructions in a task (\"send it at 3\"), for message wording, or for passwords, codes, PINs, card or bank details (it refuses them). It cannot turn off confirmations: you still ask before sending, paying or deleting. Saying \"Got it\" is enough.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "alias",
+              "preference",
+              "style",
+              "routine",
+              "note"
+            ],
+            "description": "alias: a name -> who or what it means. preference: a standing choice (account, app, device). style: how you should behave. routine: a named set of steps. note: anything else."
+          },
+          "key": {
+            "type": "string",
+            "description": "What the user will say next time, e.g. 'Mum', 'google account', 'morning routine'."
+          },
+          "value": {
+            "type": "string",
+            "description": "What it means, e.g. 'Amma', 'work', 'open mail, calendar and the news'."
+          },
+          "app": {
+            "type": "string",
+            "description": "Only if it applies to one app, e.g. 'whatsapp'. Else leave empty."
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "value"
+        ]
+      },
+      "tier": 0,
+      "timeout_s": 10
+    },
+    {
+      "name": "recall",
+      "description": "Say what you remember about the user. Use it for \"what do you know about me?\", \"who is Mum?\", \"which account do I use?\". Pass `about` with the name or topic (\"Mum\", \"account\"); leave it empty for everything. Read the `say` text aloud as it is; it is already short. Don't use it to check memory before ordinary commands: what you know is already in your instructions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "about": {
+            "type": "string",
+            "description": "Name or topic, e.g. 'Mum' or 'google account'. Empty = everything."
+          }
+        },
+        "required": []
+      },
+      "tier": 0,
+      "timeout_s": 10
+    },
+    {
+      "name": "forget",
+      "description": "Delete what you remember about one name or topic, because the user asked. Examples: \"forget what I said about Priya\" -> about \"Priya\"; \"forget my music app\" -> about \"music app\". It takes effect at once and is wiped from disk. For \"forget everything\" use forget_everything instead. Do not use it when the user only corrects you (\"no, the other Priya\"): use correct_memory for that. Built-in app recipes are not removed by this.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "about": {
+            "type": "string",
+            "description": "The name or topic to forget, e.g. 'Priya'."
+          }
+        },
+        "required": [
+          "about"
+        ]
+      },
+      "tier": 0,
+      "timeout_s": 10
+    },
+    {
+      "name": "forget_everything",
+      "description": "Erase everything you remember about the user. Only when they ask to forget everything or wipe their memory. Always call it first WITHOUT `confirmed`: it returns a question; ask it aloud, and only if the user clearly says yes, call again with confirmed true. Never set confirmed true on the first call or without a spoken yes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "description": "True only after the user said yes to the question this tool returned."
+          }
+        },
+        "required": []
+      },
+      "tier": 0,
+      "timeout_s": 10
+    },
+    {
+      "name": "correct_memory",
+      "description": "Fix something you got wrong from memory. Use it when the user says you used the wrong name or choice: \"no, I meant the other Priya\", \"not that account, my personal one\", \"that's not Mum\". Pass `about` (the name or topic, e.g. \"Priya\") and, if you know it, `right_value` (what they meant, e.g. \"Priya Patel\"; with two options, the other one). The tool lowers trust in the old memory; continue the task with `use_now`. If the user says the change is permanent (\"Priya is always Priya Patel\"), use remember instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "about": {
+            "type": "string",
+            "description": "The name or topic that was wrong, e.g. 'Priya'. Empty = the memory you used most recently."
+          },
+          "right_value": {
+            "type": "string",
+            "description": "What the user actually meant, e.g. 'Priya Patel'. Empty if they did not say."
+          }
+        },
+        "required": []
+      },
+      "tier": 0,
+      "timeout_s": 10
+    },
+    {
+      "name": "recent_tasks",
+      "description": "Say what tasks you did recently, newest first. Use it for \"what did you just do?\", \"did that work?\", \"what have you done today?\". For the task running right now, use the task status tool instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "How many recent tasks, 1 to 5. Default 3."
+          }
+        },
+        "required": []
+      },
+      "tier": 0,
+      "timeout_s": 10
+    }
+  ]
+}

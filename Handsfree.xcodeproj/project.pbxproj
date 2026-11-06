@@ -1,0 +1,731 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00A6F8ABED3CC194045E9E5B /* HFEyes in Frameworks */ = {isa = PBXBuildFile; productRef = F36DCCE562BA2CD86E7F4148 /* HFEyes */; };
+		06D9640053BE73F3C618DAAD /* SetupCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7404D9EC5B165A1675B897EF /* SetupCheck.swift */; };
+		1347EC5B7DECE58376DD08C3 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4147E5849B329D450C8476 /* AppModel.swift */; };
+		138C59F0C2B7511AC33E0CE2 /* HFCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6FF43AA297AB46FB0582785B /* HFCore */; };
+		18FD1DEF9F2F415E2E962E2E /* DemoBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFDA0A491B00724ACD12E543 /* DemoBackdrop.swift */; };
+		1BF1F9BCE1B817E16267A2D2 /* OverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D0EB49AA83C987D3C44E1EA /* OverlayWindow.swift */; };
+		1E96527A5C3377DA38875170 /* SessionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FBA00C3F81E1DBAD2F1D61 /* SessionLog.swift */; };
+		22EA602C68CCF58A20B78253 /* CompanionGlyphs.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D75A1C20D58EE94E6B6F80 /* CompanionGlyphs.swift */; };
+		25B0C61D1F4B3C7B3BE566A3 /* Parts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D699160FBF478A6FD49ABAE /* Parts.swift */; };
+		27BFE9DF492CE1EF200E78CD /* SetupAndLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF57EBF81AA6EDEB78FC72C /* SetupAndLogTests.swift */; };
+		2860D2125E48BEA5317F37D7 /* BrandMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9A82A01D3E575C2E0BD0B8 /* BrandMarks.swift */; };
+		289AFA8E5F7AEA6468A0FA5C /* HFScreenAgent in Frameworks */ = {isa = PBXBuildFile; productRef = 280F09AB09D9383DB73D2E36 /* HFScreenAgent */; };
+		332E557F172F3216FBF4D889 /* DemoPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E080185EEEB5151CB8F907 /* DemoPlayer.swift */; };
+		3A4E7F74F3081E510F744C79 /* HFMemory in Frameworks */ = {isa = PBXBuildFile; productRef = C0F1A478D2F87236D913280D /* HFMemory */; };
+		424362B045AA69A17E281BE5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15680A1A8D6560F78419273A /* DesignSystem.swift */; };
+		4892EE5487DBB1BB935E9536 /* TargetMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D0671378A8FC12F7252088 /* TargetMarkerView.swift */; };
+		493D98D312D9AB0774B09B27 /* StandIns.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79633DCC171C8B4DA328C291 /* StandIns.swift */; };
+		4B075A0E7CBE970CAFCCBE18 /* SetupCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7404D9EC5B165A1675B897EF /* SetupCheck.swift */; };
+		603ECB36539227B732A727A8 /* LaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */; };
+		62B8ED2BDBEE98BB52BCD926 /* CompanionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4058C9A42C12D2E41BEA24AF /* CompanionOverlayView.swift */; };
+		731326FBB461FFCCE09CE517 /* HFDecisions in Frameworks */ = {isa = PBXBuildFile; productRef = 0747AD69BAD0A88DF65F8678 /* HFDecisions */; };
+		759AEA50F624F180A9553FF7 /* HFVoice in Frameworks */ = {isa = PBXBuildFile; productRef = EBD50D0BE97E5B54B0DE9BED /* HFVoice */; };
+		794A5889B5C10778557B42F8 /* SessionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FBA00C3F81E1DBAD2F1D61 /* SessionLog.swift */; };
+		8437EED51A6885FC02C171F9 /* PermissionChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8FA641322CD2FA5B8E65A95 /* PermissionChecker.swift */; };
+		84DEBE877362CCA9C69097A0 /* PointerTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E115A3E76D35A88F7CA068D2 /* PointerTracker.swift */; };
+		8C062E71ACEE878A3568AC1D /* DemoScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC289DE41FF93CDCF86E731 /* DemoScript.swift */; };
+		9393D65989D733EB6189D128 /* HFCore in Frameworks */ = {isa = PBXBuildFile; productRef = 33AA00B22515D43E4E00F227 /* HFCore */; };
+		95E95FB642FCEF85ECB6A5C2 /* CompanionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B8A76D3B38CDA27C8EE91A /* CompanionStateTests.swift */; };
+		97285740D9200C30908D689E /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A687EB15653D0939981D6E41 /* PanelView.swift */; };
+		9AECAB35EEBA23299C35F387 /* PartAssembly.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4199AC1CF7DBADDD5CFF9528 /* PartAssembly.swift */; };
+		AC4E46D3E0BE5E1B79377564 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 156EB28CA7CFEC29D6B61E73 /* AppCoordinator.swift */; };
+		AD702A4C5751F46B58B345F1 /* RealParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124575B1A30C339A5551AA6F /* RealParts.swift */; };
+		AFD52C59FBFB5375AE026D3F /* HandsfreeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FB2108AECCB4EA69DACC48 /* HandsfreeApp.swift */; };
+		B495AE1C67E8007F849CB89D /* CompanionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F0E41C3E4B474F3886BD6B /* CompanionModel.swift */; };
+		B7A3286964CE2A971A439815 /* MenuBarPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D57772024CEDA1B2D75FBDC /* MenuBarPanelManager.swift */; };
+		BFE35A4921A56FB8F7C74A53 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A8A3BE92F14C082816F1CA20 /* Assets.xcassets */; };
+		C5DF105903DB3E10EBF2B208 /* OverlayGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */; };
+		CB17A0327BE93D9F96CFDBAE /* HFTasks in Frameworks */ = {isa = PBXBuildFile; productRef = 067C2CD41B42536A33F2F72D /* HFTasks */; };
+		CF9C8606886E2B2772609FFE /* OverlayGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */; };
+		DBF19256549556E3E7E8E81A /* CompanionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */; };
+		E3A6A62CBFA3A8F01D7C3537 /* DemoScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC289DE41FF93CDCF86E731 /* DemoScript.swift */; };
+		F029A79C32062750A051A51E /* LaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */; };
+		F3E11D297CEBE26227FED3C8 /* CompanionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */; };
+		FA5CE22248A72D00B5D3646A /* HFHands in Frameworks */ = {isa = PBXBuildFile; productRef = 6710DDD967C73E1E7DFAF0A3 /* HFHands */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		083EC59394083B8C946037E4 /* HFScreenAgent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFScreenAgent; path = Packages/HFScreenAgent; sourceTree = SOURCE_ROOT; };
+		124575B1A30C339A5551AA6F /* RealParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealParts.swift; sourceTree = "<group>"; };
+		15680A1A8D6560F78419273A /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		156EB28CA7CFEC29D6B61E73 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		167415E6786C7C980793EB78 /* Handsfree.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Handsfree.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1680B5ACB91D55732E6671CF /* HandsfreeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HandsfreeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionState.swift; sourceTree = "<group>"; };
+		28C5A9F893B98174657A75A4 /* HFDecisions */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFDecisions; path = Packages/HFDecisions; sourceTree = SOURCE_ROOT; };
+		35F14EBBE603BA49ECCE3BE7 /* HFVoice */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFVoice; path = Packages/HFVoice; sourceTree = SOURCE_ROOT; };
+		3D0EB49AA83C987D3C44E1EA /* OverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindow.swift; sourceTree = "<group>"; };
+		3D699160FBF478A6FD49ABAE /* Parts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Parts.swift; sourceTree = "<group>"; };
+		3EC289DE41FF93CDCF86E731 /* DemoScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScript.swift; sourceTree = "<group>"; };
+		3FC4B976CC47D577E2740EFB /* HFEyes */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFEyes; path = Packages/HFEyes; sourceTree = SOURCE_ROOT; };
+		4058C9A42C12D2E41BEA24AF /* CompanionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionOverlayView.swift; sourceTree = "<group>"; };
+		4199AC1CF7DBADDD5CFF9528 /* PartAssembly.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartAssembly.swift; sourceTree = "<group>"; };
+		46FBA00C3F81E1DBAD2F1D61 /* SessionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLog.swift; sourceTree = "<group>"; };
+		5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOptions.swift; sourceTree = "<group>"; };
+		68B710BC5FEC29D784621C24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayGeometry.swift; sourceTree = "<group>"; };
+		7404D9EC5B165A1675B897EF /* SetupCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCheck.swift; sourceTree = "<group>"; };
+		74FB2108AECCB4EA69DACC48 /* HandsfreeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsfreeApp.swift; sourceTree = "<group>"; };
+		77B8A76D3B38CDA27C8EE91A /* CompanionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionStateTests.swift; sourceTree = "<group>"; };
+		79633DCC171C8B4DA328C291 /* StandIns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandIns.swift; sourceTree = "<group>"; };
+		7C590580290224DD83706E6D /* HFTasks */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFTasks; path = Packages/HFTasks; sourceTree = SOURCE_ROOT; };
+		7D57772024CEDA1B2D75FBDC /* MenuBarPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPanelManager.swift; sourceTree = "<group>"; };
+		96F015F7A9ED0BADDAAE1454 /* Handsfree.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Handsfree.entitlements; sourceTree = "<group>"; };
+		A687EB15653D0939981D6E41 /* PanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelView.swift; sourceTree = "<group>"; };
+		A8A3BE92F14C082816F1CA20 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		ADF57EBF81AA6EDEB78FC72C /* SetupAndLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupAndLogTests.swift; sourceTree = "<group>"; };
+		B1E080185EEEB5151CB8F907 /* DemoPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoPlayer.swift; sourceTree = "<group>"; };
+		B8FA641322CD2FA5B8E65A95 /* PermissionChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionChecker.swift; sourceTree = "<group>"; };
+		BB4147E5849B329D450C8476 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		BD66EC554B75680C696481C7 /* HFHands */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFHands; path = Packages/HFHands; sourceTree = SOURCE_ROOT; };
+		C8AB8576FBCDF562C1D0BEFE /* HFCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFCore; path = Packages/HFCore; sourceTree = SOURCE_ROOT; };
+		D1D0671378A8FC12F7252088 /* TargetMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetMarkerView.swift; sourceTree = "<group>"; };
+		D5D75A1C20D58EE94E6B6F80 /* CompanionGlyphs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionGlyphs.swift; sourceTree = "<group>"; };
+		D97D737780FC95A947034104 /* HFMemory */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HFMemory; path = Packages/HFMemory; sourceTree = SOURCE_ROOT; };
+		E115A3E76D35A88F7CA068D2 /* PointerTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerTracker.swift; sourceTree = "<group>"; };
+		E7F0E41C3E4B474F3886BD6B /* CompanionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionModel.swift; sourceTree = "<group>"; };
+		EFDA0A491B00724ACD12E543 /* DemoBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoBackdrop.swift; sourceTree = "<group>"; };
+		FD9A82A01D3E575C2E0BD0B8 /* BrandMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMarks.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D8513CEA2D00695AF8C1DE9E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9393D65989D733EB6189D128 /* HFCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F7D8B7F01676BBC33E488B2F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				731326FBB461FFCCE09CE517 /* HFDecisions in Frameworks */,
+				3A4E7F74F3081E510F744C79 /* HFMemory in Frameworks */,
+				FA5CE22248A72D00B5D3646A /* HFHands in Frameworks */,
+				00A6F8ABED3CC194045E9E5B /* HFEyes in Frameworks */,
+				CB17A0327BE93D9F96CFDBAE /* HFTasks in Frameworks */,
+				289AFA8E5F7AEA6468A0FA5C /* HFScreenAgent in Frameworks */,
+				759AEA50F624F180A9553FF7 /* HFVoice in Frameworks */,
+				138C59F0C2B7511AC33E0CE2 /* HFCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		14698F9DFE350F0B03C07B02 /* Demo */ = {
+			isa = PBXGroup;
+			children = (
+				EFDA0A491B00724ACD12E543 /* DemoBackdrop.swift */,
+				B1E080185EEEB5151CB8F907 /* DemoPlayer.swift */,
+				3EC289DE41FF93CDCF86E731 /* DemoScript.swift */,
+			);
+			path = Demo;
+			sourceTree = "<group>";
+		};
+		392767D642ECAAEAD839804A /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				FD9A82A01D3E575C2E0BD0B8 /* BrandMarks.swift */,
+				15680A1A8D6560F78419273A /* DesignSystem.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		5085FF8908A969A9AF0454AC /* HandsfreeTests */ = {
+			isa = PBXGroup;
+			children = (
+				77B8A76D3B38CDA27C8EE91A /* CompanionStateTests.swift */,
+				ADF57EBF81AA6EDEB78FC72C /* SetupAndLogTests.swift */,
+			);
+			path = HandsfreeTests;
+			sourceTree = "<group>";
+		};
+		735ECB8E068B13B4D41DE9AA /* Setup */ = {
+			isa = PBXGroup;
+			children = (
+				B8FA641322CD2FA5B8E65A95 /* PermissionChecker.swift */,
+				7404D9EC5B165A1675B897EF /* SetupCheck.swift */,
+			);
+			path = Setup;
+			sourceTree = "<group>";
+		};
+		7E1FB1342209E1CD5F0EF1B4 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				C8AB8576FBCDF562C1D0BEFE /* HFCore */,
+				28C5A9F893B98174657A75A4 /* HFDecisions */,
+				3FC4B976CC47D577E2740EFB /* HFEyes */,
+				BD66EC554B75680C696481C7 /* HFHands */,
+				D97D737780FC95A947034104 /* HFMemory */,
+				083EC59394083B8C946037E4 /* HFScreenAgent */,
+				7C590580290224DD83706E6D /* HFTasks */,
+				35F14EBBE603BA49ECCE3BE7 /* HFVoice */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		87D3F41198615D81CA2A17D5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				167415E6786C7C980793EB78 /* Handsfree.app */,
+				1680B5ACB91D55732E6671CF /* HandsfreeTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		983EC91F639CF9F0E05591FD /* Panel */ = {
+			isa = PBXGroup;
+			children = (
+				7D57772024CEDA1B2D75FBDC /* MenuBarPanelManager.swift */,
+				A687EB15653D0939981D6E41 /* PanelView.swift */,
+				46FBA00C3F81E1DBAD2F1D61 /* SessionLog.swift */,
+			);
+			path = Panel;
+			sourceTree = "<group>";
+		};
+		A2F7E36C0D954D7A3554722E = {
+			isa = PBXGroup;
+			children = (
+				BC3621E45A8DC07CC17FD007 /* Handsfree */,
+				5085FF8908A969A9AF0454AC /* HandsfreeTests */,
+				7E1FB1342209E1CD5F0EF1B4 /* Packages */,
+				87D3F41198615D81CA2A17D5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B31557F894A54217C8BE73F5 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				156EB28CA7CFEC29D6B61E73 /* AppCoordinator.swift */,
+				BB4147E5849B329D450C8476 /* AppModel.swift */,
+				74FB2108AECCB4EA69DACC48 /* HandsfreeApp.swift */,
+				5EF0A460AB43BD0D61BE9914 /* LaunchOptions.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		BC321F02203B1A2489A2F215 /* Integration */ = {
+			isa = PBXGroup;
+			children = (
+				4199AC1CF7DBADDD5CFF9528 /* PartAssembly.swift */,
+				3D699160FBF478A6FD49ABAE /* Parts.swift */,
+				124575B1A30C339A5551AA6F /* RealParts.swift */,
+				79633DCC171C8B4DA328C291 /* StandIns.swift */,
+			);
+			path = Integration;
+			sourceTree = "<group>";
+		};
+		BC3621E45A8DC07CC17FD007 /* Handsfree */ = {
+			isa = PBXGroup;
+			children = (
+				A8A3BE92F14C082816F1CA20 /* Assets.xcassets */,
+				96F015F7A9ED0BADDAAE1454 /* Handsfree.entitlements */,
+				68B710BC5FEC29D784621C24 /* Info.plist */,
+				B31557F894A54217C8BE73F5 /* App */,
+				F3AC0156510D34C12044B039 /* Companion */,
+				14698F9DFE350F0B03C07B02 /* Demo */,
+				392767D642ECAAEAD839804A /* Design */,
+				BC321F02203B1A2489A2F215 /* Integration */,
+				983EC91F639CF9F0E05591FD /* Panel */,
+				735ECB8E068B13B4D41DE9AA /* Setup */,
+			);
+			path = Handsfree;
+			sourceTree = "<group>";
+		};
+		F3AC0156510D34C12044B039 /* Companion */ = {
+			isa = PBXGroup;
+			children = (
+				D5D75A1C20D58EE94E6B6F80 /* CompanionGlyphs.swift */,
+				E7F0E41C3E4B474F3886BD6B /* CompanionModel.swift */,
+				4058C9A42C12D2E41BEA24AF /* CompanionOverlayView.swift */,
+				23C149AE03C8E8B64C8DDA6A /* CompanionState.swift */,
+				6C222EA2283C3D712DBA0097 /* OverlayGeometry.swift */,
+				3D0EB49AA83C987D3C44E1EA /* OverlayWindow.swift */,
+				E115A3E76D35A88F7CA068D2 /* PointerTracker.swift */,
+				D1D0671378A8FC12F7252088 /* TargetMarkerView.swift */,
+			);
+			path = Companion;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4199734CA9F5B3BF033B808F /* HandsfreeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C5EA2BD682D5874AFA89E6E9 /* Build configuration list for PBXNativeTarget "HandsfreeTests" */;
+			buildPhases = (
+				D59F7DB076ED4B56D5D03487 /* Sources */,
+				D8513CEA2D00695AF8C1DE9E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HandsfreeTests;
+			packageProductDependencies = (
+				33AA00B22515D43E4E00F227 /* HFCore */,
+			);
+			productName = HandsfreeTests;
+			productReference = 1680B5ACB91D55732E6671CF /* HandsfreeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		AE2BA1FC136A3AB766CAE52D /* Handsfree */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB5B968198595823A6FA4C80 /* Build configuration list for PBXNativeTarget "Handsfree" */;
+			buildPhases = (
+				80FC14BBDBB919F9CBE08B13 /* Sources */,
+				99AD4D84504367ED0A545DD0 /* Resources */,
+				F7D8B7F01676BBC33E488B2F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Handsfree;
+			packageProductDependencies = (
+				0747AD69BAD0A88DF65F8678 /* HFDecisions */,
+				C0F1A478D2F87236D913280D /* HFMemory */,
+				6710DDD967C73E1E7DFAF0A3 /* HFHands */,
+				F36DCCE562BA2CD86E7F4148 /* HFEyes */,
+				067C2CD41B42536A33F2F72D /* HFTasks */,
+				280F09AB09D9383DB73D2E36 /* HFScreenAgent */,
+				EBD50D0BE97E5B54B0DE9BED /* HFVoice */,
+				6FF43AA297AB46FB0582785B /* HFCore */,
+			);
+			productName = Handsfree;
+			productReference = 167415E6786C7C980793EB78 /* Handsfree.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F9FDC6D29F5456846C41531F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4199734CA9F5B3BF033B808F = {
+						ProvisioningStyle = Automatic;
+					};
+					AE2BA1FC136A3AB766CAE52D = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A8F9D1E8B879ADC5FAC77589 /* Build configuration list for PBXProject "Handsfree" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A2F7E36C0D954D7A3554722E;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3A49FCF84BDC77EE696768B7 /* XCLocalSwiftPackageReference "Packages/HFCore" */,
+				CBBCAA8681D3FC791BFEE095 /* XCLocalSwiftPackageReference "Packages/HFDecisions" */,
+				50F885724AC035A9ADBA068F /* XCLocalSwiftPackageReference "Packages/HFEyes" */,
+				9C416CF09CF1184223872880 /* XCLocalSwiftPackageReference "Packages/HFHands" */,
+				1A679525041453AD803D71A9 /* XCLocalSwiftPackageReference "Packages/HFMemory" */,
+				1B968BF06F5AB20A718E129D /* XCLocalSwiftPackageReference "Packages/HFScreenAgent" */,
+				F6541CA69B4B8746E7C54FD3 /* XCLocalSwiftPackageReference "Packages/HFTasks" */,
+				028777EF49C2F7668D08BB0D /* XCLocalSwiftPackageReference "Packages/HFVoice" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 87D3F41198615D81CA2A17D5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AE2BA1FC136A3AB766CAE52D /* Handsfree */,
+				4199734CA9F5B3BF033B808F /* HandsfreeTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		99AD4D84504367ED0A545DD0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFE35A4921A56FB8F7C74A53 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		80FC14BBDBB919F9CBE08B13 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC4E46D3E0BE5E1B79377564 /* AppCoordinator.swift in Sources */,
+				1347EC5B7DECE58376DD08C3 /* AppModel.swift in Sources */,
+				2860D2125E48BEA5317F37D7 /* BrandMarks.swift in Sources */,
+				22EA602C68CCF58A20B78253 /* CompanionGlyphs.swift in Sources */,
+				B495AE1C67E8007F849CB89D /* CompanionModel.swift in Sources */,
+				62B8ED2BDBEE98BB52BCD926 /* CompanionOverlayView.swift in Sources */,
+				DBF19256549556E3E7E8E81A /* CompanionState.swift in Sources */,
+				18FD1DEF9F2F415E2E962E2E /* DemoBackdrop.swift in Sources */,
+				332E557F172F3216FBF4D889 /* DemoPlayer.swift in Sources */,
+				8C062E71ACEE878A3568AC1D /* DemoScript.swift in Sources */,
+				424362B045AA69A17E281BE5 /* DesignSystem.swift in Sources */,
+				AFD52C59FBFB5375AE026D3F /* HandsfreeApp.swift in Sources */,
+				603ECB36539227B732A727A8 /* LaunchOptions.swift in Sources */,
+				B7A3286964CE2A971A439815 /* MenuBarPanelManager.swift in Sources */,
+				CF9C8606886E2B2772609FFE /* OverlayGeometry.swift in Sources */,
+				1BF1F9BCE1B817E16267A2D2 /* OverlayWindow.swift in Sources */,
+				97285740D9200C30908D689E /* PanelView.swift in Sources */,
+				9AECAB35EEBA23299C35F387 /* PartAssembly.swift in Sources */,
+				25B0C61D1F4B3C7B3BE566A3 /* Parts.swift in Sources */,
+				8437EED51A6885FC02C171F9 /* PermissionChecker.swift in Sources */,
+				84DEBE877362CCA9C69097A0 /* PointerTracker.swift in Sources */,
+				AD702A4C5751F46B58B345F1 /* RealParts.swift in Sources */,
+				1E96527A5C3377DA38875170 /* SessionLog.swift in Sources */,
+				06D9640053BE73F3C618DAAD /* SetupCheck.swift in Sources */,
+				493D98D312D9AB0774B09B27 /* StandIns.swift in Sources */,
+				4892EE5487DBB1BB935E9536 /* TargetMarkerView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D59F7DB076ED4B56D5D03487 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3E11D297CEBE26227FED3C8 /* CompanionState.swift in Sources */,
+				95E95FB642FCEF85ECB6A5C2 /* CompanionStateTests.swift in Sources */,
+				E3A6A62CBFA3A8F01D7C3537 /* DemoScript.swift in Sources */,
+				F029A79C32062750A051A51E /* LaunchOptions.swift in Sources */,
+				C5DF105903DB3E10EBF2B208 /* OverlayGeometry.swift in Sources */,
+				794A5889B5C10778557B42F8 /* SessionLog.swift in Sources */,
+				27BFE9DF492CE1EF200E78CD /* SetupAndLogTests.swift in Sources */,
+				4B075A0E7CBE970CAFCCBE18 /* SetupCheck.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1E57536110D5AC990939EF10 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.handsfree.HandsfreeTests;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		34EE14313F8F4D655E812149 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		583AFD21EF1C27EDF97E4055 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Handsfree/Handsfree.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = NO;
+				INFOPLIST_FILE = Handsfree/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.handsfree.Handsfree;
+				PRODUCT_NAME = Handsfree;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		5DD5FFBC6F1A40A20506F9FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		82E817A076097C12FE20E814 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.handsfree.HandsfreeTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		9605983118EAA4904885EB3D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Handsfree/Handsfree.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = NO;
+				INFOPLIST_FILE = Handsfree/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.handsfree.Handsfree;
+				PRODUCT_NAME = Handsfree;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A8F9D1E8B879ADC5FAC77589 /* Build configuration list for PBXProject "Handsfree" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				34EE14313F8F4D655E812149 /* Debug */,
+				5DD5FFBC6F1A40A20506F9FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AB5B968198595823A6FA4C80 /* Build configuration list for PBXNativeTarget "Handsfree" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9605983118EAA4904885EB3D /* Debug */,
+				583AFD21EF1C27EDF97E4055 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C5EA2BD682D5874AFA89E6E9 /* Build configuration list for PBXNativeTarget "HandsfreeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E57536110D5AC990939EF10 /* Debug */,
+				82E817A076097C12FE20E814 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		028777EF49C2F7668D08BB0D /* XCLocalSwiftPackageReference "Packages/HFVoice" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFVoice;
+		};
+		1A679525041453AD803D71A9 /* XCLocalSwiftPackageReference "Packages/HFMemory" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFMemory;
+		};
+		1B968BF06F5AB20A718E129D /* XCLocalSwiftPackageReference "Packages/HFScreenAgent" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFScreenAgent;
+		};
+		3A49FCF84BDC77EE696768B7 /* XCLocalSwiftPackageReference "Packages/HFCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFCore;
+		};
+		50F885724AC035A9ADBA068F /* XCLocalSwiftPackageReference "Packages/HFEyes" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFEyes;
+		};
+		9C416CF09CF1184223872880 /* XCLocalSwiftPackageReference "Packages/HFHands" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFHands;
+		};
+		CBBCAA8681D3FC791BFEE095 /* XCLocalSwiftPackageReference "Packages/HFDecisions" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFDecisions;
+		};
+		F6541CA69B4B8746E7C54FD3 /* XCLocalSwiftPackageReference "Packages/HFTasks" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/HFTasks;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		067C2CD41B42536A33F2F72D /* HFTasks */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFTasks;
+		};
+		0747AD69BAD0A88DF65F8678 /* HFDecisions */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFDecisions;
+		};
+		280F09AB09D9383DB73D2E36 /* HFScreenAgent */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFScreenAgent;
+		};
+		33AA00B22515D43E4E00F227 /* HFCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFCore;
+		};
+		6710DDD967C73E1E7DFAF0A3 /* HFHands */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFHands;
+		};
+		6FF43AA297AB46FB0582785B /* HFCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFCore;
+		};
+		C0F1A478D2F87236D913280D /* HFMemory */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFMemory;
+		};
+		EBD50D0BE97E5B54B0DE9BED /* HFVoice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFVoice;
+		};
+		F36DCCE562BA2CD86E7F4148 /* HFEyes */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HFEyes;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F9FDC6D29F5456846C41531F /* Project object */;
+}

@@ -1,0 +1,114 @@
+# XcodeGen spec for the Handsfree app. `scripts/build_app.sh` turns this into
+# Handsfree.xcodeproj, so nobody hand-edits a project file.
+#
+# Local packages: HFCore is always linked. The other packages under Packages/
+# are linked only when they are listed in Handsfree/LinkedPackages.txt, exist,
+# and compile. The build script writes that list into
+# build/generated/linked-packages.yml, which is included below; XcodeGen
+# appends its `packages` and `dependencies` to the ones here.
+name: Handsfree
+
+include:
+  - path: build/generated/linked-packages.yml
+    relativePaths: false
+
+options:
+  bundleIdPrefix: com.handsfree
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  HFCore:
+    path: Packages/HFCore
+
+targets:
+  Handsfree:
+    type: application
+    platform: macOS
+    sources:
+      - path: Handsfree
+        excludes:
+          - "LinkedPackages.txt"
+    dependencies:
+      - package: HFCore
+    info:
+      path: Handsfree/Info.plist
+      properties:
+        CFBundleDisplayName: Handsfree
+        CFBundleName: Handsfree
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.utilities
+        # Menu bar only: no Dock icon, no app menu.
+        LSUIElement: true
+        NSHumanReadableCopyright: "Handsfree. Contains code adapted from Clicky (MIT, Farza)."
+        NSMicrophoneUsageDescription: "Handsfree listens all the time so you can run your Mac by speaking. Nothing is recorded to disk."
+        NSScreenCaptureUsageDescription: "Handsfree looks at your screen so it can find the button or field it is about to use for you."
+    entitlements:
+      path: Handsfree/Handsfree.entitlements
+      properties:
+        # Posting pointer and key events and reading the accessibility tree are
+        # impossible inside the sandbox.
+        com.apple.security.app-sandbox: false
+        # Required by the hardened runtime for microphone input.
+        com.apple.security.device.audio-input: true
+    settings:
+      base:
+        PRODUCT_NAME: Handsfree
+        PRODUCT_BUNDLE_IDENTIFIER: com.handsfree.Handsfree
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+        # Signing is chosen by scripts/build_app.sh (a stable Apple Development
+        # identity, so macOS keeps the permission grants across rebuilds).
+        # These defaults only apply when building inside Xcode by hand.
+        CODE_SIGN_STYLE: Automatic
+        COMBINE_HIDPI_IMAGES: YES
+        ENABLE_PREVIEWS: NO
+
+  HandsfreeTests:
+    type: bundle.unit-test
+    platform: macOS
+    # Not hosted in the app: the tests compile the pure logic files directly,
+    # so running them never puts an overlay on the screen.
+    sources:
+      - path: HandsfreeTests
+      - path: Handsfree/Companion/CompanionState.swift
+      - path: Handsfree/Companion/OverlayGeometry.swift
+      - path: Handsfree/Panel/SessionLog.swift
+      - path: Handsfree/Setup/SetupCheck.swift
+      - path: Handsfree/Demo/DemoScript.swift
+      - path: Handsfree/App/LaunchOptions.swift
+    dependencies:
+      - package: HFCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.handsfree.HandsfreeTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+
+schemes:
+  Handsfree:
+    build:
+      targets:
+        Handsfree: all
+        HandsfreeTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - HandsfreeTests
+    archive:
+      config: Release

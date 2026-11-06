@@ -1,0 +1,34 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# local output
+graphify-out/
+logs/
+*.log
+.DS_Store
+
+# retired Python prototype, reference only
+legacy_python/
+
+# swift
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+build/
+
+# one live run at a time (scripts/live_lock.sh)
+.live-lock/
