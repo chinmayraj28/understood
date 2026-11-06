@@ -26,7 +26,7 @@ scripts/run_app.sh --wait --render-states DIR # draw the companion's states into
 
 Moments for `--freeze`: asleep, waking, listening, speaking, heard, thinking, progress, moving, clicked, typing, asking, holding, answering, done, stopped, disconnected, reconnected, failed, asleep-again.
 
-`--render-states` is for design review without the Screen Recording permission: it draws the companion's real SwiftUI views for asleep, waking, awake and a few existing states, over a light and a dark background, framed like the photographs in `docs/research/screens/`, plus the panel. It puts nothing on screen. (The offscreen renderer cannot draw AppKit buttons, so in the panel image they appear as yellow placeholder boxes; the real panel draws them.)
+`--render-states` is for design review without the Screen Recording permission: it draws the companion's real SwiftUI views for asleep, waking, awake and a few existing states, over a light and a dark background, framed like the photographs in `docs/research/screens/`, plus the panel. It puts nothing on screen. (SwiftUI's offscreen renderer cannot draw AppKit views and puts a yellow "no entry" placeholder in their place. The only one in the app is the invisible pointing-hand cursor layer on buttons (`pointerCursor()`), so the renderer sets `drawsForSnapshot` and leaves that layer out; the panel's buttons now render as they look. The real panel draws them too: see the close button in `17-panel.png`.)
 
 **Wake settings** (in `.env`, all optional): `WAKE_PHRASE` (default `Hey Handsfree`), `WAKE_MODE` (`phrase`, the default, or `always` to keep one conversation open as before, for demos and testing), `SLEEP_AFTER_IDLE_S` (default 25, at least 5).
 
@@ -83,7 +83,7 @@ scripts/build_app.sh, run_app.sh, render_app_icon.swift
 10. Voice: `VoiceSession` is *prepared* once with every tool (quick, memory, task, and HFVoice's `go_to_sleep`) and memory's summary. That updates the agent's definition on ElevenLabs once, in the background, and fetches a connection token ahead of the first wake. Every sentence the user says goes to the stop watcher. No conversation is opened here.
 11. Listening cycle: HFWake's `ListeningCycle` with its on-device `WakeListener` (wake mode "phrase", the default). The app starts **asleep**; on the phrase the cycle posts `.waking`, stops the wake listener so the conversation can have the microphone, and opens a conversation with the rest of the sentence as the user's first turn; after `SLEEP_AFTER_IDLE_S` with nothing going on it closes the conversation, posts `.asleep` and listens for the phrase again. "Nothing going on" is built in `CycleWiring.snapshot`: no task running or waiting for an answer, nobody speaking, the agent not talking or thinking or running a tool, and no task event still to be said. In wake mode "always", or if HFWake is not linked, `AlwaysOpenCycle` keeps one conversation open, as before.
 
-The cycle starts only once the Microphone permission, the Speech Recognition permission (wake-phrase mode only) and the ElevenLabs key are in place; until then the companion says what it is waiting for.
+The cycle starts only once the Microphone permission, the Speech Recognition permission (only if the wake listener needs it, which it does not on macOS 26) and the ElevenLabs key are in place; until then the companion says what it is waiting for.
 
 **Why a task keeps it awake:** a spoken "stop" is heard by the voice session and passed to the stop watcher. While a task runs or waits for an answer, the cycle never closes the conversation, so there is always a session to hear "stop", and the hold-while-speaking signal (`isUserSpeaking`) works as before. While asleep there is no task, `isUserSpeaking` is false, and nothing is held.
 
@@ -148,15 +148,19 @@ What still has to happen: the user grants the four permissions, then one spoken 
 
 **Not yet verified:** that a grant actually survives a rebuild on this Mac. That needs one real grant, and only the user can click Allow. The steps are below; afterwards: rebuild, relaunch, and check `app-status.json`. Expected result, from the designated requirement above: all three stay granted. Inferred, not yet observed.
 
-**What the user (or a helper) must do once:**
-1. Run `scripts/run_app.sh --request-permissions --show-panel`.
-2. Microphone dialog: click **Allow**.
-3. Speech Recognition dialog: click **Allow** (the wake phrase is recognised on this Mac; nothing said leaves the Mac until the phrase is heard).
+**What the user (or a helper) must do once, on this Mac (macOS 26):**
+1. Make sure the Mac is online (the first start of the wake listener downloads Apple's speech model; no audio is sent).
+2. Run `scripts/run_app.sh --request-permissions --show-panel`.
+3. Microphone dialog: click **Allow**.
 4. Accessibility dialog: click **Open System Settings**, switch **Handsfree** on (macOS may ask for the password).
 5. System Settings > Privacy & Security > **Screen & System Audio Recording**: switch **Handsfree** on, and choose **Quit & Reopen** if offered (macOS applies this one only after a restart).
-The panel lists exactly what is still missing, in words written for whoever is helping, with an "Ask macOS" or "Open Settings" button for each. Speech Recognition is asked for only in wake mode "phrase" (the default). Its usage text is `NSSpeechRecognitionUsageDescription` in `project.yml`.
+6. In the panel's LISTENING section, wait for "Wake listener: listening on this Mac for “Hey Handsfree”".
 
-**Granting them one at a time is fine.** The app checks every 2 s. The listening cycle starts the moment the Microphone permission, the Speech Recognition permission and the ElevenLabs key are all in place, and until then the companion and the panel say exactly which are still missing ("Waiting for the Microphone permission and the Speech Recognition permission."). Voice works without Accessibility and Screen Recording; tasks then fail with a sentence saying why.
+**Speech Recognition is not asked for here.** The wake listener uses Apple's SpeechAnalyzer on macOS 26, which needs only the Microphone (checked on 6 Nov: `SpeechTranscriber.isAvailable` is true and `en_IN` is supported on this Mac). The app asks the listener (`WakePermissions.needsSpeechRecognition` in HFWake) and adds a Speech Recognition step, dialog and panel dot only when it falls back to the older recogniser, on earlier macOS. `app-status.json` records this as `wake_listener_needs_speech_recognition`. The usage text `NSSpeechRecognitionUsageDescription` stays in `project.yml` for that fallback.
+
+The panel lists exactly what is still missing, in words written for whoever is helping, with an "Ask macOS" or "Open Settings" button for each.
+
+**Granting them one at a time is fine.** The app checks every 2 s. The listening cycle starts the moment the Microphone permission and the ElevenLabs key (and Speech Recognition, only where the wake listener needs it) are in place, and until then the companion and the panel say exactly which are still missing ("Waiting for the Microphone permission."). Voice works without Accessibility and Screen Recording; tasks then fail with a sentence saying why.
 
 **Diagnosis: the panel's LISTENING section and `app-status.json` → `listening`.** They show:
 - which permissions are granted (one dot each);

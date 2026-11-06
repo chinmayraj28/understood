@@ -258,6 +258,18 @@ enum RealParts {
 
     /// The listening cycle for wake-phrase mode: asleep at launch, wakes on the phrase,
     /// sleeps after `sleepAfterIdleSeconds` with nothing going on.
+    /// Whether the wake listener needs the Speech Recognition permission on this Mac, asked of the
+    /// listener itself. On macOS 26 it uses Apple's SpeechAnalyzer, which needs only the
+    /// Microphone; only the older recogniser it falls back to elsewhere needs Speech Recognition.
+    /// Checked on 6 Nov: false on this Mac (macOS 26.3.1, SpeechTranscriber available, en_IN).
+    static func wakeListenerNeedsSpeechRecognition() -> Bool {
+        #if canImport(HFWake)
+        return WakePermissions.needsSpeechRecognition
+        #else
+        return false
+        #endif
+    }
+
     /// `onListenerEvent` is told what the wake listener does, as counts-only events (never what was said).
     static func makeListeningCycle(
         settings: HFCore.Settings, hooks: CycleHooks, bus: ActivityBus,

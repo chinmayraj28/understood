@@ -227,7 +227,30 @@ private struct PointerCursorView: NSViewRepresentable {
 extension View {
     /// Shows the pointing-hand cursor over an interactive control.
     func pointerCursor(isEnabled: Bool = true) -> some View {
-        overlay { if isEnabled { PointerCursorView() } }
+        overlay { PointerCursorOverlay(isEnabled: isEnabled) }
+    }
+}
+
+/// True while views are drawn to an image off screen (`--render-states`). SwiftUI's ImageRenderer
+/// cannot draw AppKit views and puts a yellow "no entry" placeholder in their place, which hid
+/// every button in the panel render. The cursor view draws nothing anyway, so it is left out then.
+private struct DrawsForSnapshotKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var drawsForSnapshot: Bool {
+        get { self[DrawsForSnapshotKey.self] }
+        set { self[DrawsForSnapshotKey.self] = newValue }
+    }
+}
+
+private struct PointerCursorOverlay: View {
+    let isEnabled: Bool
+    @Environment(\.drawsForSnapshot) private var drawsForSnapshot
+
+    var body: some View {
+        if isEnabled && !drawsForSnapshot { PointerCursorView() }
     }
 }
 

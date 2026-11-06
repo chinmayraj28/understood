@@ -51,20 +51,34 @@ enum StateSnapshots {
                 }
             }
         }
-        // The panel while asleep, with Speech Recognition still to grant, as a helper sees it at first run.
-        let facts = SetupFacts(
+        // The panel as a helper sees it: at first run on this Mac (nothing granted yet; Speech
+        // Recognition asked for only if the wake listener needs it here), and once set up and asleep.
+        let needsSpeech = RealParts.wakeListenerNeedsSpeechRecognition()
+        let firstRun = SetupFacts(
             hasElevenLabsKey: true, hasAnthropicKey: true, hasOpenRouterKey: true,
-            microphone: .granted, accessibility: .granted, screenRecording: .granted,
-            speechRecognition: .notAsked, needsSpeechRecognition: true, keysFilePath: "~/Library/Application Support/Handsfree/.env")
-        let app = AppModel(setupFacts: facts)
-        app.listening.waitingFor = "the Speech Recognition permission"
-        let companion = CompanionModel(bus: ActivityBus())
-        companion.handle(.asleep(wakePhrase: "Hey Handsfree"))
-        let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in }, onPlayDemo: {})
-            .frame(width: 372)
-            .environment(\.colorScheme, .dark)
-        let panelURL = folder.appendingPathComponent("24-panel-asleep.png")
-        if write(panel, to: panelURL) { written.append(panelURL) }
+            microphone: .notAsked, accessibility: .notAsked, screenRecording: .notAsked,
+            speechRecognition: .notAsked, needsSpeechRecognition: needsSpeech, keysFilePath: "~/Library/Application Support/Handsfree/.env")
+        var ready = firstRun
+        ready.microphone = .granted; ready.accessibility = .granted; ready.screenRecording = .granted; ready.speechRecognition = .granted
+        for (name, facts, asleep) in [("24-panel-first-run", firstRun, false), ("26-panel-asleep-ready", ready, true)] {
+            let app = AppModel(setupFacts: facts)
+            let companion = CompanionModel(bus: ActivityBus())
+            if asleep {
+                app.listening.cycleState = "asleep"
+                app.listening.listenerRunning = true
+                app.listening.record(.started(recognizer: "SpeechAnalyzer (en_IN)"), at: start)
+                app.listening.record(.speechWithoutPhrase, at: start)
+                app.listening.record(.woke, at: start)
+                companion.handle(.asleep(wakePhrase: "Hey Handsfree"))
+            } else {
+                app.listening.waitingFor = needsSpeech ? "the Microphone permission and the Speech Recognition permission" : "the Microphone permission"
+            }
+            let panel = PanelView(app: app, companion: companion, onSetupAction: { _ in }, onPlayDemo: {})
+                .frame(width: 372)
+                .environment(\.colorScheme, .dark)
+            let url = folder.appendingPathComponent("\(name).png")
+            if write(panel, to: url) { written.append(url) }
+        }
         return written
     }
 
@@ -75,7 +89,7 @@ enum StateSnapshots {
     }
 
     private static func write<Content: View>(_ view: Content, to url: URL) -> Bool {
-        let renderer = ImageRenderer(content: view)
+        let renderer = ImageRenderer(content: view.environment(\.drawsForSnapshot, true))
         renderer.scale = 2
         guard let image = renderer.cgImage,
             let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])

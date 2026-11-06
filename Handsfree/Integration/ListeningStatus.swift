@@ -81,9 +81,14 @@ struct ListeningStatus: Equatable {
         if let waitingFor { return "Wake listener: not started. Waiting for \(waitingFor)." }
         if let listenerProblem { return "Wake listener: not running. \(listenerProblem)" }
         if listenerRunning {
-            return "Wake listener: listening on this Mac for \u{201C}\(wakePhrase)\u{201D}" + (recognizer.map { " (\($0))." } ?? ".")
+            return "Wake listener: listening on this Mac for \u{201C}\(wakePhrase)\u{201D}" + (recognizer.map { ", using \($0)." } ?? ".")
         }
         if conversationOpen { return "Wake listener: paused while the conversation has the microphone." }
+        if cycleState == "asleep" {
+            // HFWake marks itself asleep, then starts the listener; the first start downloads
+            // Apple's speech model, which can take a while and needs the internet once.
+            return "Wake listener: starting. The first start downloads Apple's speech model (no audio is sent), which needs the internet once."
+        }
         return "Wake listener: not running (\(cycleState))."
     }
 

@@ -391,3 +391,16 @@ struct ListeningStatusTests {
         #expect(!state.sleepHintHeardOtherSpeech)
     }
 }
+
+@Suite("Listening status while the listener starts")
+struct ListeningStartTests {
+    @Test("Asleep but not yet listening says it is starting, and why that can take a while")
+    func starting() {
+        var status = ListeningStatus()
+        status.cycleState = "asleep"
+        #expect(status.listenerLine.contains("starting") && status.listenerLine.contains("speech model"))
+        status.listenerRunning = true
+        status.record(.started(recognizer: "SpeechAnalyzer (en_IN)"), at: Date())
+        #expect(status.listenerLine == "Wake listener: listening on this Mac for \u{201C}Hey Handsfree\u{201D}, using SpeechAnalyzer (en_IN).")
+    }
+}

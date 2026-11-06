@@ -208,7 +208,7 @@ final class AppCoordinator {
             for hook in launchHooks { await hook() }
         }
         recordCycle(real: Self.usesWakePhrase(settings: settings) || settings.wakeMode == .always,
-                    note: "Not started yet: it starts once \(Self.usesWakePhrase(settings: settings) ? "the Microphone and Speech Recognition permissions" : "the Microphone permission") and the ElevenLabs key are in place.")
+                    note: "Not started yet: it starts once \(appModel.setupFacts.needsSpeechRecognition ? "the Microphone and Speech Recognition permissions" : "the Microphone permission") and the ElevenLabs key are in place.")
         startListeningIfReady()
     }
 
@@ -342,7 +342,8 @@ final class AppCoordinator {
             accessibility: PermissionChecker.status(of: .accessibility),
             screenRecording: PermissionChecker.status(of: .screenRecording),
             speechRecognition: PermissionChecker.status(of: .speechRecognition),
-            needsSpeechRecognition: usesWakePhrase(settings: settings),
+            // Only when the wake listener says it needs it (the older recogniser); never on macOS 26.
+            needsSpeechRecognition: usesWakePhrase(settings: settings) && RealParts.wakeListenerNeedsSpeechRecognition(),
             keysFilePath: keysFilePath())
     }
 
@@ -503,11 +504,12 @@ final class AppCoordinator {
             "microphone": describe(facts.microphone),
             "accessibility": describe(facts.accessibility),
             "screen_recording": describe(facts.screenRecording),
-            "speech_recognition": facts.needsSpeechRecognition ? describe(facts.speechRecognition) : "not needed",
+            "speech_recognition": facts.needsSpeechRecognition ? describe(facts.speechRecognition) : "not needed (the wake listener uses SpeechAnalyzer, which needs only the Microphone)",
             "wake_mode": settings.wakeMode.rawValue,
             "wake_phrase": settings.wakePhrase,
             "sleep_after_idle_seconds": settings.sleepAfterIdleSeconds,
-            "listens_for_wake_phrase": facts.needsSpeechRecognition,
+            "listens_for_wake_phrase": Self.usesWakePhrase(settings: settings),
+            "wake_listener_needs_speech_recognition": facts.needsSpeechRecognition,
             "keys_present": [
                 "ELEVENLABS_API_KEY": facts.hasElevenLabsKey,
                 "ANTHROPIC_API_KEY": facts.hasAnthropicKey,
