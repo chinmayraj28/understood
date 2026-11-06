@@ -56,7 +56,8 @@ One sentence and one confirmation.
 **The agent uses the laptop the way a person does.** It looks at the screen, moves the real pointer, clicks, scrolls and presses keys, in the user's own apps and their own Chrome. Nothing is scripted behind the scenes. The user watches the pointer travel to the Send button, which is how they can trust it and stop it.
 
 ```
- ElevenLabs Agent (always-on mic, no button: the user has no hands)
+ Wake phrase ("Hey Handsfree"), heard on the Mac itself: no button, because the user has no hands
+ ElevenLabs Agent (a conversation opens on waking and closes after a short silence)
    hears, talks, asks clarifying questions, handles barge-in
    │ calls local tools on the Mac
    ▼
@@ -91,7 +92,7 @@ One sentence and one confirmation.
 ## 5. Prototype scope (what I'll build by 11 Nov)
 
 - A native Swift macOS app that lives in the menu bar, with a companion beside the pointer that shows what it is doing. Its shell is built on Clicky's open-source code.
-- Hands-free activation: the microphone is always on, with no button and no push-to-talk. A wake word is a later step (see section 7).
+- Hands-free activation: a wake phrase ("Hey Handsfree"), with no button and no push-to-talk. The phrase is listened for on the laptop itself, so nothing is sent anywhere, and no ElevenLabs minutes are used, until the user speaks to it. The conversation closes again after a short silence.
 - Fast path: about 15 core commands (open app, scroll, switch window, type this, volume and so on).
 - Smart path: works reliably on **3 demo tasks**:
   1. "WhatsApp Mum: running late, ten minutes." The agent drafts it, reads it back, and sends only after a spoken yes.
@@ -120,7 +121,7 @@ One sentence and one confirmation.
 
 - **Jev before the LLM.** Move to my own voice pipeline so Jev routes each sentence first. "Scroll down" would then run in about half a second with no LLM call, and Jev could also decide when a slow speaker has finished talking.
 - **Personal speech models.** Adapt recognition to each user's voice, including slurred or atypical speech.
-- **Wake word or speaker check.** So a television or another person in the room can't give commands.
+- **Knowing who is speaking.** The wake phrase stops a television or a passer-by starting a conversation, but once one is open, another person in the room could still give a command. A check that the voice is the user's own would close that.
 - **Routines.** "Do my morning routine" opens email, calendar and news in one go.
 - **Testing with real users.** Work with disability organisations to see where it breaks.
 

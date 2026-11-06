@@ -15,7 +15,7 @@ Three rules set by the user:
 ## How the pieces run
 
 ```
- YOU (speaking)  ── microphone, always on ──▶  ElevenLabs Agent (cloud): hears, talks, handles interruption
+ YOU (speaking)  ── "Hey Handsfree" heard on the Mac itself (HFWake) ──▶  a conversation opens ──▶  ElevenLabs Agent (cloud): hears, talks, handles interruption
                                                    │ calls tools on the Mac
  ┌─────────────────────────────────────────────────▼──────────────────────────────────────────┐
  │ Handsfree.app  (Swift, menu bar + overlay; shell adapted from Clicky)                        │
@@ -49,7 +49,8 @@ Each package is its own Swift package under `Packages/`, depends on `HFCore` by 
 | `HFEyes` | native | Screenshots; read-only accessibility lookups | `ScreenEyes` (conforms to `Eyes`), `AccessibilityLabels` (conforms to `Labels`) |
 | `HFTasks` | runner | Task state machine and task voice tools | `TaskRunner`, `TaskTools` |
 | `HFScreenAgent` | web | Claude client; the look, decide, check, act loop | `ClaudeClient` (conforms to `StructuredLanguageModel`), `ScreenAgent` (conforms to `TaskExecuting`) |
-| `HFVoice` | voice | ElevenLabs conversation, agent definition, agent setup | `VoiceSession`, `AgentConfiguration` |
+| `HFVoice` | voice | ElevenLabs conversation, agent definition, agent setup. A conversation is opened on waking and closed on going back to sleep | `VoiceSession`, `AgentConfiguration` |
+| `HFWake` | wake | Listening for the wake phrase on the Mac itself, deciding whether a transcript contains it, and the asleep/awake cycle | a listener conforming to `WakeListening`, the phrase matcher, the listening cycle |
 | `Handsfree/` + `Handsfree.xcodeproj` | app | The app itself, adapted from Clicky: menu bar panel, overlay companion, onboarding, and the composition root that wires every package together | |
 
 Shared, language-neutral data lives in `Fixtures/` (golden examples, recipes, tool definitions) and prompts live in `docs/prompts/`. Load them from the package that needs them by copying them in as package resources.
