@@ -1,0 +1,346 @@
+/* Stage switches, comparison, evaluation, setup dialog and footer. */
+
+.try-grid {
+  display: grid;
+  gap: 24px;
+  margin: 24px 0 28px;
+}
+@media (min-width: 1040px) {
+  .try-grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.switches {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  gap: 10px;
+}
+.switch {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-height: 72px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: var(--radius-m);
+  border: 2px solid var(--rule);
+  background: var(--surface);
+  cursor: pointer;
+}
+.switch:hover {
+  border-color: var(--ink-2);
+}
+.switch-knob {
+  flex-shrink: 0;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  margin-top: 2px;
+  border-radius: 13px;
+  background: var(--rail-off);
+  transition: background var(--speed) var(--ease);
+}
+.switch-knob::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform var(--speed) var(--ease);
+}
+.switch.on .switch-knob {
+  background: var(--act);
+}
+.switch.on .switch-knob::after {
+  transform: translateX(20px);
+}
+.switch:not(.on) {
+  background: var(--sunk);
+}
+.switch-words {
+  display: grid;
+}
+.switch-name {
+  font-weight: 800;
+}
+.switch-what {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+  line-height: 1.4;
+}
+.switches-note {
+  grid-column: 1 / -1;
+  font-size: var(--t-0);
+}
+
+.settings {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  border: 2px solid var(--rule);
+}
+.slider {
+  display: grid;
+  gap: 6px;
+}
+.slider input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--ink);
+}
+.check {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+.check input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--ink);
+}
+
+.compare {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 760px) {
+  .compare {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.compare-empty {
+  padding: 18px;
+  border-radius: var(--radius-m);
+  border: 2px dashed var(--rule);
+}
+.summary {
+  padding: 18px 20px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  border: 2px solid var(--rule);
+}
+.summary:last-child {
+  border-color: var(--ink);
+}
+.summary-off {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+  margin: 2px 0 12px;
+}
+.summary dl {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.summary-row {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  gap: 10px;
+}
+.summary dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--t-0);
+}
+.summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.route-word.route-act {
+  color: var(--act);
+  font-weight: 700;
+}
+.route-word.route-ask {
+  color: var(--ask);
+  font-weight: 700;
+}
+.route-word.route-stop {
+  color: var(--stop);
+  font-weight: 700;
+}
+
+/* ── Evaluation ────────────────────────────────────────────── */
+.eval {
+  margin-top: 24px;
+}
+.placeholder-banner {
+  padding: 10px 16px;
+  border-radius: var(--radius-s);
+  background: repeating-linear-gradient(-45deg, var(--mark) 0 14px, #fff0a8 14px 28px);
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.eval-dataset {
+  color: var(--ink-2);
+  max-width: 70ch;
+  margin-bottom: 14px;
+}
+.table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-m);
+  border: 2px solid var(--rule);
+  background: var(--surface);
+}
+.eval-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+.eval-table th,
+.eval-table td {
+  padding: 12px 14px;
+  text-align: right;
+  border-bottom: 1px solid var(--rule);
+}
+.eval-table th:first-child {
+  text-align: left;
+}
+.eval-table thead th {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+  vertical-align: bottom;
+}
+.eval-table tbody th {
+  font-weight: 700;
+}
+.eval-table tr.best {
+  background: var(--act-wash);
+}
+.eval-table .warn {
+  color: var(--stop);
+}
+.cell-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.cell-bar .bar {
+  width: 90px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--sunk);
+  overflow: hidden;
+}
+.cell-bar .bar span {
+  display: block;
+  height: 100%;
+  background: var(--act);
+}
+.eval-key {
+  margin-top: 12px;
+  font-size: var(--t-0);
+  max-width: 80ch;
+}
+.eval-replays-title {
+  margin: 28px 0 12px;
+}
+.eval-replays {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 10px;
+}
+
+/* ── Setup dialog ──────────────────────────────────────────── */
+.enrol {
+  width: min(760px, calc(100vw - 2 * var(--gutter)));
+  max-height: calc(100vh - 32px);
+  border: 0;
+  border-radius: var(--radius-l);
+  padding: 28px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.enrol::backdrop {
+  background: rgba(20, 32, 54, 0.55);
+}
+.enrol-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.enrol-progress {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 24px;
+  padding: 0;
+}
+.enrol-progress li {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--sunk);
+}
+.enrol-progress li.current {
+  background: var(--mark);
+}
+.enrol-progress li.done {
+  background: var(--act);
+}
+.enrol-body {
+  display: grid;
+  gap: 14px;
+}
+.enrol-step {
+  color: var(--ink-2);
+}
+.enrol-phrase {
+  font-size: clamp(var(--t-4), 6vw, var(--t-6));
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+.enrol-live {
+  min-height: 1.5em;
+  font-size: var(--t-2);
+  color: var(--realtime);
+  font-weight: 700;
+}
+.enrol-heard ul {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.enrol-heard li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.enrol-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.enrol-tip {
+  font-size: var(--t-0);
+}
+
+.footer {
+  margin-top: 88px;
+  padding-top: 24px;
+  border-top: 2px solid var(--rule);
+  display: grid;
+  gap: 10px;
+  max-width: 76ch;
+  font-size: var(--t-0);
+}

@@ -1,0 +1,390 @@
+/* The line: one rail down the left, a station marker for each stage. A segment of rail turns
+   ink when the turn has passed it; the current station's marker is filled. */
+
+.line {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.line.stale .station:not(.station-speak) {
+  opacity: 0.6;
+  transition: opacity var(--speed) var(--ease);
+}
+
+.station {
+  display: grid;
+  grid-template-columns: var(--station) minmax(0, 1fr);
+}
+
+.rail {
+  position: relative;
+}
+.rail::before {
+  content: "";
+  position: absolute;
+  left: calc(50% - var(--rail-w) / 2);
+  top: 0;
+  bottom: 0;
+  width: var(--rail-w);
+  background: linear-gradient(var(--ink), var(--ink)) no-repeat top / 100% 0% var(--rail-off);
+  transition: background-size 520ms var(--ease);
+}
+.station:first-child .rail::before {
+  top: 34px;
+}
+.station:last-child .rail::before {
+  bottom: auto;
+  height: 34px;
+}
+.station.is-passed .rail::before {
+  background-size: 100% 100%;
+}
+.station.is-current .rail::before {
+  background-size: 100% 34px;
+}
+
+.marker {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 6px solid var(--rail-off);
+  transition: border-color var(--speed) var(--ease), background var(--speed) var(--ease);
+}
+.station.is-passed .marker {
+  border-color: var(--ink);
+}
+.station.is-current .marker {
+  border-color: var(--ink);
+  background: var(--mark);
+  animation: arrive 700ms var(--ease);
+}
+@keyframes arrive {
+  from {
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.25);
+  }
+}
+/* The hearing station's marker shows the three tracks it splits into. */
+.station-hear .marker {
+  background: conic-gradient(var(--scribe) 0 33%, var(--gemini) 0 66%, var(--realtime) 0);
+}
+
+.stop {
+  padding: 16px 0 36px;
+  min-width: 0;
+}
+.stop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.stop-note {
+  color: var(--ink-2);
+  font-size: var(--t-0);
+  margin-top: 2px;
+  max-width: 56ch;
+}
+.station.is-ahead .stop-head h3 {
+  color: var(--ink-2);
+}
+.stop-aside {
+  flex-shrink: 0;
+}
+
+.chip {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--sunk);
+  font-size: var(--t-0);
+  font-weight: 700;
+}
+
+/* ── You speak ─────────────────────────────────────────────── */
+.station-speak .stop {
+  padding-top: 18px;
+}
+.transcript {
+  font-size: clamp(var(--t-4), 5vw, var(--t-6));
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  min-height: 2.3em;
+  max-width: 22ch;
+  overflow-wrap: anywhere;
+}
+.transcript.placeholder {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+.caret {
+  display: inline-block;
+  width: 0.08em;
+  height: 0.9em;
+  margin-left: 0.08em;
+  vertical-align: -0.08em;
+  background: var(--realtime);
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+.example-label {
+  margin-top: 6px;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.waveform {
+  display: block;
+  width: 100%;
+  height: 64px;
+  margin: 18px 0 14px;
+  color: var(--rail-off);
+}
+.waveform.active {
+  color: var(--realtime);
+}
+.speak-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.patience {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0.6;
+}
+.patience.on {
+  opacity: 1;
+}
+.patience-bar {
+  width: 140px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--sunk);
+  overflow: hidden;
+}
+.patience-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transform-origin: left;
+  transition: transform 90ms linear;
+}
+.patience-words {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.listen-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: var(--t-0);
+}
+.listen-status .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--rail-off);
+}
+.status-waiting .dot,
+.status-calibrating .dot {
+  background: var(--act);
+}
+.status-speaking .dot {
+  background: var(--realtime);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--realtime) 25%, transparent);
+}
+
+/* ── Heard three ways ──────────────────────────────────────── */
+.race {
+  position: relative;
+  padding-top: 22px;
+}
+.race-scale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 72px;
+  height: 18px;
+  font-size: var(--t-0);
+  color: var(--ink-3);
+}
+.race-scale span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.race-scale span:first-child {
+  transform: none;
+}
+.track {
+  --tone: var(--ink);
+  padding: 10px 0 14px;
+}
+.track-scribe {
+  --tone: var(--scribe);
+}
+.track-gemini {
+  --tone: var(--gemini);
+}
+.track-realtime {
+  --tone: var(--realtime);
+}
+.track-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.track-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--tone);
+  min-width: 5.5em;
+}
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.track-note {
+  flex: 1;
+  min-width: 12ch;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.track-time,
+.stopwatch {
+  font-size: var(--t-1);
+}
+.stopwatch.running {
+  color: var(--tone, var(--ink));
+}
+.track-rail {
+  position: relative;
+  height: 8px;
+  margin: 8px 72px 8px 0;
+  border-radius: 4px;
+  background: var(--sunk);
+}
+.track-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--tone);
+}
+.track-end {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 5px solid var(--tone);
+}
+.track.is-failed .track-end {
+  border-color: var(--stop);
+  border-radius: 3px;
+}
+.track.is-failed .track-fill {
+  background: repeating-linear-gradient(90deg, var(--tone) 0 6px, transparent 6px 10px);
+}
+.track-limit {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  border-left: 2px dashed var(--ink-3);
+}
+.track-text {
+  font-size: var(--t-2);
+  font-weight: 700;
+  min-height: 1.5em;
+}
+.track-text q {
+  quotes: "\201C" "\201D";
+}
+.track.is-off,
+.track.is-waiting {
+  opacity: 0.85;
+}
+.failure {
+  color: var(--stop);
+  font-size: var(--t-1);
+}
+mark.disputed {
+  background: var(--mark);
+  color: var(--ink);
+  border-radius: 4px;
+  padding: 0 4px;
+  box-decoration-break: clone;
+}
+
+.agreement {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 14px 18px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  border: 2px solid var(--rule);
+}
+.agree-count {
+  font-family: var(--mono);
+  font-size: var(--t-3);
+  min-width: 2.6em;
+}
+.agree-sentence {
+  font-weight: 700;
+}
+.agree-disputed {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--t-0);
+}
+
+/* Narrow screens: name and stopwatch on one line, what the recogniser is underneath. */
+@media (max-width: 600px) {
+  .track-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 12px;
+  }
+  .track-note {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+  .track-rail {
+    margin-right: 36px;
+  }
+  .race-scale {
+    right: 36px;
+  }
+  .station-speak .speak-controls .button {
+    width: 100%;
+    justify-content: center;
+  }
+}

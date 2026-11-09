@@ -1,0 +1,325 @@
+/* Phrasebook card, Claude's reading, the switch-track and the timing strip. */
+
+/* ── Phrasebook: a card that turns over when it matches ───── */
+.flip {
+  perspective: 1200px;
+}
+.flip-inner {
+  display: grid;
+  transition: transform 640ms var(--ease);
+  transform-style: preserve-3d;
+}
+.flip.flipped .flip-inner {
+  transform: rotateX(180deg);
+}
+.flip-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  border-radius: var(--radius-m);
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 2px solid var(--rule);
+  min-height: 92px;
+}
+.flip-back {
+  transform: rotateX(180deg);
+  border-color: var(--learn);
+  background: var(--act-wash);
+}
+.pb-line {
+  font-size: var(--t-2);
+  font-weight: 700;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.pb-label {
+  font-size: var(--t-0);
+  font-weight: 700;
+  color: var(--ink-2);
+  min-width: 5.5em;
+}
+.pb-heard {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--stop) 70%, transparent);
+  text-decoration-thickness: 2px;
+}
+.pb-facts {
+  margin-top: 8px;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .flip.flipped .flip-inner {
+    transform: none;
+  }
+  .flip.flipped .flip-front {
+    visibility: hidden;
+  }
+  .flip-back {
+    transform: none;
+  }
+  .flip:not(.flipped) .flip-back {
+    visibility: hidden;
+  }
+}
+
+/* ── Claude's reading ──────────────────────────────────────── */
+.reading-text {
+  font-size: var(--t-4);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+.reading-row {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.reading-reason {
+  flex: 1;
+  min-width: 22ch;
+  max-width: 60ch;
+  color: var(--ink-2);
+}
+.reading-alts,
+.reading-context {
+  margin-top: 10px;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.alt {
+  display: inline-block;
+  margin-right: 10px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.skipped {
+  color: var(--ink-2);
+}
+.confidence {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding-top: 4px;
+}
+.confidence .bar {
+  width: 12px;
+  border-radius: 3px;
+  background: var(--sunk);
+}
+.confidence .bar:nth-child(1) {
+  height: 12px;
+}
+.confidence .bar:nth-child(2) {
+  height: 18px;
+}
+.confidence .bar:nth-child(3) {
+  height: 24px;
+}
+.confidence-high .bar.on {
+  background: var(--act);
+}
+.confidence-medium .bar.on {
+  background: var(--ask);
+}
+.confidence-low .bar.on {
+  background: var(--stop);
+}
+.confidence-word {
+  margin-left: 6px;
+  font-weight: 800;
+  font-size: var(--t-0);
+}
+
+/* ── Decide: the switch-track ──────────────────────────────── */
+.fork {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  overflow: visible;
+}
+.fork path,
+.fork line {
+  fill: none;
+  stroke-linecap: round;
+}
+.fork-in {
+  stroke: var(--rail-off);
+  stroke-width: 8;
+}
+.fork.route-act .fork-in,
+.fork.route-ask .fork-in,
+.fork.route-stop .fork-in {
+  stroke: var(--ink);
+}
+.fork-base {
+  stroke: var(--rail-off);
+  stroke-width: 5;
+}
+.fork-route {
+  stroke-width: 9;
+}
+.route-line-act {
+  stroke: var(--act);
+}
+.route-line-ask {
+  stroke: var(--ask);
+}
+.route-line-stop {
+  stroke: var(--stop);
+}
+.buffer {
+  fill: var(--rail-off);
+}
+.buffer.chosen {
+  fill: var(--stop);
+}
+.blade {
+  stroke: var(--ink);
+  stroke-width: 7;
+  transform-box: view-box;
+  transform-origin: 150px 75px;
+  transition: transform 520ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.switch-point {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 4;
+}
+.fork text {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 700;
+  fill: var(--ink-3);
+}
+.fork text.chosen {
+  fill: var(--ink);
+  font-weight: 800;
+}
+
+.verdict {
+  margin-top: 14px;
+  padding: 18px 22px;
+  border-radius: var(--radius-m);
+  border-left: 8px solid var(--tone);
+  background: var(--wash);
+}
+.verdict-act {
+  --tone: var(--act);
+  --wash: var(--act-wash);
+}
+.verdict-ask {
+  --tone: var(--ask);
+  --wash: var(--ask-wash);
+}
+.verdict-stop {
+  --tone: var(--stop);
+  --wash: var(--stop-wash);
+}
+.verdict-head {
+  font-weight: 800;
+  color: var(--tone);
+}
+.verdict-text {
+  font-size: var(--t-3);
+  font-weight: 800;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.verdict-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rule {
+  margin-top: 12px;
+  max-width: 62ch;
+}
+.rule-label {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--t-0);
+  font-weight: 700;
+}
+
+/* ── Timing ────────────────────────────────────────────────── */
+.timing {
+  margin: 22px 0 0;
+}
+.timing figcaption {
+  margin-bottom: 10px;
+}
+.timing-total {
+  font-size: var(--t-2);
+}
+.timing-row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr) 6.5em;
+  gap: 12px;
+  align-items: center;
+  min-height: 28px;
+  font-size: var(--t-0);
+}
+.timing-label {
+  font-weight: 700;
+}
+.timing-track {
+  position: relative;
+  height: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.timing-bar {
+  position: absolute;
+  top: 0;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--ink);
+}
+.tone-scribe {
+  background: var(--scribe);
+}
+.tone-gemini {
+  background: var(--gemini);
+}
+.tone-realtime {
+  background: var(--realtime);
+}
+.tone-claude {
+  background: var(--ink);
+}
+.timing-bar.failed {
+  background: repeating-linear-gradient(90deg, var(--stop) 0 4px, transparent 4px 7px);
+}
+.timing-tick {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 20px;
+  margin-left: -2px;
+  background: var(--ink);
+}
+.timing-value {
+  text-align: right;
+  white-space: nowrap;
+}
+.timing figcaption .num {
+  font-family: var(--font);
+  font-weight: 800;
+}
+
+@media (max-width: 600px) {
+  /* The diagram scales down on a phone; its labels are drawn larger so they stay readable. */
+  .fork text {
+    font-size: 28px;
+  }
+}

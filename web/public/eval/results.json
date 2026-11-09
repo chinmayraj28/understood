@@ -1,0 +1,38 @@
+{
+  "placeholder": true,
+  "title": "PLACEHOLDER: these numbers are fake, for layout only",
+  "dataset": "PLACEHOLDER. The real run uses TORGO (speakers with cerebral palsy or ALS). Text and timings only: the audio is not ours to publish.",
+  "speakers": 0,
+  "utterances": 0,
+  "setups": [
+    { "id": "scribe", "name": "Scribe alone", "wordErrorRate": 0.5, "meaningSuccess": 0.4, "wrongActionRate": 0.2, "askRate": 0, "medianSeconds": 0.7, "n": 0 },
+    { "id": "keyterms", "name": "+ keyterms", "wordErrorRate": 0.45, "meaningSuccess": 0.45, "wrongActionRate": 0.18, "askRate": 0, "medianSeconds": 0.7, "n": 0 },
+    { "id": "gemini", "name": "+ Gemini with your clips", "wordErrorRate": 0.4, "meaningSuccess": 0.5, "wrongActionRate": 0.15, "askRate": 0, "medianSeconds": 1.9, "n": 0 },
+    { "id": "repair", "name": "+ third vote, repair and decider", "wordErrorRate": 0.35, "meaningSuccess": 0.6, "wrongActionRate": 0.05, "askRate": 0.3, "medianSeconds": 2.6, "n": 0 },
+    { "id": "full", "name": "+ phrasebook from earlier clips", "wordErrorRate": 0.3, "meaningSuccess": 0.7, "wrongActionRate": 0.02, "askRate": 0.25, "medianSeconds": 2.4, "n": 0 }
+  ],
+  "replays": [
+    {
+      "id": "placeholder-1",
+      "speaker": "PLACEHOLDER speaker",
+      "setup": "full",
+      "intended": "PLACEHOLDER open the window",
+      "speechSeconds": 2.4,
+      "events": [
+        { "type": "turn.started", "turnId": "eval-placeholder-1", "at": 0, "keyterms": [], "exampleCount": 5 },
+        { "type": "hear.started", "hearer": "scribe", "at": 2 },
+        { "type": "hear.started", "hearer": "gemini", "at": 3 },
+        { "type": "hear.started", "hearer": "realtime", "at": 0 },
+        { "type": "hear.done", "hearer": "realtime", "at": 1, "text": "PLACEHOLDER oh pen the win though", "seconds": 0 },
+        { "type": "hear.done", "hearer": "scribe", "at": 780, "text": "PLACEHOLDER open the win though", "seconds": 0.78 },
+        { "type": "hear.done", "hearer": "gemini", "at": 1950, "text": "PLACEHOLDER open the window", "seconds": 1.95 },
+        { "type": "agreement", "at": 1968, "contentWords": {}, "agreeing": [], "disputedWords": ["win", "though", "window"] },
+        { "type": "phrasebook", "at": 1980, "match": null },
+        { "type": "repair.started", "at": 1990 },
+        { "type": "repair.done", "at": 2900, "seconds": 0.91, "reading": { "text": "PLACEHOLDER open the window", "confidence": "medium", "alternatives": [], "reason": "PLACEHOLDER reason." } },
+        { "type": "decision", "at": 2908, "decision": { "kind": "confirm", "question": "PLACEHOLDER Open the window?", "reading": "PLACEHOLDER open the window" }, "rule": "PLACEHOLDER rule." },
+        { "type": "turn.done", "at": 2912, "seconds": 2.91 }
+      ]
+    }
+  ]
+}

@@ -69,3 +69,9 @@ The Swift package `Packages/HFUnderstand` stays: it is what the evaluation ran a
 | Mon 9 Nov | Server pipeline with streamed events; page with replayed events while the server is built; browser audio and live transcript |
 | Tue 10 Nov | Joined up end to end; enrolment, phrasebook, pretend phone, stage switches; evaluation page; review by a second agent; hosting |
 | Wed 11 Nov | Write-up, README, ai.md, demo video, clean-clone test, submit by 6pm |
+
+## 6. Hosting checklist (from the 9 Nov server review)
+
+- `wrangler.toml`: `compatibility_date` 2026-11-17 or later (or the `enable_request_signal` flag), so a visitor leaving stops the recogniser and Claude calls instead of letting them run and bill.
+- Set `TRUST_PROXY=1` on Workers so the visitor's address comes from Cloudflare's header.
+- Use the Workers rate-limiting binding for the per-visitor limit, and a spending cap on every key: the open endpoints would otherwise work as a free proxy to Gemini and Claude.

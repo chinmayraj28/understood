@@ -1,0 +1,252 @@
+// The conversation: sends each turn through the pipeline, then acts, asks, or learns.
+//
+// The rules that decide act-or-ask live on the server, in code. This file only follows the
+// decision, and adds the one rule the page owns: anything that reaches another person (a
+// message, a call) waits for a spoken yes that has itself gone through the pipeline.
+//
+// Learning, in plain words:
+//   - a spoken yes, or a chosen option: every recogniser that heard something else gets a
+//     "heard -> meant" entry (or an existing one is bumped);
+//   - a correction ("no, Sam"): entries with the corrected meaning;
+//   - a plain "no": nothing;
+//   - an action that simply went ahead: nothing, because nobody confirmed what it meant.
+
+import type { ActResponse, PhrasebookEntry, StageSwitches, UnderstandRequest } from "../../shared/pipeline";
+import { SCRIBE_REALTIME } from "../audio/liveTranscript";
+import type { VoiceStore } from "../storage/store";
+import { chooseExamples, keytermsFor, type Clip } from "./learning";
+import { PHONE_HOME, type PhoneState } from "./phone";
+import { afterAct, resolveDecision, type Pending } from "./answers";
+import type { Transport } from "./transport";
+import { ALL_ON, bestText, heardText, newTurn, reduceTurn, type TurnModel } from "./turn";
+
+export type { Pending } from "./answers";
+
+export interface ChatLine {
+  id: number;
+  who: "you" | "assistant" | "note";
+  text: string;
+  tone?: "question" | "done" | "error" | "learned";
+}
+
+export interface ConversationState {
+  turns: TurnModel[];
+  pending?: Pending;
+  failedTries: number;
+  chat: ChatLine[];
+  phone: PhoneState;
+  entries: PhrasebookEntry[];
+  /** Ids of entries added or bumped by the latest turn, so the panel can show them arriving. */
+  justLearned: string[];
+  clipCount: number;
+  busy: boolean;
+  speaking: boolean;
+  switches: StageSwitches;
+  persistent: boolean;
+}
+
+export interface TurnInput {
+  wavBase64: string;
+  realtimeText?: string;
+  liveText: string;
+  speechSeconds?: number;
+  origin: TurnModel["origin"];
+  label?: string;
+}
+
+let lineId = 0;
+
+export class Conversation {
+  private state: ConversationState;
+  private listeners = new Set<() => void>();
+  private queue: Promise<void> = Promise.resolve();
+  private clips: Clip[] = [];
+  private recent: string[] = [];
+  private wavByTurn = new Map<string, string>();
+  private abort = new AbortController();
+
+  private constructor(
+    readonly transport: Transport,
+    private store: VoiceStore,
+    entries: PhrasebookEntry[],
+    clips: Clip[],
+  ) {
+    this.clips = clips;
+    this.state = {
+      turns: [],
+      failedTries: 0,
+      chat: [],
+      phone: PHONE_HOME,
+      entries,
+      justLearned: [],
+      clipCount: clips.length,
+      busy: false,
+      speaking: false,
+      switches: ALL_ON,
+      persistent: store.persistent,
+    };
+    transport.onSpeaking = (speaking) => this.set({ speaking });
+  }
+
+  static async create(transport: Transport, store: VoiceStore): Promise<Conversation> {
+    const [entries, clips] = await Promise.all([store.loadEntries(), store.loadClips()]);
+    return new Conversation(transport, store, entries, clips);
+  }
+
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+  getState = () => this.state;
+
+  private set(patch: Partial<ConversationState>) {
+    this.state = { ...this.state, ...patch };
+    for (const listener of this.listeners) listener();
+  }
+
+  private patchTurn(turnId: string, update: (turn: TurnModel) => TurnModel) {
+    this.set({ turns: this.state.turns.map((t) => (t.turnId === turnId ? update(t) : t)) });
+  }
+
+  setSwitches(switches: StageSwitches) {
+    this.set({ switches });
+  }
+
+  /** Stops a reply mid-word: called the moment the person starts speaking. */
+  interrupt() {
+    this.transport.stopSpeaking();
+  }
+
+  dispose() {
+    this.abort.abort();
+    this.transport.stopSpeaking();
+    this.listeners.clear();
+  }
+
+  /** Sends a turn through the pipeline. Turns are handled one at a time, in order. */
+  submitTurn(input: TurnInput): Promise<void> {
+    this.queue = this.queue.then(() => this.runTurn(input)).catch(() => {});
+    return this.queue;
+  }
+
+  private async runTurn(input: TurnInput) {
+    const { pending, switches } = this.state;
+    const turnId = `turn-${Date.now().toString(36)}`;
+    let turn = newTurn({ turnId, origin: input.origin, label: input.label, liveText: input.liveText, switches, answering: pending?.question });
+    turn = { ...turn, speechSeconds: input.speechSeconds };
+    if (input.wavBase64) this.wavByTurn.set(turnId, input.wavBase64);
+    this.set({ turns: [...this.state.turns.slice(-11), turn], busy: true, justLearned: [] });
+
+    const request: UnderstandRequest = {
+      turnId,
+      wavBase64: input.wavBase64,
+      realtimeText: input.realtimeText,
+      realtimeKeyterms: SCRIBE_REALTIME.keyterms,
+      phrasebook: this.state.entries,
+      examples: chooseExamples(this.clips),
+      keyterms: keytermsFor(this.state.entries),
+      context: {
+        pendingQuestion: pending?.question,
+        expectedAnswers: pending?.expectedAnswers,
+        recentTurns: this.recent.slice(-6),
+        failedTries: this.state.failedTries,
+      },
+      switches,
+    };
+
+    try {
+      for await (const event of this.transport.understand(request, this.abort.signal)) {
+        this.patchTurn(turnId, (t) => reduceTurn(t, event, performance.now()));
+      }
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+      const message = (error as Error).message || "The turn could not be understood.";
+      this.patchTurn(turnId, (t) => reduceTurn(t, { type: "turn.failed", at: Date.now(), message }, performance.now()));
+    }
+
+    const finished = this.state.turns.find((t) => t.turnId === turnId)!;
+    if (finished.failed || !finished.decision) {
+      this.note(finished.failed ?? "The server stopped before it decided anything.", "error");
+      this.set({ busy: false, failedTries: this.state.failedTries + 1 });
+      return;
+    }
+    // When it is sure, show what it understood; when it is asking, show what was actually heard.
+    const sure = finished.decision.decision.kind === "act";
+    const heard = sure ? bestText(finished) : heardText(finished);
+    if (heard) this.say("you", heard);
+    await this.follow(finished);
+    this.set({ busy: false });
+  }
+
+  /** Follows the decision: act, ask, or say it cannot hear. */
+  private async follow(turn: TurnModel) {
+    const outcome = resolveDecision(turn, this.state.pending, this.state.entries);
+    if (outcome.learned) await this.learn(outcome.learned.entries, outcome.learned.changed, outcome.learned.clip);
+    this.set({
+      pending: outcome.pending,
+      failedTries: outcome.resetTries ? 0 : this.state.failedTries + (outcome.failed ? 1 : 0),
+    });
+    if (outcome.phone) this.set({ phone: outcome.phone(this.state.phone) });
+    if (outcome.say) await this.assistant(outcome.say, outcome.tone);
+    if (outcome.actOn) await this.act(outcome.actOn, outcome.actSubject);
+  }
+
+  private async act(text: string, subject?: TurnModel) {
+    let response: ActResponse;
+    try {
+      response = await this.transport.act({ text, recentTurns: this.recent.slice(-6) });
+    } catch (error) {
+      await this.assistant((error as Error).message, "error");
+      return;
+    }
+    const outcome = afterAct(response, this.state.phone, text, subject);
+    this.set({ pending: outcome.pending, phone: outcome.phone });
+    await this.assistant(outcome.say, outcome.tone);
+  }
+
+  private async learn(entries: PhrasebookEntry[], changed: PhrasebookEntry[], clip?: { turnId: string; text: string; difficulty: number }) {
+    this.set({ entries, justLearned: changed.map((e) => e.id) });
+    for (const entry of changed) this.note(`Learned: "${entry.heard}" means "${entry.meant}"`, "learned");
+    await this.store.saveEntries(entries);
+    const wav = clip && this.wavByTurn.get(clip.turnId);
+    if (clip && wav) await this.addClip({ id: `clip-${clip.turnId}`, text: clip.text, wavBase64: wav, createdAt: Date.now(), source: "confirmation", difficulty: clip.difficulty });
+  }
+
+  /** Saves a clip of the person's voice for Gemini's examples (enrolment and confirmations). */
+  async addClip(clip: Clip) {
+    this.clips = [...this.clips.filter((c) => c.id !== clip.id), clip].slice(-40);
+    this.set({ clipCount: this.clips.length });
+    await this.store.addClip(clip);
+  }
+
+  /** Adds entries learned outside a conversation, such as during setup. */
+  async addEntries(entries: PhrasebookEntry[], changed: PhrasebookEntry[]) {
+    await this.learn(entries, changed);
+  }
+
+  async forget(entryId: string) {
+    const entries = this.state.entries.filter((e) => e.id !== entryId);
+    this.set({ entries });
+    await this.store.saveEntries(entries);
+  }
+
+  async clearEverything() {
+    this.clips = [];
+    this.set({ entries: [], clipCount: 0, justLearned: [] });
+    await this.store.clearAll();
+  }
+
+  private say(who: ChatLine["who"], text: string, tone?: ChatLine["tone"]) {
+    this.set({ chat: [...this.state.chat.slice(-30), { id: ++lineId, who, text, tone }] });
+    if (who !== "note") this.recent = [...this.recent, `${who === "you" ? "User" : "Assistant"}: ${text}`].slice(-8);
+  }
+
+  private note(text: string, tone: ChatLine["tone"]) {
+    this.say("note", text, tone);
+  }
+
+  private async assistant(text: string, tone?: ChatLine["tone"]) {
+    this.say("assistant", text, tone);
+    await this.transport.speak(text);
+  }
+}

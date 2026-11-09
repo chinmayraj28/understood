@@ -1,0 +1,246 @@
+/* Tokens and base styles for Understood.
+   The page is drawn as a transit line: a turn travels station by station, hearers race on
+   three coloured tracks, and a switch-track at the end sends it to "act" or "ask".
+   Type is Atkinson Hyperlegible Next, made by the Braille Institute for low-vision readers. */
+
+:root {
+  color-scheme: light;
+  --paper: #f3f5f8;
+  --surface: #ffffff;
+  --sunk: #e8ecf2;
+  --ink: #142036;
+  --ink-2: #44516a;
+  --ink-3: #5f6b84;
+  --rule: #d3dae5;
+  --rail-off: #c6cfdc;
+
+  --scribe: #2156d9;
+  --gemini: #7638dc;
+  --realtime: #c0246a;
+  --act: #0b7a4b;
+  --act-wash: #e3f4ec;
+  --ask: #9a5800;
+  --ask-wash: #fdf0dc;
+  --stop: #b42318;
+  --stop-wash: #fde8e6;
+  --mark: #ffe170;
+  --learn: #0b7a4b;
+
+  --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", monospace;
+
+  /* A 1.25 scale on an 18px base: large enough to read from a wheelchair-mounted screen. */
+  --t-0: 0.8125rem;
+  --t-1: 1rem;
+  --t-2: 1.25rem;
+  --t-3: 1.5625rem;
+  --t-4: 1.953rem;
+  --t-5: 2.441rem;
+  --t-6: 3.052rem;
+
+  --gutter: 16px;
+  --rail-w: 8px;
+  --station: 64px;
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --radius-l: 28px;
+  --speed: 380ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (min-width: 720px) {
+  :root {
+    --gutter: 32px;
+    --station: 76px;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 112.5%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--t-1);
+  line-height: 1.5;
+  font-feature-settings: "ss01";
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h2 {
+  font-size: var(--t-3);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: var(--t-2);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--scribe);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -60px;
+  background: var(--ink);
+  color: var(--surface);
+  padding: 10px 16px;
+  border-radius: var(--radius-s);
+  z-index: 10;
+}
+.skip-link:focus {
+  top: 8px;
+}
+
+/* Buttons: big targets, nothing that needs a precise click. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+.button:hover {
+  background: var(--sunk);
+}
+.button.primary {
+  background: var(--ink);
+  color: var(--surface);
+}
+.button.primary:hover {
+  background: #23324f;
+}
+.button.quiet {
+  border-color: var(--rule);
+}
+.button.small {
+  min-height: 44px;
+  padding: 6px 16px;
+  font-size: var(--t-0);
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  border: 1.5px solid currentColor;
+  border-radius: 5px;
+  padding: 0 6px;
+  opacity: 0.85;
+}
+
+/* Numbers in sentences keep the body face; stopwatches and readouts use the mono face. */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.stopwatch,
+.timing-value,
+.agree-count,
+.phone .num {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--ink-2);
+}
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--gutter) 96px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+
+@media (min-width: 1040px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 56px;
+  }
+  .side {
+    position: sticky;
+    top: 16px;
+    align-self: start;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 6px 24px 4px;
+    scrollbar-width: thin;
+  }
+}
+
+.section {
+  margin-top: 72px;
+}
+.section > h2 + p {
+  margin-top: 8px;
+  max-width: 62ch;
+  color: var(--ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

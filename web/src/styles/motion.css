@@ -1,0 +1,141 @@
+/* Motion. One idea throughout: the turn is a train. It rides the rail and brakes into each
+   station, the words it carries land one by one, and the switch-track swings and lights the
+   route it took. Every animation here answers something that just happened in the turn.
+   Under prefers-reduced-motion (base.css) they all finish at once: same result, no movement. */
+
+/* ── The train ─────────────────────────────────────────────── */
+.line-wrap {
+  position: relative;
+}
+.train {
+  position: absolute;
+  top: 0;
+  left: calc(var(--station) / 2 - 15px);
+  width: 30px;
+  height: 46px;
+  margin-top: -23px;
+  border-radius: 15px;
+  background: var(--mark);
+  border: 4px solid var(--ink);
+  box-shadow: 0 6px 14px -6px rgba(20, 32, 54, 0.55);
+  /* Pulls away slowly, runs, and brakes into the station. */
+  transition: transform 900ms cubic-bezier(0.55, 0, 0.15, 1);
+  z-index: 2;
+  pointer-events: none;
+}
+.train-window {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 5px;
+  height: 11px;
+  border-radius: 6px 6px 3px 3px;
+  background: var(--ink);
+}
+/* Idling at "You speak": a gentle rock, as if the engine is running. */
+.train.at-0 {
+  animation: idle 1.6s ease-in-out infinite;
+}
+@keyframes idle {
+  50% {
+    margin-top: -21px;
+  }
+}
+
+/* ── Words landing ─────────────────────────────────────────── */
+.transcript .land {
+  display: inline-block;
+  white-space: pre;
+  animation: land 320ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes land {
+  from {
+    opacity: 0;
+    transform: translateY(0.35em);
+  }
+}
+.track-text .word {
+  display: inline-block;
+  animation: drop 380ms var(--ease) both;
+  animation-delay: calc(var(--i) * 55ms);
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+/* The highlighter sweeps across a disputed word just after it lands. */
+.track-text mark.disputed,
+.summary mark.disputed {
+  background: linear-gradient(var(--mark), var(--mark)) no-repeat left / 0% 100%;
+  animation:
+    drop 380ms var(--ease) both,
+    sweep 420ms var(--ease) both;
+  animation-delay: calc(var(--i) * 55ms), calc(var(--i) * 55ms + 520ms);
+}
+@keyframes sweep {
+  to {
+    background-size: 100% 100%;
+  }
+}
+.agreement {
+  animation: settle 420ms var(--ease) both;
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ── Claude's reading ──────────────────────────────────────── */
+.reading-text {
+  animation: settle 460ms var(--ease) both;
+}
+.confidence .bar.on {
+  transform-origin: bottom;
+  animation: rise 360ms var(--ease) both;
+  animation-delay: calc(var(--n) * 110ms + 200ms);
+}
+@keyframes rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* ── The switch-track ──────────────────────────────────────── */
+/* The blade swings first (its transition is in stations.css); the route lights up after. */
+.fork-route {
+  stroke-dasharray: 1;
+  animation: draw 700ms var(--ease) 380ms both;
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.verdict {
+  animation: verdict-in 460ms var(--ease) 520ms both;
+}
+@keyframes verdict-in {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+/* ── Timing: the turn replayed as bars, in the order things ran ── */
+.timing-bar {
+  transform-origin: left;
+  animation: grow 600ms var(--ease) both;
+  animation-delay: calc(var(--i) * 90ms + 700ms);
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
