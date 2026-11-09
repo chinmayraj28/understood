@@ -32,3 +32,6 @@ build/
 
 # one live run at a time (scripts/live_lock.sh)
 .live-lock/
+
+# evaluation audio (TORGO is not ours to redistribute)
+eval/data/

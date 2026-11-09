@@ -175,3 +175,47 @@ Every package's own tests passed, because each one tested its own wording. Only 
 ## 6 Nov 2026: a locked Mac
 
 With the screen locked, the app used to say "Spotlight didn't open" or "I can't find the main display". Now every quick command and every task checks first, does nothing, and says "The Mac is locked, so I can't use it until someone unlocks it." The agent never offers to unlock the Mac and never asks for a password. Found by the typed end-to-end run on the night of 5 to 6 Nov, when the screen had locked.
+
+## 7 Nov 2026: the product becomes understanding impaired speech
+
+**What happened.** A Hiya engineer reviewed the idea. Their advice: build around recognising impaired speech (noise cancellation is already solved), keep the Clicky-based Mac agent if it works but don't over-focus on it, and be ready to justify every design choice.
+
+**What was chosen.** The product is now a layer, `HFUnderstand`, that understands slow, slurred or quiet speech before the voice agent acts on it. The Mac agent is where it is shown. The layer records each turn on the Mac, hears it with three recognisers (ElevenLabs Scribe with personal keyterms, Gemini shown a few of the person's own clips, Apple on-device), lets Claude pick the most likely meaning from context, decides in code whether to act or ask a short yes/no question, and learns from every confirmed or corrected turn. Plan and reasons: `docs/SPEECH_PLAN.md`.
+
+**Why it fits.** The people who cannot use their hands (ALS, cerebral palsy, MS, Parkinson's, stroke) very often have dysarthria too. Every voice agent, ours included, fails them first.
+
+**The big change.** The app now listens for itself instead of letting ElevenLabs hear the user, because ElevenLabs' agent answers its own raw transcript at once and there is no point on the Mac where a mishearing could be repaired first. The repaired sentence is sent to the agent as the user's turn.
+
+**Rejected.** A web app (the engineer's tip for easy reviewing): the user chose to demonstrate on the Mac app; instead `hf-understand eval` runs from a clean clone with only API keys. Training a model per person: best results in research, but needs hundreds of recordings and days. Telling models the person has dysarthria: research shows it does not help and often hurts.
+
+**What it costs.** Two to four extra seconds on unclear turns, a second AI vendor (Gemini, through OpenRouter), and taking over turn detection and the fast stop from ElevenLabs.
+
+## 8 Nov 2026: a text-only conversation, with the agent's voice played by the app
+
+**What was found.** ElevenLabs' Swift SDK (3.4.0) always switches its own microphone on when a voice conversation connects; it can be muted but not left off. When the agent's voice plays through the SDK's own audio, our echo cancellation cannot remove it from our recording, so the app could hear the agent as the user. Details: `docs/spikes/own_listening.md`.
+
+**What was chosen.** The ElevenLabs conversation runs text only. The repaired sentence goes in as the user's turn; the agent's reply text comes back and is turned into speech with ElevenLabs text-to-speech, played through the same audio engine as our recorder (`TurnRecorder.playAgentAudio`), so the echo canceller knows what to remove.
+
+**Rejected.** A muted voice conversation: simpler, but the echo cannot be cancelled and the SDK grabs the microphone anyway.
+
+**What it costs.** About 0.8 s more before the agent starts speaking (measured: sound 1.63 s after sending, against about 1.36 s before), which streaming text-to-speech should mostly win back. We also take over cutting the agent off when the person speaks.
+
+## 9 Nov 2026: the repair step uses Haiku 5.5, and a model alone never causes an action
+
+**What was chosen.** Claude Haiku 5.5 picks the most likely meaning from the three transcripts. Measured on the real repair request, 7 calls each: Haiku 1.3 to 1.7 s, Sonnet 5.5 2.2 to 4.1 s. Both read the test cases correctly, including one where a screen label tried to give orders. Sonnet's slower calls would overrun the 3-second repair limit; Haiku says "medium" a little more often, which only costs one extra yes/no question.
+
+**How the answer is requested.** Structured outputs (`output_config.format`), not a forced tool call, because the API rejects a forced tool choice on Sonnet 5.5 and we wanted one code path for both.
+
+**The rule that matters.** A "high" reading from Claude acts only when the recognisers agree on the same words, or a phrasebook entry confirmed at least twice matches. Claude alone never makes the app act; at most it shapes the question. A mishearing learned once is asked about once more, then acted on from the next time.
+
+## 9 Nov 2026: the demo moves to a website; the Mac app is parked
+
+**What the user asked.** Focus on the speech model, leave the Clicky-based Mac app for now, and run it on a website that shows the pipeline working, such as the live transcript updating and each stage in turn.
+
+**What was chosen.** A website, "Understood" (`web/`): the browser records and shows a live transcript, the server runs the same five stages and streams each step back, and the page draws the turn moving through them. Plan: `docs/WEB_PLAN.md`. TypeScript with React and Vite for the page and Hono for the server, because one language covers both and Hono runs unchanged locally and on Cloudflare.
+
+**What changes in the pipeline.** Apple's on-device recogniser cannot run on a web host, so the third vote is ElevenLabs Scribe realtime, which also gives the live transcript. The decider and phrasebook matching are ported from Swift with the same test cases, so the website decides exactly as the evaluated pipeline does.
+
+**Rejected.** A Swift web server around the existing package (it depends on Apple's recogniser, so it could only run on a Mac). Vercel hosting (it runs on AWS).
+
+**Parked, not deleted.** The Mac app, the own-listening mode in `HFVoice` (its consent gap was closed before parking: a question counts as said only once its audio has played; see `docs/spikes/own_listening.md`) and `TurnRecorder` (a noise-floor bug found on 9 Nov).

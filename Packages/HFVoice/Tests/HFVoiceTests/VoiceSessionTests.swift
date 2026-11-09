@@ -57,6 +57,7 @@ final class Harness {
     /// - Parameter sync: what updating the agent does; nil means the session has no sync at all.
     init(mode: VoiceSession.Mode = .voice, agentID: String = "agent_1",
          sync: (@Sendable ([ToolSpec]) async -> Bool)? = nil,
+         ownListening: OwnListening? = nil,
          tune: (inout VoiceSession.Tuning) -> Void = { _ in }) {
         var tuning = VoiceSession.Tuning()
         tuning.pumpInterval = 0.01
@@ -76,7 +77,8 @@ final class Harness {
             clock: { clock.now },
             sleep: { seconds in sleeps.add(seconds); try? await Task.sleep(nanoseconds: 1_000_000) },
             syncAgent: recordingSync,
-            prepareNextConnection: { start in prefetches.add(start.textOnly) })
+            prepareNextConnection: { start in prefetches.add(start.textOnly) },
+            ownListening: ownListening)
         let stream = bus.events()
         let posted = posted
         busTask = Task { for await event in stream { posted.add(event) } }

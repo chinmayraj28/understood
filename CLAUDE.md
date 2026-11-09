@@ -1,5 +1,7 @@
 # Hands-Free Laptop Agent: working instructions
 
+> **Current focus (since 9 Nov 2026): the website in `web/`.** The product is now a speech-understanding pipeline for impaired (dysarthric) speech, shown on a website that makes every stage visible. Read `docs/WEB_PLAN.md` and `docs/SPEECH_PLAN.md` first. The website is TypeScript (React + Vite page, Hono server); the "native Swift only" and "acts like a person at the laptop" rules below apply to the **parked** Mac app, not to `web/`. Still no Python, no AWS, keys only from `.env`, and the safety rules hold: nothing is acted on when the pipeline is unsure, and nothing reaches a real person without a spoken yes.
+
 This repo is the Hiya Voice AI Challenge submission (Accessibility track). A person who cannot use their hands controls their Mac by speaking goals. **Deadline: Wed 11 Nov 2026, 11:59pm GMT. Target: submitted by 6pm.**
 
 **The core rule of the product: the agent acts like a person at the laptop.** It looks at the screen, moves the real pointer, clicks, scrolls and presses keys, visibly, in the user's own apps and their own Chrome. It does not script apps behind the scenes (no AppleScript or `open -a` to make things happen, no separate automation browser, no DOM control, no background accessibility actions). Reading state without acting is fine. The model is the Mac companion Clicky: it sits beside the cursor, sees the screen and talks. See `docs/ARCHITECTURE.md`.

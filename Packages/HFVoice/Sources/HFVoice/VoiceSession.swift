@@ -116,6 +116,16 @@ public final class VoiceSession {
     /// Gets what the next connection needs (a token or signed URL) ahead of time, so a wake
     /// does not wait for it. Nil in tests.
     private let prepareNextConnection: (@Sendable (ConversationStart) async -> Void)?
+    /// Own-listening mode, when set: the conversation is text-only (the SDK microphone is never
+    /// opened), the app sends what it heard with `sendHeardTurn`, and replies are spoken by
+    /// `speaker` into the app's sink. Nil (the default): everything works as before.
+    private let ownListening: OwnListening?
+    private var speaker: AgentSpeaker?
+    /// Own listening: replies handed to the speaker and not yet played to the end, by turn number.
+    /// Their words count for the said-check only once played (a question unheard is no consent).
+    private var repliesBeingSpoken: [Int: (text: String, generation: Int)] = [:]
+    /// The conversation uses the text-only websocket: typed mode, or own listening.
+    private var usesTextConnection: Bool { mode == .text || ownListening != nil }
     nonisolated private static let logger = Logger(subsystem: "com.handsfree", category: "HFVoice")
 
     // MARK: State (main actor)
@@ -255,7 +265,8 @@ public final class VoiceSession {
         bus: ActivityBus = .shared,
         configuration: AgentConfiguration = AgentConfiguration(),
         syncAgentOnStart: Bool = true,
-        tuning: Tuning = Tuning()
+        tuning: Tuning = Tuning(),
+        ownListening: OwnListening? = nil
     ) {
         let api = ElevenLabsAPI(apiKey: settings.elevenLabsAPIKey)
         let target = agentID ?? settings.elevenLabsAgentID
@@ -273,7 +284,8 @@ public final class VoiceSession {
             sleep: { seconds in try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000)) },
             syncAgent: nil,
             prepareNextConnection: { start in await credentials.prefetch(agentID: start.agentID, textOnly: start.textOnly) },
-            agentKeeper: keeper)
+            agentKeeper: keeper,
+            ownListening: ownListening)
     }
 
     /// The full initialiser, with the SDK, the clock and sleeping injectable. Tests in any package
@@ -283,6 +295,7 @@ public final class VoiceSession {
     ///   - syncAgent: the older, simpler form of `agentKeeper`: true when the update worked. A read-back
     ///     is then assumed to agree. Kept for tests written against it.
     ///   - agentKeeper: updates the agent and reads it back. Takes precedence over `syncAgent`.
+    ///   - ownListening: own-listening mode (see `OwnListening`). Nil keeps today's behaviour.
     public init(
         agentID: String,
         mode: Mode,
@@ -293,7 +306,8 @@ public final class VoiceSession {
         sleep: @escaping @Sendable (TimeInterval) async -> Void,
         syncAgent: (@Sendable ([ToolSpec]) async -> Bool)?,
         prepareNextConnection: (@Sendable (ConversationStart) async -> Void)? = nil,
-        agentKeeper: AgentKeeper? = nil
+        agentKeeper: AgentKeeper? = nil,
+        ownListening: OwnListening? = nil
     ) {
         self.agentID = agentID
         self.mode = mode
@@ -305,6 +319,14 @@ public final class VoiceSession {
         self.keeper = agentKeeper ?? syncAgent.map(AgentKeeper.init(simple:))
         self.prepareNextConnection = prepareNextConnection
         self.queue = PushQueue(timing: tuning.push)
+        self.ownListening = ownListening
+        self.speaker = ownListening.map { setting in
+            AgentSpeaker(
+                setting: setting, clock: clock, sleep: sleep,
+                onActivity: { [weak self] activity in self?.agentSpeechChanged(activity) },
+                onPlayed: { [weak self] id in self?.replyPlayed(id) },
+                onCutOff: { [weak self] id in self?.replyCutOff(id) })
+        }
     }
 
     // MARK: Listeners
@@ -495,6 +517,8 @@ public final class VoiceSession {
         pendingFirstUtterance = nil
         hasConnectedThisConversation = false
         resetTurnState()
+        speaker?.interrupt()
+        repliesBeingSpoken = [:]
         agentAudible = false
         recentTurns = []
         toolGate = nil
@@ -584,6 +608,80 @@ public final class VoiceSession {
     public func sendTypedTurn(_ text: String) async throws {
         guard isConnected else { throw SpeakableError("The voice connection is not ready.") }
         try await sayAsUser(text)
+    }
+
+    // MARK: Own listening
+
+    /// True when the session is in own-listening mode (see `OwnListening`).
+    public var isOwnListening: Bool { ownListening != nil }
+
+    /// Own listening: a turn the app heard and understood itself, sent as the user's message.
+    /// It goes exactly where a spoken transcript goes in voice mode: to the companion as
+    /// `.userSaid`, to the transcript listeners (the stop watcher sees it before any tool call of
+    /// this turn), then to the agent. A reply still being spoken is stopped first, as the agent
+    /// stops when someone talks over it.
+    public func sendHeardTurn(_ text: String) async throws {
+        guard isConnected, let driver else { throw SpeakableError("The voice connection is not ready.") }
+        interruptAgentSpeech()
+        let now = clock()
+        awaitingReplySince = now
+        pushAwaitingReply = false
+        lastActivityAt = now
+        remember("User: \(text)")
+        bus.post(.userSaid(text))
+        notifyTranscriptListeners(text)
+        try await driver.sendUserMessage(text)
+        await deliverIfReady()
+    }
+
+    /// Own listening: the person is speaking now, at this loudness (0...1, for the waveform).
+    /// Call it for each level the app's recorder reports during a turn. It stands in for the
+    /// SDK's voice-activity score: it drives `isUserSpeaking` (the screen agent holds while it is
+    /// true), the idle timer and `.userSpeaking` on the activity bus. Every call counts as speech,
+    /// because the recorder reports levels only once a turn has started.
+    public func userIsSpeaking(level: Double) {
+        guard ownListening != nil else { return }
+        handle(.voiceActivity(max(level, tuning.voiceActivityThreshold)), generation: generation)
+    }
+
+    /// Own listening: stops the agent's voice at once, for "stop" or the person talking over it.
+    /// Counted as an interruption, as in voice mode. Does nothing when nothing is playing.
+    public func interruptAgentSpeech() {
+        guard let speaker, speaker.isSpeaking else { return }
+        speaker.interrupt()
+        let now = clock()
+        lastVoiceAt = now
+        lastActivityAt = now
+        interruptionCount += 1
+    }
+
+    /// Own listening: seconds from asking for the latest reply's speech to its first audio chunk.
+    public var lastSpeechStartDelay: TimeInterval? { speaker?.lastTimeToFirstChunk }
+
+    /// Own listening: why the latest reply could not be said aloud, if it could not. Its text was
+    /// still shown (`.agentSpeaking`), but the person may not have heard it.
+    public var lastSpeechProblem: String? { speaker?.lastProblem }
+
+    /// A reply's audio has played to the end: now what it said counts as heard.
+    private func replyPlayed(_ id: Int) {
+        guard let reply = repliesBeingSpoken.removeValue(forKey: id), reply.generation == generation else { return }
+        apply(said.replied(reply.text, at: clock(), turn: id))
+        Task { @MainActor [weak self] in await self?.deliverIfReady() }
+    }
+
+    /// A reply was cut off or its speech failed: nothing in it counts as heard. A question or
+    /// confirmation it carried is sent again once (the said-check's rule); an answer to it is
+    /// held back meanwhile, because the question is still unheard.
+    private func replyCutOff(_ id: Int) {
+        guard let reply = repliesBeingSpoken.removeValue(forKey: id), reply.generation == generation else { return }
+        Self.logger.notice("A spoken reply was cut off or failed; it does not count as said")
+        apply(said.silent(at: clock()))
+        Task { @MainActor [weak self] in await self?.deliverIfReady() }
+    }
+
+    /// The speaker started or finished playing: the same signal the SDK gives in voice mode.
+    private func agentSpeechChanged(_ activity: AgentActivity) {
+        handle(.agentActivity(activity), generation: generation)
     }
 
     /// Waits until the conversation is connected, up to `timeout` seconds.
@@ -753,7 +851,7 @@ public final class VoiceSession {
 
     private func prefetchConnection() {
         guard let prepareNextConnection, !agentID.isEmpty else { return }
-        let start = ConversationStart(agentID: agentID, textOnly: mode == .text, dynamicVariables: [:])
+        let start = ConversationStart(agentID: agentID, textOnly: usesTextConnection, dynamicVariables: [:])
         Task { await prepareNextConnection(start) }
     }
 
@@ -769,7 +867,7 @@ public final class VoiceSession {
         connectStartedAt = clock()
         let request = ConversationStart(
             agentID: agentID,
-            textOnly: mode == .text,
+            textOnly: usesTextConnection,
             dynamicVariables: ["user_memory": memorySummary.isEmpty ? "Nothing yet." : memorySummary,
                                "session_context": sessionContext()])
         do {
@@ -882,6 +980,8 @@ public final class VoiceSession {
         // A push the agent may not have said before the drop is said again after reconnecting.
         let unanswered = said.notSent()
         if !unanswered.isEmpty { let now = clock(); withQueue { $0.putBack(unanswered, at: now) } }
+        // Own listening: a reply cut off by the drop is not finished later, and is not heard.
+        speaker?.interrupt()
         // End the old conversation explicitly, so nothing of it (room, microphone) lingers.
         let lost = driver
         driver = nil
@@ -963,7 +1063,14 @@ public final class VoiceSession {
             bus.post(.agentSpeaking(text))
             for listener in replyListeners { listener(text) }
             turnCounter += 1
-            apply(said.replied(text, at: now, turn: turnCounter))
+            if let speaker, text.contains(where: { $0.isLetter || $0.isNumber }) {
+                // Own listening: the reply is judged when its audio has played (replyPlayed), or
+                // as nothing said if it is cut off or fails (replyCutOff).
+                repliesBeingSpoken[turnCounter] = (text, generation)
+                speaker.speak(text, id: turnCounter)
+            } else {
+                apply(said.replied(text, at: now, turn: turnCounter))
+            }
         case .agentActivity(let activity):
             agentAudible = activity != .listening
             lastActivityAt = now
@@ -1176,7 +1283,8 @@ public final class VoiceSession {
         let now = clock()
         let agentHolding = agentAudible && now - lastAgentSignalAt < tuning.agentStuckAfter
         let userTalking = withSpeech { $0.isSpeaking(at: now) } || now - lastVoiceAt < tuning.userQuietAfter
-        guard !agentHolding, toolCallsInFlight == 0, !userTalking else { return }
+        // Own listening: a reply still being spoken is judged when it has played, not as "no reply".
+        guard !agentHolding, toolCallsInFlight == 0, !userTalking, speaker?.isBusy != true else { return }
         let lastActivity = max(lastAgentSignalAt, lastVoiceAt, lastActivityAt)
         apply(said.checkTimeout(at: now, replyTimeout: tuning.replyTimeout, lastActivity: lastActivity))
     }
@@ -1213,8 +1321,12 @@ public final class VoiceSession {
         guard wantsToRun else { return false }
         if toolCallsInFlight > 0 { return true }
         if agentAudible, now - lastAgentSignalAt < tuning.agentStuckAfter { return true }
+        // Own listening: a reply whose speech is still being made counts as the agent talking.
+        if speaker?.isBusy == true { return true }
         if let since = awaitingReplySince, now - since < tuning.replyTimeout { return true }
-        if mode == .voice, now - lastReplyAt < tuning.settleAfterReply { return true }
+        // Voice mode: the SDK's audio starts about 0.1 s after the reply text. Own listening
+        // knows exactly when its audio plays (the speaker, above), so it does not guess.
+        if mode == .voice, ownListening == nil, now - lastReplyAt < tuning.settleAfterReply { return true }
         return false
     }
 

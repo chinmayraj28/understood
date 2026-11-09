@@ -34,6 +34,17 @@ let package = Package(
             dependencies: ["HFVoice", "HFCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // Spike, 7 Nov: can the app listen for itself while the agent only speaks?
+        // See docs/spikes/own_listening.md.
+        .executableTarget(
+            name: "hf-listen-spike",
+            dependencies: [
+                "HFVoice", "HFCore",
+                .product(name: "ElevenLabs", package: "elevenlabs-swift-sdk"),
+                .product(name: "LiveKit", package: "client-sdk-swift"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(
             name: "HFVoiceTests",
             dependencies: ["HFVoice", "HFCore"],
