@@ -68,6 +68,10 @@ export function Settings(props: {
         <input type="checkbox" checked={props.autoListen} onChange={(e) => props.onAutoListen(e.target.checked)} />
         Start listening as soon as the page opens
       </label>
+      <p className="settings-note">
+        Browsers need one click or key press per visit before a page may use sound, so after opening the page, press any key or
+        click once (switch access and voice-control software count).
+      </p>
     </div>
   );
 }

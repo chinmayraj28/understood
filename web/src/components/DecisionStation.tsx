@@ -37,7 +37,7 @@ export function DecisionStation({ state, turn }: { state: StationState; turn?: T
       </svg>
 
       {turn?.failed ? (
-        <div className="verdict verdict-stop" role="alert">
+        <div className="verdict verdict-stop">
           <p className="verdict-head">The turn failed</p>
           <p className="verdict-text">{turn.failed}</p>
         </div>

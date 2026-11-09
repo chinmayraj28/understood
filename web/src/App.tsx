@@ -9,7 +9,7 @@ import { Pipeline } from "./components/Pipeline";
 import { ConversationLog, PhrasebookPanel } from "./components/SidePanels";
 import { REPLAYS } from "./fixtures";
 import { PHONE_HOME } from "./model/phone";
-import { ALL_ON, bestText, decisionSpeech } from "./model/turn";
+import { ALL_ON } from "./model/turn";
 import { useSession } from "./useSession";
 
 export function App() {
@@ -24,15 +24,9 @@ export function App() {
     if (!session.listening) void session.startListening();
   };
 
-  // One sentence for screen readers when a turn is decided.
-  const announcement =
-    turn?.stage === "done"
-      ? turn.failed
-        ? `The turn failed. ${turn.failed}`
-        : turn.decision
-          ? `Understood: ${bestText(turn)}. ${decisionSpeech(turn.decision.decision)}`
-          : ""
-      : "";
+  // Screen readers hear each turn once, through the conversation log. This region adds only
+  // a failure, which has no line of its own there.
+  const announcement = turn?.stage === "done" && turn.failed ? `The turn failed. ${turn.failed}` : "";
 
   return (
     <>
@@ -153,7 +147,8 @@ export function App() {
           <p>Measured on recordings of people with dysarthria. Success is judged by whether it did what the person meant, not only by how many words it got right.</p>
           <Evaluation
             onReplay={(r) => {
-              document.getElementById("pipeline")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              document.getElementById("pipeline")?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
               void session.playEvaluation(r);
             }}
           />
@@ -179,7 +174,7 @@ export function App() {
         onSkip={() => session.setEnrol((e) => ({ ...e, index: e.index + 1, status: "listening", result: undefined }))}
         onClose={() => session.setEnrol((e) => ({ ...e, open: false }))}
       />
-      <div className="visually-hidden" aria-live="assertive">
+      <div className="visually-hidden" aria-live="polite">
         {announcement}
       </div>
     </>

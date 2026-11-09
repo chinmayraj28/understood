@@ -62,14 +62,25 @@ export class ScribeLiveTranscriber implements LiveTranscriber {
   async start() {
     this.stopped = false;
     const token = await realtimeToken();
+    // Stopped while the token was on its way: open nothing.
+    if (this.stopped) return;
     const params = new URLSearchParams({ ...SCRIBE_REALTIME.params, token });
     for (const term of SCRIBE_REALTIME.keyterms) params.append("keyterms", term);
     const socket = new WebSocket(`${SCRIBE_REALTIME.url}?${params}`);
     this.socket = socket;
-    await new Promise<void>((resolve, reject) => {
-      socket.onopen = () => resolve();
-      socket.onerror = () => reject(new Error("The live transcript could not connect."));
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        socket.onopen = () => resolve();
+        socket.onerror = () => reject(new Error("The live transcript could not connect."));
+      });
+    } catch (error) {
+      if (this.stopped) return; // closed on purpose while connecting: not a failure
+      throw error;
+    }
+    if (this.stopped || this.socket !== socket) {
+      socket.close();
+      return;
+    }
     socket.onmessage = (event) => this.receive(event.data as string);
     socket.onclose = () => {
       if (this.socket !== socket) return; // closed on purpose by stop()
@@ -95,6 +106,10 @@ export class ScribeLiveTranscriber implements LiveTranscriber {
       return;
     }
     const type = message.message_type ?? "";
+    if (type === "session_started") {
+      this.reconnects = 0; // a working session: later drops get their full set of retries again
+      return;
+    }
     if (type === "partial_transcript") {
       this.partial = message.text ?? "";
     } else if (isFinal(type)) {

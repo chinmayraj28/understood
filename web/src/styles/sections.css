@@ -344,3 +344,7 @@
   max-width: 76ch;
   font-size: var(--t-0);
 }
+.settings-note {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}

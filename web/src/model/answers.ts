@@ -24,6 +24,13 @@ export interface Pending {
   action?: ActResponse;
   /** A question about an answer ("Did you say yes?") keeps the question it was answering. */
   parent?: Pending;
+  /** When the question was set, ms since 1970. It expires after PENDING_LIFETIME_MS. */
+  createdAt?: number;
+  /**
+   * performance.now() when the question finished playing. An answer whose speech began
+   * before this was spoken over the question, or before it, and does not count.
+   */
+  askedAt?: number;
 }
 
 export interface Learned {
@@ -111,14 +118,14 @@ function answer(p: Pending, text: string, turn: TurnModel, entries: PhrasebookEn
       if (p.parent) return { pending: p.parent, say: p.parent.question, tone: "question", failed: true };
       return { say: "Okay, I won't. Please say it again in your own words.", failed: true };
     }
-    return { pending: p, say: `Please say yes or no. ${p.question}`, tone: "question", failed: true };
+    return notAnAnswer(p, text, turn);
   }
 
   if (p.kind === "choose") {
     const option = matchOption(text, p.options ?? []);
     if (option) return { learned: learn(subject, option, "confirmation", entries), actOn: option, resetTries: true };
     if (reply.kind === "no") return { say: "Okay, neither. Please say it again in your own words.", failed: true };
-    return { pending: p, say: p.question, tone: "question", failed: true };
+    return notAnAnswer(p, text, turn);
   }
 
   // An action waiting for a yes.
@@ -128,7 +135,27 @@ function answer(p: Pending, text: string, turn: TurnModel, entries: PhrasebookEn
     return { learned, phone: (phone) => phonePerform(phone, action.action), say: doneSentence(action), tone: "done", resetTries: true };
   }
   if (reply.kind === "no") return { phone: phoneCancel, say: "Okay, I won't.", failed: true };
+  return notAnAnswer(p, text, turn);
+}
+
+/**
+ * Something that is neither a clear yes nor a no. The question is dropped (a waiting message
+ * is cancelled, never sent), and a real sentence is taken as a new request: "Okay, message
+ * Sam instead" while "Send it to Mum?" is waiting messages Sam, after its own question.
+ * A single unclear word gets the question again.
+ */
+function notAnAnswer(p: Pending, text: string, turn: TurnModel): Outcome {
+  const cancel = p.kind === "action" ? phoneCancel : undefined;
+  if (words(text).length >= 2) return { phone: cancel, actOn: text, actSubject: turn, failed: true };
   return { pending: p, say: `Please say yes or no. ${p.question}`, tone: "question", failed: true };
+}
+
+/** A question waits at most this long. After that, an answer is a new request. */
+export const PENDING_LIFETIME_MS = 60_000;
+
+/** True when a question has waited too long to be answered. */
+export function isExpired(p: Pending, now: number): boolean {
+  return p.createdAt !== undefined && now - p.createdAt > PENDING_LIFETIME_MS;
 }
 
 /** After /api/act: do it, or ask first when it would reach another person. */
@@ -142,7 +169,8 @@ export interface ActOutcome {
 export function afterAct(response: ActResponse, phone: PhoneState, text: string, subject?: TurnModel): ActOutcome {
   const action = response.action;
   if (action.kind === "none") return { phone, say: response.reply };
-  if (response.needsConfirmation) {
+  // Anything that reaches another person asks first, whatever the server said.
+  if (response.needsConfirmation || action.kind === "message" || action.kind === "call") {
     // The server's reply is already the question for messages and calls; otherwise build one.
     const question = response.reply.trim().endsWith("?") ? response.reply.trim() : confirmQuestion(action);
     return {

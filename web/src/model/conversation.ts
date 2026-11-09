@@ -14,9 +14,10 @@
 import type { ActResponse, PhrasebookEntry, StageSwitches, UnderstandRequest } from "../../shared/pipeline";
 import { SCRIBE_REALTIME } from "../audio/liveTranscript";
 import type { VoiceStore } from "../storage/store";
-import { chooseExamples, keytermsFor, type Clip } from "./learning";
-import { PHONE_HOME, type PhoneState } from "./phone";
-import { afterAct, resolveDecision, type Pending } from "./answers";
+import { chooseExamples, keytermsFor, words, type Clip } from "./learning";
+import { PHONE_HOME, phoneCancel, type PhoneState } from "./phone";
+import { similarity } from "../../shared/rules";
+import { afterAct, isExpired, resolveDecision, type Pending } from "./answers";
 import type { Transport } from "./transport";
 import { ALL_ON, bestText, heardText, newTurn, reduceTurn, type TurnModel } from "./turn";
 
@@ -52,9 +53,16 @@ export interface TurnInput {
   speechSeconds?: number;
   origin: TurnModel["origin"];
   label?: string;
+  /** performance.now() when the person started speaking. Missing for replays. */
+  speechStartedAt?: number;
 }
 
 let lineId = 0;
+let turnCount = 0;
+/** Recordings kept in memory for turns that may still be confirmed. */
+const MAX_KEPT_RECORDINGS = 12;
+/** A turn this close to what the assistant just said is its own voice leaking back in. */
+const ECHO_SIMILARITY = 0.8;
 
 export class Conversation {
   private state: ConversationState;
@@ -63,6 +71,8 @@ export class Conversation {
   private clips: Clip[] = [];
   private recent: string[] = [];
   private wavByTurn = new Map<string, string>();
+  /** The last thing the assistant said, to recognise its own voice coming back as a turn. */
+  private lastSpoken = "";
   private abort = new AbortController();
 
   private constructor(
@@ -125,16 +135,46 @@ export class Conversation {
 
   /** Sends a turn through the pipeline. Turns are handled one at a time, in order. */
   submitTurn(input: TurnInput): Promise<void> {
-    this.queue = this.queue.then(() => this.runTurn(input)).catch(() => {});
+    // Whatever happens inside (a stop, a timeout, an error), busy is cleared and the next turn runs.
+    this.queue = this.queue
+      .then(() =>
+        this.runTurn(input).finally(() => {
+          if (this.state.busy) this.set({ busy: false });
+        }),
+      )
+      .catch(() => {});
     return this.queue;
   }
 
   private async runTurn(input: TurnInput) {
-    const { pending, switches } = this.state;
-    const turnId = `turn-${Date.now().toString(36)}`;
+    const { switches } = this.state;
+    let pending = this.state.pending;
+
+    // A question waits a minute at most; after that, whatever is said is a new request.
+    if (pending && isExpired(pending, Date.now())) {
+      this.dropPending(`The question "${pending.question}" went unanswered for a minute, so it was dropped.`);
+      pending = undefined;
+    }
+    // An answer only counts if it was spoken after the question finished playing. A "yes"
+    // said before (or over) "Send it to Mum?" was not an answer to it.
+    if (pending && input.speechStartedAt !== undefined && (pending.askedAt === undefined || input.speechStartedAt < pending.askedAt)) {
+      this.note("That was said before the question finished, so it does not count as an answer.", "error");
+      await this.askPending(pending, pending.question);
+      return;
+    }
+    if (this.isEcho(input.realtimeText)) {
+      this.note("Ignored a turn that sounded like the assistant's own voice.", "error");
+      return;
+    }
+
+    const turnId = `turn-${Date.now().toString(36)}-${++turnCount}`;
     let turn = newTurn({ turnId, origin: input.origin, label: input.label, liveText: input.liveText, switches, answering: pending?.question });
     turn = { ...turn, speechSeconds: input.speechSeconds };
-    if (input.wavBase64) this.wavByTurn.set(turnId, input.wavBase64);
+    if (input.wavBase64) {
+      this.wavByTurn.set(turnId, input.wavBase64);
+      // Keep only recent recordings: an old turn can no longer be confirmed.
+      while (this.wavByTurn.size > MAX_KEPT_RECORDINGS) this.wavByTurn.delete(this.wavByTurn.keys().next().value!);
+    }
     this.set({ turns: [...this.state.turns.slice(-11), turn], busy: true, justLearned: [] });
 
     const request: UnderstandRequest = {
@@ -170,6 +210,11 @@ export class Conversation {
       this.set({ busy: false, failedTries: this.state.failedTries + 1 });
       return;
     }
+    if (!input.realtimeText && this.isEcho(heardText(finished))) {
+      this.note("Ignored a turn that sounded like the assistant's own voice.", "error");
+      this.set({ busy: false });
+      return;
+    }
     // When it is sure, show what it understood; when it is asking, show what was actually heard.
     const sure = finished.decision.decision.kind === "act";
     const heard = sure ? bestText(finished) : heardText(finished);
@@ -182,12 +227,13 @@ export class Conversation {
   private async follow(turn: TurnModel) {
     const outcome = resolveDecision(turn, this.state.pending, this.state.entries);
     if (outcome.learned) await this.learn(outcome.learned.entries, outcome.learned.changed, outcome.learned.clip);
-    this.set({
-      pending: outcome.pending,
-      failedTries: outcome.resetTries ? 0 : this.state.failedTries + (outcome.failed ? 1 : 0),
-    });
+    this.set({ failedTries: outcome.resetTries ? 0 : this.state.failedTries + (outcome.failed ? 1 : 0) });
     if (outcome.phone) this.set({ phone: outcome.phone(this.state.phone) });
-    if (outcome.say) await this.assistant(outcome.say, outcome.tone);
+    if (outcome.pending && outcome.say) await this.askPending(outcome.pending, outcome.say, outcome.tone);
+    else {
+      this.set({ pending: outcome.pending });
+      if (outcome.say) await this.assistant(outcome.say, outcome.tone);
+    }
     if (outcome.actOn) await this.act(outcome.actOn, outcome.actSubject);
   }
 
@@ -200,8 +246,34 @@ export class Conversation {
       return;
     }
     const outcome = afterAct(response, this.state.phone, text, subject);
-    this.set({ pending: outcome.pending, phone: outcome.phone });
-    await this.assistant(outcome.say, outcome.tone);
+    this.set({ phone: outcome.phone });
+    if (outcome.pending) await this.askPending(outcome.pending, outcome.say, outcome.tone);
+    else {
+      this.set({ pending: undefined });
+      await this.assistant(outcome.say, outcome.tone);
+    }
+  }
+
+  /**
+   * Sets the question as waiting, speaks it, and stamps when it finished playing (or was cut
+   * off). Only speech that starts after that stamp can answer it.
+   */
+  private async askPending(pending: Pending, say: string, tone: ChatLine["tone"] = "question") {
+    const waiting: Pending = { ...pending, createdAt: pending.createdAt ?? Date.now(), askedAt: undefined };
+    this.set({ pending: waiting });
+    await this.assistant(say, tone);
+    if (this.state.pending === waiting) this.set({ pending: { ...waiting, askedAt: performance.now() } });
+  }
+
+  private dropPending(why: string) {
+    const pending = this.state.pending;
+    this.set({ pending: undefined, phone: pending?.kind === "action" ? phoneCancel(this.state.phone) : this.state.phone });
+    this.note(why, "error");
+  }
+
+  private isEcho(text: string | undefined): boolean {
+    if (!text || words(this.lastSpoken).length < 2) return false;
+    return similarity(text, this.lastSpoken) >= ECHO_SIMILARITY;
   }
 
   private async learn(entries: PhrasebookEntry[], changed: PhrasebookEntry[], clip?: { turnId: string; text: string; difficulty: number }) {
@@ -230,9 +302,14 @@ export class Conversation {
     await this.store.saveEntries(entries);
   }
 
+  /** Forgets everything about the person: phrasebook, clips, recordings, the conversation. */
   async clearEverything() {
     this.clips = [];
-    this.set({ entries: [], clipCount: 0, justLearned: [] });
+    this.wavByTurn.clear();
+    this.recent = [];
+    this.lastSpoken = "";
+    this.transport.stopSpeaking();
+    this.set({ entries: [], clipCount: 0, justLearned: [], turns: [], chat: [], pending: undefined, failedTries: 0, phone: PHONE_HOME });
     await this.store.clearAll();
   }
 
@@ -247,6 +324,7 @@ export class Conversation {
 
   private async assistant(text: string, tone?: ChatLine["tone"]) {
     this.say("assistant", text, tone);
+    this.lastSpoken = text;
     await this.transport.speak(text);
   }
 }

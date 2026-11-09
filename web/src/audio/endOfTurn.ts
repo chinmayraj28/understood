@@ -78,6 +78,10 @@ export class EndOfTurnDetector {
   get isInTurn() {
     return this.phase.kind === "speaking";
   }
+  /** True from the first loud chunk (before it is confirmed as speech) until the turn ends. */
+  get hearingSound() {
+    return this.phase.kind !== "idle";
+  }
   get calibrating() {
     return this.time < this.settings.calibrationSeconds;
   }

@@ -14,9 +14,20 @@ class PcmResampler extends AudioWorkletProcessor {
     this.out = new Int16Array(CHUNK);
     this.filled = 0;
     this.sumSquares = 0;
-    // A gentle low-pass before dropping samples, so high sounds do not fold into speech.
-    this.smoothed = 0;
-    this.alpha = Math.min(1, (2 * Math.PI * 7000) / sampleRate / (1 + (2 * Math.PI * 7000) / sampleRate));
+    // A two-pole low-pass at 7 kHz (a standard "biquad") before dropping samples, so sounds
+    // above 8 kHz do not fold back down into the speech band of the 16 kHz audio.
+    const w = (2 * Math.PI * 7000) / sampleRate;
+    const alpha = Math.sin(w) / (2 * Math.SQRT1_2);
+    const a0 = 1 + alpha;
+    this.b0 = (1 - Math.cos(w)) / 2 / a0;
+    this.b1 = (1 - Math.cos(w)) / a0;
+    this.b2 = this.b0;
+    this.a1 = (-2 * Math.cos(w)) / a0;
+    this.a2 = (1 - alpha) / a0;
+    this.x1 = 0;
+    this.x2 = 0;
+    this.y1 = 0;
+    this.y2 = 0;
   }
 
   process(inputs) {
@@ -29,8 +40,13 @@ class PcmResampler extends AudioWorkletProcessor {
       for (let i = 0; i < length; i++) mono[i] += channel[i] / input.length;
     }
     for (let i = 0; i < length; i++) {
-      this.smoothed += this.alpha * (mono[i] - this.smoothed);
-      mono[i] = this.smoothed;
+      const x = mono[i];
+      const y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
+      this.x2 = this.x1;
+      this.x1 = x;
+      this.y2 = this.y1;
+      this.y1 = y;
+      mono[i] = y;
     }
 
     while (this.position < length) {

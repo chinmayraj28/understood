@@ -20,18 +20,27 @@ export function words(text: string): string[] {
   return n ? n.split(" ") : [];
 }
 
-const YES = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "correct", "right", "ok", "okay", "please"]);
+/** Words that say yes on their own. */
+const YES = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "correct", "right", "ok", "okay", "fine", "ahead", "send", "do"]);
+/** Words allowed around a yes without changing it: "yes please", "go ahead", "send it", "do it". */
+const YES_FILLER = new Set(["please", "go", "it", "that's", "thats", "is", "its", "it's", "that", "thanks", "thank", "you"]);
 const NO = new Set(["no", "nope", "nah", "don't", "dont", "cancel", "wrong", "not"]);
+/** Words dropped from a correction: "no, I meant Sam" keeps "sam". */
+const CORRECTION_FILLER = new Set(["it's", "its", "i", "meant", "said", "mean", "instead", "it", "is"]);
 
-/** "yes", "no", or "other". A "no" may carry a correction: "no, Sam" gives rest "sam". */
+/**
+ * "yes", "no", or "other". A yes counts only when every word is a yes-word or filler, so
+ * "Okay, message Sam instead" is not a yes to "Send it to Mum?". A "no" may carry a
+ * correction: "no, Sam" gives rest "sam".
+ */
 export function classifyAnswer(text: string): { kind: "yes" | "no" | "other"; rest: string } {
   const w = words(text);
   if (w.length === 0) return { kind: "other", rest: "" };
   if (NO.has(w[0]) || (w.length <= 3 && w.some((x) => NO.has(x)))) {
-    const rest = w.filter((x) => !NO.has(x) && !["it's", "its", "i", "meant", "said"].includes(x));
+    const rest = w.filter((x) => !NO.has(x) && !CORRECTION_FILLER.has(x));
     return { kind: "no", rest: rest.join(" ") };
   }
-  if (YES.has(w[0]) || (w.length <= 3 && w.some((x) => YES.has(x)))) return { kind: "yes", rest: "" };
+  if (w.every((x) => YES.has(x) || YES_FILLER.has(x)) && w.some((x) => YES.has(x))) return { kind: "yes", rest: "" };
   return { kind: "other", rest: w.join(" ") };
 }
 

@@ -49,3 +49,27 @@ export function phonePerform(state: PhoneState, action: PhoneAction, now = Date.
       return { ...state, screen: "home", action: undefined, question: undefined };
   }
 }
+
+/**
+ * One sentence describing the phone, for screen readers. Built from the phone's state only,
+ * never the clock, so it changes when the screen changes and not every second of a timer.
+ */
+export function phoneDescription(state: PhoneState): string {
+  const action = state.action;
+  switch (state.screen) {
+    case "confirm":
+      return `Waiting for your yes: ${state.question ?? "shall I go ahead?"}`;
+    case "message":
+      return action?.kind === "message" ? `Sent to ${action.to}: ${action.text}` : "Message sent.";
+    case "call":
+      return action?.kind === "call" ? `Calling ${action.to}.` : "Calling.";
+    case "timer":
+      return action?.kind === "timer" ? `Timer set for ${action.minutes} ${action.minutes === 1 ? "minute" : "minutes"}.` : "Timer set.";
+    case "music":
+      return action?.kind === "music" ? `Playing ${action.query}.` : "Playing music.";
+    case "reminder":
+      return action?.kind === "reminder" ? `Reminder set: ${action.text}, ${action.when}.` : "Reminder set.";
+    case "home":
+      return "Home screen. Nothing happening.";
+  }
+}

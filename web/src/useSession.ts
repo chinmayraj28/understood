@@ -180,7 +180,7 @@ export function useSession() {
       if (command === "stop") return stopListening();
       if (command === "example") return void playReplay(REPLAYS[0]);
       if (replaying.current || mode.kind === "replay") backToOwn();
-      void own.submitTurn({ wavBase64: turn.wavBase64, realtimeText: turn.realtimeText, liveText: turn.realtimeText ?? "", speechSeconds: turn.speechSeconds, origin: "live" });
+      void own.submitTurn({ wavBase64: turn.wavBase64, realtimeText: turn.realtimeText, liveText: turn.realtimeText ?? "", speechSeconds: turn.speechSeconds, origin: "live", speechStartedAt: turn.speechStartedAt });
     },
     [own, handleEnrolTurn, stopListening, playReplay, backToOwn, mode.kind],
   );

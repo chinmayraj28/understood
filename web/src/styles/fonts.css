@@ -1,0 +1,18 @@
+/* The page's two typefaces, served from /fonts (no request to a font service). Both are by the
+   Braille Institute, made for readers with low vision. SIL Open Font License 1.1. */
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/atkinson-hyperlegible-next-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/atkinson-hyperlegible-mono-500-latin.woff2") format("woff2");
+}

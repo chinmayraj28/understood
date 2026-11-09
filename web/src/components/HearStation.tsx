@@ -126,7 +126,7 @@ function Agreement({ turn }: { turn: TurnModel }) {
   else if (heard.length === 1) sentence = `Only ${HEARER_LABEL[heard[0]]} returned words, so there is nothing to compare.`;
   else sentence = "No two recognisers heard the same words.";
   return (
-    <div className="agreement" role="status">
+    <div className="agreement">
       <span className={`agree-count agree-${Math.min(agreement.agreeing.length, 3)}`} title="Recognisers that agreed, out of those that answered">
         {agreement.agreeing.length}/{heard.length || 3}
       </span>

@@ -3,7 +3,7 @@
 // Anything that reaches another person first waits on a confirm sheet for a spoken yes.
 
 import { useEffect, useState } from "react";
-import type { PhoneState } from "../model/phone";
+import { phoneDescription, type PhoneState } from "../model/phone";
 
 function useClock(intervalMs: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -24,13 +24,16 @@ export function Phone({ phone }: { phone: PhoneState }) {
   const time = new Date(now).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
     <figure className="phone-wrap">
-      <div className={`phone screen-${phone.screen}`} role="region" aria-label="Pretend phone" aria-live="polite">
+      {/* Not a live region: the screen ticks every second during a timer or call. What the phone
+          did is announced once, in the conversation log; this sentence is for anyone reading the phone. */}
+      <div className={`phone screen-${phone.screen}`} role="region" aria-label="Pretend phone">
+        <p className="visually-hidden">{phoneDescription(phone)}</p>
         <div className="phone-bar" aria-hidden="true">
           <span className="num">{time}</span>
           <span className="phone-notch" />
           <span className="phone-battery" />
         </div>
-        <div className="phone-screen">
+        <div className="phone-screen" aria-hidden="true">
           <Screen phone={phone} now={now} />
         </div>
       </div>

@@ -57,9 +57,31 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("entries")) db.createObjectStore("entries", { keyPath: "id" });
       if (!db.objectStoreNames.contains("clips")) db.createObjectStore("clips", { keyPath: "id" });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Another tab clearing everything deletes the database: let go of it so that can happen.
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error("The browser blocked local storage."));
+  });
+}
+
+/** Deletes the whole database. Waits up to 3 s if another tab is still holding it open. */
+function deleteDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") return resolve();
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    const timer = setTimeout(resolve, 3000);
+    request.onsuccess = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    request.onerror = () => {
+      clearTimeout(timer);
+      reject(request.error);
+    };
   });
 }
 
@@ -146,16 +168,16 @@ export class BrowserStore implements VoiceStore {
     );
   }
 
+  /**
+   * Forgets everything on this device. The whole database is deleted every time, even when an
+   * earlier error switched this visit to memory: a failed write must never leave a person's
+   * recordings behind. A fresh, empty database is then opened for the rest of the visit.
+   */
   async clearAll() {
     await this.memory.clearAll();
-    await this.attempt(
-      async (db) => {
-        const tx = db.transaction(["entries", "clips"], "readwrite");
-        tx.objectStore("entries").clear();
-        tx.objectStore("clips").clear();
-        await done(tx);
-      },
-      async () => {},
-    );
+    this.db?.close();
+    this.db = null;
+    await deleteDatabase().catch(() => {});
+    this.db = typeof indexedDB === "undefined" ? null : await openDatabase().catch(() => null);
   }
 }

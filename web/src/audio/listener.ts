@@ -3,6 +3,7 @@
 
 import { DEFAULT_SETTINGS, EndOfTurnDetector, type DetectorEvent, type TurnEndReason } from "./endOfTurn";
 import { ScribeLiveTranscriber, SilentTranscriber, type LiveTranscriber } from "./liveTranscript";
+import { StreamGate } from "./streamGate";
 import { concat, encodeWav, SAMPLE_RATE, toBase64 } from "./wav";
 
 export interface FinishedTurn {
@@ -11,6 +12,8 @@ export interface FinishedTurn {
   realtimeText?: string;
   speechSeconds: number;
   reason: TurnEndReason;
+  /** performance.now() when the person started speaking: an answer must start after its question. */
+  speechStartedAt: number;
 }
 
 export type ListenerStatus = "off" | "starting" | "calibrating" | "waiting" | "speaking" | "finishing";
@@ -24,6 +27,8 @@ export interface ListenerTick {
 const CHUNK_SECONDS = 320 / SAMPLE_RATE;
 /** Audio kept while nobody speaks: enough for the pre-roll, not a growing recording. */
 const IDLE_KEEP_SECONDS = 1.5;
+/** Audio from just before a sound that goes out with it: the detector's pre-roll, 0.4 s. */
+const PREROLL_CHUNKS = Math.round(0.4 / CHUNK_SECONDS);
 
 export class Listener {
   onTick: (tick: ListenerTick) => void = () => {};
@@ -41,6 +46,8 @@ export class Listener {
   private chunks: Int16Array[] = [];
   private bufferStart = 0;
   private status: ListenerStatus = "off";
+  private gate = new StreamGate(PREROLL_CHUNKS);
+  private speechStartedAt = 0;
   private lastTick = 0;
 
   get endSilenceSeconds() {
@@ -53,34 +60,68 @@ export class Listener {
     return this.status !== "off";
   }
 
-  /** Opens the microphone. Throws a plain sentence if permission is refused. */
+  /** Bumped by every start and stop, so a start that is overtaken by a stop gives up. */
+  private startToken = 0;
+
+  /**
+   * Opens the microphone. Throws a plain sentence if it cannot. If stop() is called while this
+   * is still waiting (on permission, or on the audio worklet), the microphone is closed again
+   * and nothing is left running.
+   */
   async start(options: { liveTranscript: boolean }) {
     if (this.isOn) return;
+    const token = ++this.startToken;
+    const overtaken = () => token !== this.startToken;
     this.setStatus("starting");
+    let stream: MediaStream | null = null;
+    let context: AudioContext | null = null;
+    let node: AudioWorkletNode | null = null;
+    let ready = false;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      });
-    } catch (error) {
-      this.setStatus("off");
-      const name = (error as DOMException).name;
-      throw new Error(
-        name === "NotAllowedError"
-          ? "The browser was not allowed to use the microphone. Allow it in the address bar, then try again."
-          : "No microphone could be opened.",
-      );
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+        });
+      } catch (error) {
+        const name = (error as DOMException).name;
+        throw new Error(
+          name === "NotAllowedError"
+            ? "The browser was not allowed to use the microphone. Allow it in the address bar, then try again."
+            : "No microphone could be opened.",
+        );
+      }
+      if (overtaken()) return;
+      context = new AudioContext();
+      try {
+        await context.audioWorklet.addModule("/pcm-worklet.js");
+      } catch {
+        throw new Error("The page could not start listening: its audio code failed to load. Reload the page and try again.");
+      }
+      if (overtaken()) return;
+      const source = context.createMediaStreamSource(stream);
+      node = new AudioWorkletNode(context, "pcm-resampler");
+      node.port.onmessage = (event: MessageEvent<{ pcm: Int16Array; db: number }>) => this.chunk(event.data.pcm, event.data.db);
+      source.connect(node);
+      if (context.state === "suspended") await context.resume().catch(() => {});
+      if (overtaken()) return;
+      ready = true;
+    } finally {
+      if (!ready) {
+        // Failed or stopped part-way: close whatever was opened.
+        stream?.getTracks().forEach((t) => t.stop());
+        node?.disconnect();
+        void context?.close().catch(() => {});
+        if (!overtaken()) this.setStatus("off");
+      }
     }
-    this.context = new AudioContext();
-    await this.context.audioWorklet.addModule("/pcm-worklet.js");
-    const source = this.context.createMediaStreamSource(this.stream);
-    this.node = new AudioWorkletNode(this.context, "pcm-resampler");
-    this.node.port.onmessage = (event: MessageEvent<{ pcm: Int16Array; db: number }>) => this.chunk(event.data.pcm, event.data.db);
-    source.connect(this.node);
-    if (this.context.state === "suspended") await this.context.resume().catch(() => {});
 
+    this.stream = stream;
+    this.context = context;
+    this.node = node;
     this.detector = new EndOfTurnDetector({ ...this.detector.settings });
     this.chunks = [];
     this.bufferStart = 0;
+    this.gate = new StreamGate(PREROLL_CHUNKS);
     this.setStatus("calibrating");
 
     this.transcriber = options.liveTranscript ? new ScribeLiveTranscriber() : new SilentTranscriber();
@@ -89,7 +130,9 @@ export class Listener {
       this.handle(this.detector.setTranscript(text));
     };
     this.transcriber.onError = (message) => this.onNotice(message);
-    this.transcriber.start().catch(() => {
+    const transcriber = this.transcriber;
+    transcriber.start().catch(() => {
+      if (this.transcriber !== transcriber) return;
       this.onNotice("The live transcript is off, so words appear only after each turn.");
       this.transcriber = new SilentTranscriber();
     });
@@ -104,6 +147,7 @@ export class Listener {
   }
 
   stop() {
+    this.startToken += 1;
     this.transcriber.stop();
     this.node?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
@@ -121,8 +165,12 @@ export class Listener {
 
   private chunk(pcm: Int16Array, db: number) {
     this.chunks.push(pcm);
-    this.transcriber.send(pcm);
     this.handle(this.detector.audio(db, CHUNK_SECONDS));
+    // Only a turn (and the moment before it) goes to the live transcript, never the quiet room.
+    const gate = this.gate.next(this.detector.hearingSound, this.chunks);
+    for (const piece of gate.send) this.transcriber.send(piece);
+    // A sound that was not a turn (a cough): close it off so its words do not join the next turn.
+    if (gate.closed && this.status !== "finishing") void this.transcriber.finishTurn();
     if (!this.detector.isInTurn && this.status !== "finishing") {
       if (!this.detector.calibrating && this.status === "calibrating") this.setStatus("waiting");
       this.trimIdle();
@@ -139,6 +187,8 @@ export class Listener {
   private handle(events: DetectorEvent[]) {
     for (const event of events) {
       if (event.type === "speechStarted") {
+        // The sound began a moment before it was confirmed as speech.
+        this.speechStartedAt = performance.now() - this.detector.settings.minimumSpeechSeconds * 1000;
         this.setStatus("speaking");
         this.onSpeechStarted();
       } else if (event.type === "level") {
@@ -164,6 +214,7 @@ export class Listener {
       realtimeText: text.trim() || undefined,
       speechSeconds: audio.length / SAMPLE_RATE,
       reason,
+      speechStartedAt: this.speechStartedAt,
     });
   }
 
