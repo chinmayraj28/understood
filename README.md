@@ -6,7 +6,25 @@ Understood is a website that takes one sentence of speech, slow, slurred or quie
 
 **Results:** on 220 held-out recordings of people with and without dysarthria, the pipeline gets 20.6% of words wrong, down from 39.9% before the transcription work, and 27.6% for speakers with dysarthria (from 52.9%). See [Does it work?](#does-it-work-transcription-accuracy).
 
-**Try it:** a temporary, keyword-locked demo link was sent with the submission (it runs from my laptop). To run it yourself, see [Run it](#run-it).
+## Try it in two minutes
+
+**With the demo link** sent with the submission. It is hosted through Cloudflare from my laptop, so it is temporary.
+
+1. Open the link and enter the keyword. The page remembers it.
+2. Click **Open the pipeline**.
+3. Under **Input**, choose **Your file** and upload a short recording (WAV, MP3, M4A, OGG or WebM, up to 60 seconds). Optionally type what was said, to see every word marked right or wrong. Leave **Hear it as** on "Nobody in particular".
+4. Click **Hear it**. The recording plays while the live transcript writes it down. Then each recogniser's text, the phrasebook, Claude's merge and the final transcript appear, with real timings. The table shows how many words each listener got wrong on its own, and how many the pipeline did.
+5. Or choose **Microphone**, click **Start listening**, and say one sentence, such as "Message Sam I'm running late". It listens continuously, so press **Stop listening** when you are done.
+
+The TORGO recordings of people with dysarthria are not available through the link, because their licence keeps them on my computer. The demo video shows them.
+
+**On your own computer** (needs your own ElevenLabs, OpenRouter and Anthropic keys):
+
+1. Follow [Run it](#run-it).
+2. Fetch TORGO with `eval/scripts/fetch_torgo.sh` (about 1 GB) to hear real recordings.
+3. On the pipeline page, choose **TORGO**, pick a speaker, keep **Test clips**, and click a clip. A good first one is F03: "If you destroy confidence in banks, you do something to the economy, he said."
+
+The first clip for each speaker takes 10 to 20 seconds longer, while that speaker's voice is set up from their own earlier recordings.
 
 It is my submission for the Hiya Voice AI Challenge (Accessibility track). The one-page write-up is in [WRITEUP.md](WRITEUP.md), and the AI tools I used are described in [ai.md](ai.md).
 
