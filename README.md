@@ -8,7 +8,7 @@ Understood is a website that takes one sentence of speech, slow, slurred or quie
 
 ## Try it in two minutes
 
-**With the demo link** sent with the submission. It is hosted through Cloudflare from my laptop, so it is temporary.
+**Live:** https://understood.chinmayraj.workers.dev (Cloudflare Workers), locked with a keyword sent with the submission.
 
 1. Open the link and enter the keyword. The page remembers it.
 2. Click **Open the pipeline**.
@@ -202,7 +202,7 @@ npx tsx scripts/evalTranscription.ts --split dev --per-speaker 10
 
 ## Known limits
 
-- **Not permanently hosted.** For the submission it was shared temporarily from the author's laptop through a Cloudflare quick tunnel, locked with a keyword (`ACCESS_KEY`), so it is only up while that laptop is on. A permanent deployment to Cloudflare Workers is the plan (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6. The TORGO recordings are never served to other machines, tunnel or not.
+- **Hosted on Cloudflare Workers** at https://understood.chinmayraj.workers.dev, locked with a keyword (`ACCESS_KEY`). Deploy with `npx wrangler deploy` after `npm run build`; keys are Worker secrets. A permanent deployment to Cloudflare Workers is the plan (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6. The TORGO recordings are never served to other machines, tunnel or not.
 - **The microphone listens continuously.** It is built for people who cannot click, so every pause of about 2.5 seconds ends a turn and it starts listening again. A long pause, background noise or (rarely) the assistant's own spoken reply can start a new turn. Turning off "Speak replies aloud" and pressing **Stop listening** after a sentence avoids this when demonstrating. Recordings and uploads do not have this problem and are the measured path.
 - **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. A recording, where accuracy matters most, takes about 6 to 15 seconds after it has played, because the stronger listeners are slower.
 - **Hard cases.** Isolated single words stay hard (36% wrong held-out), homophones such as "knew" and "new" cannot be told apart without context, and the most severe speakers (M02, M04) are still misheard about half the time.

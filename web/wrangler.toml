@@ -1,0 +1,14 @@
+# Cloudflare Workers: the API (server/app.ts, Hono) plus the built page (dist/) as static assets.
+# Keys are Worker secrets (wrangler secret put), never in this file. The TORGO recordings route
+# is not part of the Worker: it only exists on a local run (server/dev.ts).
+name = "understood"
+main = "server/app.ts"
+compatibility_date = "2026-11-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+TRUST_PROXY = "1"
