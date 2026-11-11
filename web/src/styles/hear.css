@@ -15,6 +15,12 @@
     padding: 24px 28px;
   }
 }
+/* A hear link scrolls here: stop below the sticky header (static on phones). */
+@media (min-width: 721px) {
+  #hear-title {
+    scroll-margin-top: 80px;
+  }
+}
 .hear-head {
   display: flex;
   align-items: center;

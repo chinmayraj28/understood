@@ -77,6 +77,16 @@ function untilStopped<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
+/** True if the browser already lets the page use the microphone, so it can open without asking. */
+export async function microphoneAllowed(): Promise<boolean> {
+  try {
+    const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
+    return status?.state === "granted";
+  } catch {
+    return false;
+  }
+}
+
 const EMPTY: ConversationState | null = null;
 
 export function useSession() {
@@ -177,6 +187,9 @@ export function useSession() {
     }
     try {
       await listener.start({ liveTranscript: true });
+      // A stop while it was starting (a recording began, or the visitor left the page) wins:
+      // start() then returns quietly with the microphone closed, and the page must say so.
+      if (!listener.isOn) return;
       setListening(true);
       if (listener.needsGesture) setNotice("Press any key, or click anywhere, so the browser lets the page hear you.");
     } catch (error) {
@@ -271,6 +284,22 @@ export function useSession() {
     waitingForVoice.current = null;
     setHearing({ step: "idle" });
   }, []);
+
+  /**
+   * Leaving the pipeline page: stops any recording and the microphone, closes the voice setup,
+   * and returns whether the microphone was on (or was to reopen after a recording), so it can
+   * come back on when the visitor returns. The booking is cleared before the hearing is stopped,
+   * so the stopped hearing cannot reopen the microphone on the other page.
+   */
+  const leavePipeline = useCallback((): boolean => {
+    const wasOn = listener.isOn || micAfterRecording.current;
+    micAfterRecording.current = false;
+    stopHearing();
+    listener.stop();
+    setListening(false);
+    setEnrol((e) => (e.open ? { ...e, open: false } : e));
+    return wasOn;
+  }, [listener, stopHearing]);
 
   /**
    * Hears a recording: loads it, sets up the voice it is heard as (once), plays it aloud while
@@ -375,19 +404,6 @@ export function useSession() {
     [own, listener, stopHearing, voiceFor, endRecordingAloud],
   );
 
-  // Hands-free start: if the visitor asked for it and the browser already allows the microphone.
-  useEffect(() => {
-    if (!autoListen || listening) return;
-    void navigator.permissions
-      ?.query({ name: "microphone" as PermissionName })
-      .then((status) => {
-        if (status.state === "granted") void startListening();
-      })
-      .catch(() => {});
-    // Only on first load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // The space bar ends a turn; any key or click lets a held-back audio context start.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -427,6 +443,7 @@ export function useSession() {
     listening,
     notice,
     dismissNotice: () => setNotice(null),
+    showNotice: setNotice,
     enrol,
     setEnrol,
     startListening,
@@ -438,6 +455,7 @@ export function useSession() {
     voiceInUse,
     hearRecording,
     stopHearing,
+    leavePipeline,
     dismissHearing: () => setHearing({ step: "idle" }),
     settings: { endSilence, setEndSilence, speakReplies, setSpeakReplies, autoListen, setAutoListen },
   };

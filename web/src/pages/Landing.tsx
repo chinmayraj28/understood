@@ -1,7 +1,7 @@
 // The landing page: what Understood is, how a sentence travels through it, how well it works,
 // and the way into the pipeline. The hero is a real result: TORGO speaker M05 saying "up".
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { EvaluationTable, useEvalResults, WordsWrongChart } from "../components/Evaluation";
 import { href } from "../router";
 
@@ -28,12 +28,34 @@ const STAGES = [
   },
 ];
 
+/**
+ * Scrolls the landing page to a section ("how", "results", "privacy") and moves focus to its
+ * heading, so keyboard and screen-reader users land there too.
+ */
+export function scrollToSection(section: string) {
+  const target = document.getElementById(section);
+  if (!target) return;
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  target.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  document.getElementById(`${section}-title`)?.focus({ preventScroll: true });
+}
+
+/**
+ * A link to a section whose address is already open changes nothing, so the browser fires no
+ * hashchange and the page would not move. Scroll there by hand instead.
+ */
+export function onSectionLink(section: string) {
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    if (window.location.hash !== event.currentTarget.getAttribute("href")) return;
+    event.preventDefault();
+    scrollToSection(section);
+  };
+}
+
 export function Landing({ section }: { section?: string }) {
-  // #/how and #/results open this page at that section.
+  // #/how and #/results open this page at that section, with focus on its heading.
   useEffect(() => {
-    const target = section ? document.getElementById(section) : null;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (target) target.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+    if (section) scrollToSection(section);
     else window.scrollTo({ top: 0 });
   }, [section]);
   const results = useEvalResults();
@@ -45,7 +67,7 @@ export function Landing({ section }: { section?: string }) {
     <main id="main" className="landing">
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
-          <h1 id="hero-title">Understands speech that voice assistants get wrong.</h1>
+          <h1 id="hero-title" tabIndex={-1}>Understands speech that voice assistants get wrong.</h1>
           <p className="hero-lede">
             Slow, slurred or quiet speech, common with cerebral palsy, ALS, Parkinson&rsquo;s and stroke, defeats ordinary
             recognisers. Understood hears each sentence three ways, checks it against what this person has said before, and repairs
@@ -55,7 +77,7 @@ export function Landing({ section }: { section?: string }) {
             <a className="button primary" href={href.pipeline}>
               Try it on a real recording
             </a>
-            <a className="button" href={href.how}>
+            <a className="button" href={href.how} onClick={onSectionLink("how")}>
               See how it works
             </a>
           </div>
@@ -65,7 +87,7 @@ export function Landing({ section }: { section?: string }) {
 
       <section className="band" id="how" aria-labelledby="how-title">
         <div className="band-head">
-          <h2 id="how-title">How a sentence travels</h2>
+          <h2 id="how-title" tabIndex={-1}>How a sentence travels</h2>
           <p>Five stops, each shown live on the pipeline page with its real timing.</p>
         </div>
         <ol className="route-map">
@@ -117,7 +139,7 @@ export function Landing({ section }: { section?: string }) {
 
       <section className="band" id="results" aria-labelledby="results-title">
         <div className="band-head">
-          <h2 id="results-title">Measured on real recordings</h2>
+          <h2 id="results-title" tabIndex={-1}>Measured on real recordings</h2>
           <p>
             {results.data
               ? `${results.data.utterances} recordings of ${results.data.speakers} speakers from TORGO, most with dysarthria from cerebral palsy. Each speaker's setup was learned from their own earlier clips and tested on later ones.`
@@ -131,7 +153,10 @@ export function Landing({ section }: { section?: string }) {
               with the full pipeline, and to <strong>{pct(full?.seenWordErrorRate)}</strong> on phrases the person had said before. It went ahead
               wrongly on <strong>{pct(full?.wrongActionRate)}</strong> of recordings.
             </p>
-            <p className="muted">One dataset, a handful of speakers, single runs, mostly single words: a first measurement, not a benchmark.</p>
+            <p className="muted">
+              One dataset, a handful of speakers, single runs, mostly single words: a first measurement, not a benchmark. In the evaluation the
+              third recogniser was Apple&rsquo;s on-device one; this site uses ElevenLabs realtime instead.
+            </p>
           </div>
           {results.data ? <WordsWrongChart setups={results.data.setups} /> : <p className="muted">{results.failed ? "The results could not be loaded." : "Loading the results…"}</p>}
         </div>
@@ -145,7 +170,7 @@ export function Landing({ section }: { section?: string }) {
 
       <section className="band split" id="privacy" aria-labelledby="privacy-title">
         <div className="split-copy">
-          <h2 id="privacy-title">Your voice stays yours</h2>
+          <h2 id="privacy-title" tabIndex={-1}>Your voice stays yours</h2>
           <p>Speech recordings of a disabled person are health data, so they are handled that way.</p>
         </div>
         <ul className="fact-list">
@@ -155,7 +180,7 @@ export function Landing({ section }: { section?: string }) {
           </li>
           <li>
             <h3>Sent only to be heard</h3>
-            <p>Audio goes to ElevenLabs and Gemini, and text to Claude, only while a sentence is being understood.</p>
+            <p>Audio goes to ElevenLabs, and to Gemini through OpenRouter, and text to Claude, only while a sentence is being understood.</p>
           </li>
           <li>
             <h3>A pretend phone</h3>

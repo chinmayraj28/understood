@@ -1,9 +1,9 @@
 // The bar across the top of every page and the footer under it.
 
-import type { ReactNode } from "react";
+import { onSectionLink } from "../pages/Landing";
 import { href, type Page } from "../router";
 
-export function SiteHeader({ page, actions }: { page: Page; actions?: ReactNode }) {
+export function SiteHeader({ page }: { page: Page }) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -12,8 +12,12 @@ export function SiteHeader({ page, actions }: { page: Page; actions?: ReactNode 
           <span>Understood</span>
         </a>
         <nav className="site-nav" aria-label="Main">
-          <a href={href.how}>How it works</a>
-          <a href={href.results}>Results</a>
+          <a href={href.how} onClick={onSectionLink("how")}>
+            How it works
+          </a>
+          <a href={href.results} onClick={onSectionLink("results")}>
+            Results
+          </a>
           <a href={href.pipeline} aria-current={page === "pipeline" ? "page" : undefined}>
             Pipeline
           </a>
@@ -22,12 +26,11 @@ export function SiteHeader({ page, actions }: { page: Page; actions?: ReactNode 
           </a>
         </nav>
         <div className="site-actions">
-          {actions ??
-            (page !== "pipeline" && (
-              <a className="button primary small" href={href.pipeline}>
-                Open the pipeline
-              </a>
-            ))}
+          {page !== "pipeline" && (
+            <a className="button primary small" href={href.pipeline}>
+              Open the pipeline
+            </a>
+          )}
         </div>
       </div>
     </header>
@@ -56,7 +59,9 @@ export function SiteFooter() {
                 <a href={href.recordings}>Recordings</a>
               </li>
               <li>
-                <a href={href.results}>Results</a>
+                <a href={href.results} onClick={onSectionLink("results")}>
+                  Results
+                </a>
               </li>
             </ul>
           </div>

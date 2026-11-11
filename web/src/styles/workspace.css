@@ -78,6 +78,12 @@
   align-content: start;
   min-width: 0;
 }
+/* Targets that links and the page scroll to stop below the sticky header, which is static on phones. */
+@media (min-width: 721px) {
+  #result-area {
+    scroll-margin-top: 80px;
+  }
+}
 @media (min-width: 1100px) {
   .ws-grid {
     grid-template-columns: 380px minmax(0, 1fr);
@@ -88,7 +94,6 @@
     top: 76px;
     max-height: calc(100vh - 92px);
     overflow-y: auto;
-    overscroll-behavior: contain;
     padding-right: 4px;
   }
   .ws-inspector {
@@ -105,7 +110,6 @@
     top: 76px;
     max-height: calc(100vh - 92px);
     overflow-y: auto;
-    overscroll-behavior: contain;
   }
 }
 

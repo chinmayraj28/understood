@@ -27,23 +27,21 @@ export function HearRecording(props: {
   onDismiss: () => void;
 }) {
   const [load, setLoad] = useState<DatasetLoad | null>(null);
-  const [source, setSource] = useState<Source>("torgo");
+  // Opens on the microphone if it is already on; after that only the visitor changes the source,
+  // so the microphone coming back on after a recording does not throw away their pick.
+  const [source, setSource] = useState<Source>(() => (props.listening ? "mic" : "torgo"));
   useEffect(() => {
     let gone = false;
     void loadDataset().then((result) => {
       if (gone) return;
       setLoad(result);
-      if (result.status !== "ready") setSource("file");
+      if (result.status !== "ready") setSource((s) => (s === "torgo" ? "file" : s));
     });
     return () => {
       gone = true;
     };
   }, []);
   const index = load?.status === "ready" ? load.index : undefined;
-  // A visitor who is speaking sees the microphone controls.
-  useEffect(() => {
-    if (props.listening) setSource("mic");
-  }, [props.listening]);
   const working = props.hearing.step !== "idle" && props.hearing.step !== "error";
 
   return (
@@ -65,17 +63,19 @@ export function HearRecording(props: {
         </div>
       </div>
 
-      {source === "mic" ? (
-        props.micPanel
-      ) : source === "torgo" ? (
-        index ? (
+      {/* All three stay mounted and only the chosen one shows, so switching back keeps the
+          speaker, filter, search and chosen file as the visitor left them. */}
+      <div hidden={source !== "mic"}>{props.micPanel}</div>
+      <div hidden={source !== "torgo"}>
+        {index ? (
           <TorgoPicker index={index} disabled={working || props.busy} onHear={props.onHear} />
         ) : (
           <p className="muted">{load === null ? "Loading the recordings…" : load.status === "missing" ? load.reason : "The recordings couldn’t be loaded. Is the server running?"}</p>
-        )
-      ) : (
+        )}
+      </div>
+      <div hidden={source !== "file"}>
         <FilePicker index={index} disabled={working || props.busy} onHear={props.onHear} />
-      )}
+      </div>
 
       <HearingLine hearing={props.hearing} onStop={props.onStop} onDismiss={props.onDismiss} />
     </section>

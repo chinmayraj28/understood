@@ -21,6 +21,16 @@ describe("routes", () => {
     expect(parseRoute("#hear=F03-S3-0012")).toEqual({ page: "pipeline", hearClip: "F03-S3-0012" });
   });
 
+  it("opens the pipeline without a clip when a hear link is badly encoded, instead of a blank page", () => {
+    expect(() => parseRoute("#hear=%E0")).not.toThrow();
+    expect(parseRoute("#hear=%E0")).toEqual({ page: "pipeline" });
+    expect(parseRoute("#/pipeline?hear=%E0").page).toBe("pipeline");
+  });
+
+  it("opens the privacy section", () => {
+    expect(parseRoute("#/privacy")).toEqual({ page: "landing", section: "privacy" });
+  });
+
   it("keeps the old recordings address", () => {
     expect(parseRoute("#dataset")).toEqual({ page: "recordings" });
     expect(parseRoute("#dataset-title")).toEqual({ page: "recordings" });

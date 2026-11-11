@@ -19,7 +19,14 @@ export interface Route {
 
 export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, "");
-  if (h.startsWith("hear=")) return { page: "pipeline", hearClip: decodeURIComponent(h.slice(5)) };
+  if (h.startsWith("hear=")) {
+    // A broken link ("#hear=%E0") opens the pipeline without a clip, rather than a blank page.
+    try {
+      return { page: "pipeline", hearClip: decodeURIComponent(h.slice(5)) };
+    } catch {
+      return { page: "pipeline" };
+    }
+  }
   if (h === "dataset" || h.startsWith("dataset") || h.startsWith("/recordings")) return { page: "recordings" };
   if (h.startsWith("/pipeline")) {
     const clip = new URLSearchParams(h.split("?")[1] ?? "").get("hear");

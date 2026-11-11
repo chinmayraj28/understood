@@ -68,14 +68,16 @@ export function PipelinePage({ session }: { session: Session }) {
     <main id="main" className="workspace">
       <div className="ws-head">
         <div>
-          <h1 className="ws-title">Pipeline</h1>
+          <h1 id="pipeline-title" className="ws-title" tabIndex={-1}>
+            Pipeline
+          </h1>
           <p className="muted">Hear a recording, or speak, and watch it go through every stage.</p>
         </div>
         <StatusPill session={session} />
       </div>
 
       <div className="ws-grid">
-        <aside className="ws-input" aria-label="Input and stages">
+        <section className="ws-input" aria-label="Input and stages">
           <HearRecording
             hearing={session.hearing}
             busy={state?.busy ?? false}
@@ -100,7 +102,7 @@ export function PipelinePage({ session }: { session: Session }) {
             </summary>
             <StageSwitchPanel switches={ownState?.switches ?? ALL_ON} onChange={(s) => session.own?.setSwitches(s)} />
           </details>
-        </aside>
+        </section>
 
         <div className="ws-main" id="result-area">
           {session.notice && (
@@ -131,7 +133,7 @@ export function PipelinePage({ session }: { session: Session }) {
           </section>
         </div>
 
-        <aside className="ws-inspector" aria-label="Inspector">
+        <section className="ws-inspector" aria-label="Inspector">
           <div className="segmented full" role="group" aria-label="Show">
             {(["phrasebook", "conversation", "phone"] as Inspector[]).map((tab) => (
               <button key={tab} aria-pressed={inspector === tab} className={inspector === tab ? "on" : ""} onClick={() => setInspector(tab)}>
@@ -158,7 +160,7 @@ export function PipelinePage({ session }: { session: Session }) {
             </div>
             {inspector === "phone" && <Phone phone={state?.phone ?? PHONE_HOME} />}
           </div>
-        </aside>
+        </section>
       </div>
 
       <Enrolment

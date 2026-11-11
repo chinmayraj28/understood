@@ -308,6 +308,14 @@
   padding: 72px 0;
   border-top: 1px solid var(--rule);
 }
+/* The header links scroll here: stop below the sticky header (static on phones). */
+@media (min-width: 721px) {
+  #how,
+  #results,
+  #privacy {
+    scroll-margin-top: 80px;
+  }
+}
 .band-head {
   display: grid;
   gap: 10px;

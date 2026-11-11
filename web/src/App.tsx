@@ -9,7 +9,7 @@ import { loadDataset } from "./model/datasetLoader";
 import { Landing } from "./pages/Landing";
 import { PipelinePage } from "./pages/PipelinePage";
 import { useRoute, type Page } from "./router";
-import { useSession } from "./useSession";
+import { microphoneAllowed, useSession } from "./useSession";
 
 const TITLES: Record<Page, string> = {
   landing: "Understood: speech other assistants get wrong",
@@ -27,22 +27,36 @@ export function App() {
   }, [page]);
 
   // The microphone and any recording belong to the pipeline page. Leaving it stops both (a clip
-  // played on the recordings page must not be heard as the person); if the microphone was on, it
-  // comes back on with the pipeline, so a hands-free visitor does not lose their voice control.
-  const { listening, stopListening, startListening, hearRecording, stopHearing } = session;
+  // played on the recordings page must not be heard as the person) and closes the voice setup;
+  // if the microphone was on, it comes back on with the pipeline, so a hands-free visitor does
+  // not lose their voice control.
+  const { listening, leavePipeline, startListening, hearRecording, showNotice } = session;
   const resumeListening = useRef(false);
+  const pageRef = useRef(page);
+  pageRef.current = page;
   useEffect(() => {
     if (page !== "pipeline") {
-      stopHearing();
-      if (listening) {
-        resumeListening.current = true;
-        stopListening();
-      }
+      if (leavePipeline()) resumeListening.current = true;
     } else if (resumeListening.current) {
       resumeListening.current = false;
       void startListening();
     }
-  }, [page, listening, stopListening, startListening, stopHearing]);
+  }, [page, listening, leavePipeline, startListening]);
+
+  // Hands-free start on first load, if the visitor asked for it and the browser already allows
+  // the microphone. Only on the pipeline page; anywhere else it waits until the visitor gets there.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (!session.settings.autoListen || autoChecked.current) return;
+    autoChecked.current = true; // once, even when React runs this twice in development
+    void microphoneAllowed().then((allowed) => {
+      if (!allowed) return;
+      if (pageRef.current === "pipeline") void startListening();
+      else resumeListening.current = true;
+    });
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // "#/pipeline?hear=<clip>" (the recordings page links here) hears that clip once the page is ready.
   const ready = session.own !== null;
@@ -59,16 +73,34 @@ export function App() {
       title?.focus({ preventScroll: true });
     });
     void loadDataset().then((load) => {
-      if (load.status !== "ready") return;
+      // The visitor may have moved on while the list loaded: never play a clip off the pipeline.
+      if (pageRef.current !== "pipeline") return;
+      if (load.status !== "ready") {
+        return showNotice(load.status === "missing" ? load.reason : "The recordings couldn’t be loaded. Is the server running?");
+      }
       const clip = load.index.clips.find((c) => c.id === id);
       if (clip) void hearRecording({ kind: "torgo", clip, index: load.index });
+      else showNotice("That recording isn’t in this copy of TORGO.");
     });
-  }, [ready, route, hearRecording]);
+  }, [ready, route, hearRecording, showNotice]);
 
   // A new page starts at the top; the landing page scrolls itself to a section when asked.
   useEffect(() => {
     if (page !== "landing") window.scrollTo({ top: 0 });
   }, [page]);
+
+  // After moving to another page, focus goes to its heading, so a screen reader starts there.
+  // Not on first load, and not when a section or a recording link moves focus itself (the
+  // recordings page focuses its own heading).
+  const shownRoute = useRef(route);
+  useEffect(() => {
+    if (shownRoute.current === route) return;
+    const pageChanged = shownRoute.current.page !== route.page;
+    shownRoute.current = route;
+    if (!pageChanged || route.section || route.hearClip || route.page === "recordings") return;
+    const heading = route.page === "landing" ? "hero-title" : "pipeline-title";
+    document.getElementById(heading)?.focus({ preventScroll: true }); // the new page is already in place when effects run
+  }, [route]);
 
   const skipTarget = page === "recordings" ? "dataset-title" : page === "pipeline" ? "hear-title" : "main";
   return (
