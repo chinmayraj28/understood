@@ -1,4 +1,4 @@
-/* Masthead, intro, examples, and the side column: phone, conversation, phrasebook. */
+/* Masthead, intro, notices, and the side column: phone, conversation, phrasebook. */
 
 .masthead {
   max-width: 1280px;
@@ -51,73 +51,6 @@
   }
 }
 
-.examples {
-  margin: 28px 0 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px 16px;
-  flex-wrap: wrap;
-}
-.examples h2 {
-  font-size: var(--t-1);
-}
-.example-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.example-chip {
-  min-height: 44px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  font-weight: 700;
-  cursor: pointer;
-}
-.example-chip:hover {
-  border-color: var(--ink);
-}
-.example-chip.playing {
-  border-color: var(--ink);
-  background: var(--mark);
-}
-.examples .mode-banner {
-  flex-basis: 100%;
-}
-.banner-summary {
-  display: block;
-  font-weight: 700;
-}
-.replay-card {
-  width: 100%;
-  height: 100%;
-  min-height: 88px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: left;
-  padding: 14px 16px;
-  border-radius: var(--radius-m);
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  cursor: pointer;
-}
-.replay-card:hover {
-  border-color: var(--ink);
-}
-.replay-title {
-  font-weight: 800;
-}
-.replay-summary {
-  font-size: var(--t-0);
-  color: var(--ink-2);
-  line-height: 1.4;
-}
-.mode-banner,
 .notice {
   margin-top: 14px;
   display: flex;
@@ -129,7 +62,6 @@
   border-radius: var(--radius-m);
   background: var(--mark);
 }
-.mode-banner p,
 .notice p {
   max-width: 70ch;
 }

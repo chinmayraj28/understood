@@ -12,7 +12,7 @@ import type {
   PipelineEvent,
   Reading,
 } from "../../shared/pipeline";
-import { normalise, words } from "../model/learning";
+import { normalise, words } from "../../src/model/learning";
 
 export interface ReplayTurn {
   /** The live transcript writing itself: [ms after speech began, text so far]. */

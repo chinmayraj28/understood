@@ -26,6 +26,8 @@ async function explain(response: Response, what: string): Promise<PlainError> {
 
 /** How long a whole turn may take on the server before the page gives up on it. */
 export const UNDERSTAND_TIMEOUT_MS = 15_000;
+/** A recording being transcribed: the server allows 15 s to hear and 8 s to repair. */
+export const TRANSCRIBE_TIMEOUT_MS = 30_000;
 /** How long /api/act may take. */
 export const ACT_TIMEOUT_MS = 10_000;
 
@@ -56,7 +58,11 @@ function deadline(ms: number, outer?: AbortSignal) {
  * A turn that takes longer than `timeoutMs` is dropped with a plain error, so one hung
  * request cannot hold up every turn after it.
  */
-export async function* understand(request: UnderstandRequest, signal?: AbortSignal, timeoutMs = UNDERSTAND_TIMEOUT_MS): AsyncGenerator<PipelineEvent> {
+export async function* understand(
+  request: UnderstandRequest,
+  signal?: AbortSignal,
+  timeoutMs = request.purpose === "transcribe" ? TRANSCRIBE_TIMEOUT_MS : UNDERSTAND_TIMEOUT_MS,
+): AsyncGenerator<PipelineEvent> {
   const limit = deadline(timeoutMs, signal);
   let reader: ReadableStreamDefaultReader<string> | null = null;
   try {
@@ -71,7 +77,7 @@ export async function* understand(request: UnderstandRequest, signal?: AbortSign
     } catch (error) {
       if ((error as Error).name === "AbortError" && !limit.expired()) throw error;
       if (limit.expired()) throw tooSlow(timeoutMs);
-      throw new PlainError("The server is not reachable. Is it running? Replays still work without it.");
+      throw new PlainError("The server is not reachable. Is it running?");
     }
     if (!response.ok || !response.body) throw await explain(response, "understand the turn");
 

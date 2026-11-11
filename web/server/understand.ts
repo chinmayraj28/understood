@@ -16,7 +16,7 @@ import type { RepairInput } from "./repair";
 export interface UnderstandDeps {
   hearScribe(request: HearingRequest): Promise<string>;
   hearGemini(request: HearingRequest): Promise<string>;
-  repair(input: RepairInput, signal: AbortSignal): Promise<Reading>;
+  repair(input: RepairInput, signal: AbortSignal, seconds: number): Promise<Reading>;
   now(): number;
   /** A recogniser slower than this counts as failed for this turn; the others go on. */
   hearerSeconds: number;
@@ -24,15 +24,20 @@ export interface UnderstandDeps {
   repairSeconds: number;
 }
 
+/** Time limits for a recording being transcribed, where accuracy matters more than speed. */
+export const TRANSCRIBE_LIMITS = { hearerSeconds: 15, repairSeconds: 8 };
+
 /**
  * What the recognisers are told: the expected answers first (most likely in this turn), then the
- * person's own phrases, then the page's words and the demo contacts. Within Scribe's rules, at
- * most 100. The phrasebook's phrases are left out when the phrasebook is switched off.
+ * person's own phrases, then the page's words and the demo contacts (not when transcribing a
+ * recording, which is not talking to the phone). Within Scribe's rules, at most 100. The
+ * phrasebook's phrases are left out when the phrasebook is switched off.
  */
 export function hintsFor(request: UnderstandRequest, now: number): string[] {
   if (!request.switches.keyterms) return [];
   const own = request.switches.phrasebook ? phrasebookKeyterms(request.phrasebook, keytermLimit, now) : [];
-  return acceptedKeyterms([...(request.context.expectedAnswers ?? []), ...own, ...request.keyterms, ...DEMO_CONTACTS], keytermLimit);
+  const contacts = request.purpose === "transcribe" ? [] : DEMO_CONTACTS;
+  return acceptedKeyterms([...(request.context.expectedAnswers ?? []), ...own, ...request.keyterms, ...contacts], keytermLimit);
 }
 
 export async function understandTurn(
@@ -40,6 +45,9 @@ export async function understandTurn(
 ): Promise<void> {
   const start = deps.now();
   const at = () => deps.now();
+  const transcribing = request.purpose === "transcribe";
+  const hearerSeconds = transcribing ? Math.max(deps.hearerSeconds, TRANSCRIBE_LIMITS.hearerSeconds) : deps.hearerSeconds;
+  const repairSeconds = transcribing ? Math.max(deps.repairSeconds, TRANSCRIBE_LIMITS.repairSeconds) : deps.repairSeconds;
   const keyterms = hintsFor(request, start);
   const examples = request.switches.gemini && request.switches.examples ? request.examples.slice(0, 5) : [];
   emit({ type: "turn.started", turnId: request.turnId, at: start, keyterms, exampleCount: examples.length });
@@ -63,7 +71,7 @@ export async function understandTurn(
     try {
       const text = await hear({
         wavBase64: request.wavBase64, keyterms, examples,
-        signal: withTimeLimit(deps.hearerSeconds * 1000, signal), seconds: deps.hearerSeconds,
+        signal: withTimeLimit(hearerSeconds * 1000, signal), seconds: hearerSeconds,
       });
       hypothesis = { hearer: name, text: text.trim(), seconds: (deps.now() - began) / 1000 };
     } catch (error) {
@@ -107,10 +115,11 @@ export async function understandTurn(
     const began = deps.now();
     try {
       // Contacts first: Claude is shown at most 40 known words, and the contacts must be among them.
-      const knownWords = [...DEMO_CONTACTS, ...request.keyterms];
+      const knownWords = transcribing ? request.keyterms : [...DEMO_CONTACTS, ...request.keyterms];
       input.reading = await deps.repair(
         { hypotheses, phrasebookMatch: hint, context: request.context, knownWords },
-        withTimeLimit(deps.repairSeconds * 1000, signal),
+        withTimeLimit(repairSeconds * 1000, signal),
+        repairSeconds,
       );
       emit({ type: "repair.done", at: at(), reading: input.reading, seconds: (deps.now() - began) / 1000 });
     } catch (error) {

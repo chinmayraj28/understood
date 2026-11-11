@@ -32,7 +32,9 @@ export function PhrasebookPanel(props: {
   entries: PhrasebookEntry[];
   justLearned: string[];
   clipCount: number;
-  scope: "yours" | "example" | "memory";
+  /** "voice": another voice's phrasebook, used by the latest recording; read only. */
+  scope: "yours" | "voice" | "memory";
+  voiceLabel?: string;
   onForget: (id: string) => void;
   onClear: () => void;
   onSetup: () => void;
@@ -46,8 +48,8 @@ export function PhrasebookPanel(props: {
           Phrasebook <span className="num count">{props.entries.length}</span>
         </h2>
         <p className="panel-note">
-          {props.scope === "example"
-            ? "The example's own phrasebook. Yours is untouched."
+          {props.scope === "voice"
+            ? `The phrasebook of ${props.voiceLabel ?? "this voice"}, learned from their own set-up clips. Yours is untouched.`
             : props.scope === "memory"
               ? "Kept for this visit only: this browser blocks local storage."
               : `Kept only in this browser, with ${props.clipCount} ${props.clipCount === 1 ? "clip" : "clips"} of your voice.`}
@@ -56,7 +58,7 @@ export function PhrasebookPanel(props: {
       {sorted.length === 0 ? (
         <div className="pb-empty">
           <p>Empty. It fills when you confirm or correct what was heard, or when you set up your voice.</p>
-          {props.scope !== "example" && (
+          {props.scope !== "voice" && (
             <button className="button small" onClick={props.onSetup}>
               Set up your voice
             </button>
@@ -78,7 +80,7 @@ export function PhrasebookPanel(props: {
                 <span className={`hearer-dot dot-${entry.hearer}`} aria-hidden="true" />
                 {HEARER_LABEL[entry.hearer]} heard it. {sourceWords(entry)}
               </p>
-              {props.scope !== "example" && (
+              {props.scope !== "voice" && (
                 <button className="pb-forget" onClick={() => props.onForget(entry.id)} aria-label={`Forget "${entry.heard}" means "${entry.meant}"`}>
                   Forget
                 </button>
@@ -87,7 +89,7 @@ export function PhrasebookPanel(props: {
           ))}
         </ul>
       )}
-      {sorted.length > 0 && props.scope !== "example" && (
+      {sorted.length > 0 && props.scope !== "voice" && (
         <button
           className="button small quiet clear"
           onClick={() => {

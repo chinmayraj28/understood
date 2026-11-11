@@ -1,16 +1,14 @@
 // Where a turn's events, actions and spoken replies come from.
 //
-// The conversation does not know whether it is talking to the real server or playing back an
-// example: both are a Transport. That is how replays run the exact same page code as live turns.
+// The conversation talks to a Transport, not to the server directly, so tests can stand in a
+// scripted one (tests/fixtures/replayTransport.ts) and run the exact same page code.
 
 import type { ActRequest, ActResponse, PipelineEvent, UnderstandRequest } from "../../shared/pipeline";
 import { act, understand } from "../api/client";
 import { ReplyPlayer } from "../audio/player";
-import type { Replay } from "../fixtures";
-import { normalise } from "./learning";
 
 export interface Transport {
-  readonly kind: "live" | "replay";
+  readonly kind: string;
   understand(request: UnderstandRequest, signal?: AbortSignal): AsyncIterable<PipelineEvent>;
   act(request: ActRequest): Promise<ActResponse>;
   /** Speaks a reply. Resolves when it has finished or been cut off. */
@@ -48,66 +46,6 @@ export class LiveTransport implements Transport {
   }
   stopSpeaking() {
     this.player.stop();
-  }
-}
-
-/**
- * Plays back an example. Events come out with the same gaps as in the script, re-stamped with
- * the current time, so stopwatches and the timing strip behave as they would live.
- */
-export class ReplayTransport implements Transport {
-  readonly kind = "replay" as const;
-  private turnIndex = 0;
-  onSpeaking: (speaking: boolean) => void = () => {};
-  private finishSpeaking: (() => void) | null = null;
-
-  constructor(
-    private replay: Replay,
-    private speed = 1,
-  ) {}
-
-  async *understand(_request: UnderstandRequest, signal?: AbortSignal): AsyncGenerator<PipelineEvent> {
-    const turn = this.replay.turns[this.turnIndex++];
-    if (!turn) {
-      yield { type: "turn.failed", at: Date.now(), message: "This example has no more turns." };
-      return;
-    }
-    const base = Date.now();
-    let previous = 0;
-    for (const event of turn.events) {
-      await sleep((event.at - previous) / this.speed, signal);
-      previous = event.at;
-      yield { ...event, at: base + event.at } as PipelineEvent;
-    }
-  }
-
-  async act(request: ActRequest): Promise<ActResponse> {
-    await sleep(420 / this.speed);
-    return (
-      this.replay.acts[normalise(request.text)] ?? {
-        action: { kind: "none" },
-        reply: "This example has no action for that.",
-        needsConfirmation: false,
-      }
-    );
-  }
-
-  /** No audio in replays: the reply is shown, and the pause is about as long as saying it. */
-  async speak(text: string) {
-    this.onSpeaking(true);
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, Math.min(2600, 400 + text.length * 45) / this.speed);
-      this.finishSpeaking = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-    });
-    this.finishSpeaking = null;
-    this.onSpeaking(false);
-  }
-
-  stopSpeaking() {
-    this.finishSpeaking?.();
   }
 }
 

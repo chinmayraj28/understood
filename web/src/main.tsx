@@ -8,6 +8,7 @@ import "./styles/stations.css";
 import "./styles/panels.css";
 import "./styles/sections.css";
 import "./styles/dataset.css";
+import "./styles/hear.css";
 import "./styles/motion.css";
 
 createRoot(document.getElementById("root")!).render(

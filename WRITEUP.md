@@ -1,6 +1,6 @@
 # Understood: write-up
 
-**What I built.** Understood is a website that listens to one spoken sentence and works out what the person meant, even when their speech is slow, slurred or quiet. Every step is drawn on screen as it happens, with real timings, and the page then acts on a pretend phone or asks a short question first.
+**What I built.** Understood is a website that takes one sentence of speech, slow, slurred or quiet, and works out what the person said and meant. You can play it a real recording of a person with dysarthria, upload your own, or speak. Every step is drawn on screen as it happens, with real timings, and the transcript is marked word by word against what was really said. Spoken sentences then go to a pretend phone, which acts or asks a short question first.
 
 **Who it is for.** People with dysarthria: speech made slow, slurred or quiet by cerebral palsy, ALS, Parkinson's, MS or a stroke. On severe dysarthria, off-the-shelf recognisers get more than half the words wrong.
 

@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import app, { type Env } from "./app";
+import { createApp, type Env } from "./app";
 import { createDatasetApp } from "./dataset";
 
 /** Reads KEY=value lines; ignores blanks and comments; strips matching quotes. */
@@ -43,6 +43,9 @@ function loadEnv(): Env {
 }
 
 const env = loadEnv();
+// On this computer one visitor may hear a TORGO speaker's 20 set-up clips and then their test
+// clips within a minute, so the per-minute brake is looser than the hosted default of 20.
+const app = createApp({ understandPerMinute: 90 });
 const port = Number(process.env.PORT) || 8787;
 const missing = (["ELEVENLABS_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"] as const).filter((name) => !env[name]);
 
@@ -64,6 +67,8 @@ serve({
     return forDataset ? dataset.fetch(request, bindings) : app.fetch(request, bindings);
   },
   port,
+  // Only this computer: the keys behind this server, and the TORGO route, are not for the network.
+  hostname: "127.0.0.1",
 }, () => {
   console.log(`API server on http://localhost:${port}`);
   if (missing.length) console.warn(`Missing keys (those stages will fail): ${missing.join(", ")}`);

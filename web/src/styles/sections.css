@@ -75,10 +75,6 @@
   color: var(--ink-2);
   line-height: 1.4;
 }
-.switches-note {
-  grid-column: 1 / -1;
-  font-size: var(--t-0);
-}
 
 .settings {
   display: grid;
@@ -176,13 +172,6 @@
 .eval {
   margin-top: 24px;
 }
-.placeholder-banner {
-  padding: 10px 16px;
-  border-radius: var(--radius-s);
-  background: repeating-linear-gradient(-45deg, var(--mark) 0 14px, #fff0a8 14px 28px);
-  font-weight: 800;
-  margin-bottom: 12px;
-}
 .eval-dataset {
   color: var(--ink-2);
   max-width: 70ch;
@@ -243,17 +232,6 @@
   margin-top: 12px;
   font-size: var(--t-0);
   max-width: 80ch;
-}
-.eval-replays-title {
-  margin: 28px 0 12px;
-}
-.eval-replays {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  gap: 10px;
 }
 
 /* ── Setup dialog ──────────────────────────────────────────── */

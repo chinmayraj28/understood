@@ -18,7 +18,7 @@ export interface VoiceStore {
   clearAll(): Promise<void>;
 }
 
-/** Keeps everything in memory. Used for replays, and when IndexedDB is unavailable. */
+/** Keeps everything in memory. Used in tests, and when IndexedDB is unavailable. */
 export class MemoryStore implements VoiceStore {
   readonly persistent: boolean = false;
   private entries: PhrasebookEntry[];

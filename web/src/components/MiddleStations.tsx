@@ -16,8 +16,12 @@ export function PhrasebookStation({ state, turn, entryCount }: { state: StationS
     <Station
       state={state}
       variant="phrasebook"
-      title="Your phrasebook"
-      note="Mishearings you confirmed before, kept only in this browser."
+      title={turn?.origin === "file" ? "The phrasebook" : "Your phrasebook"}
+      note={
+        turn?.origin === "file"
+          ? "Mishearings learned from this voice's set-up clips (or yours, kept only in this browser)."
+          : "Mishearings you confirmed before, kept only in this browser."
+      }
       aside={<span className="chip">{entryCount === 1 ? "1 entry" : `${entryCount} entries`}</span>}
     >
       <div className={`flip${flipped ? " flipped" : ""}`}>
@@ -62,7 +66,7 @@ export function ReadingStation({ state, turn }: { state: StationState; turn?: Tu
       state={state}
       variant="reading"
       title="Claude's reading"
-      note="Claude weighs the three texts, your phrasebook and what was just said."
+      note={turn?.origin === "file" ? "Claude weighs the three texts and the phrasebook into one reading." : "Claude weighs the three texts, your phrasebook and what was just said."}
       aside={
         repair && (repair.status === "running" || repair.status === "done") ? (
           <Stopwatch label="Repair time" runningSince={repair.status === "running" ? repair.localStartedAt : undefined} final={repair.seconds} />

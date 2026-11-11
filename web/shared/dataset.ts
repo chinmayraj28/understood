@@ -27,6 +27,8 @@ export interface DatasetClip {
   session: string;
   /** "enrolment" (used to set the speaker up) or "test" (used to measure). */
   split: string;
+  /** True for an enrolment clip whose prompt the speaker says again later (used first in setup). */
+  repeatedLater?: boolean;
 }
 
 export interface DatasetHeard {

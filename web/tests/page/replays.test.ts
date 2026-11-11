@@ -1,9 +1,9 @@
 // Every example on the page, played through the real Conversation with the ReplayTransport
 // sped up 200 times: the same code a live turn runs, minus the microphone and the server.
 import { describe, expect, it } from "vitest";
-import { REPLAYS, type Replay } from "../../src/fixtures";
+import { REPLAYS, type Replay } from "../fixtures";
 import { Conversation, type ConversationState } from "../../src/model/conversation";
-import { ReplayTransport } from "../../src/model/transport";
+import { ReplayTransport } from "../fixtures/replayTransport";
 import { MemoryStore } from "../../src/storage/store";
 
 async function play(id: string): Promise<ConversationState> {
@@ -11,7 +11,7 @@ async function play(id: string): Promise<ConversationState> {
   const conversation = await Conversation.create(new ReplayTransport(replay, 200), new MemoryStore(replay.phrasebook));
   for (const turn of replay.turns) {
     const text = turn.partials.at(-1)?.[1] ?? "";
-    await conversation.submitTurn({ wavBase64: "", realtimeText: text || undefined, liveText: text, speechSeconds: turn.speechSeconds, origin: "replay" });
+    await conversation.submitTurn({ wavBase64: "", realtimeText: text || undefined, liveText: text, speechSeconds: turn.speechSeconds, origin: "live" });
   }
   return conversation.getState();
 }

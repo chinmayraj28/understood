@@ -1,22 +1,22 @@
-// Stage switches and a side-by-side comparison. Turn a stage off, say the same thing again,
-// and see what that stage was adding.
+// Stage switches and a side-by-side comparison. Turn a stage off, hear the same recording (or
+// say the same thing) again, and see what that stage was adding.
 
 import type { StageSwitches } from "../../shared/pipeline";
 import { bestText, decisionSpeech, HEARER_LABEL, HEARERS, routeOf, type TurnModel } from "../model/turn";
+import { countErrors, errorRate } from "../../shared/wordErrors";
 import { ConfidenceMeter, MarkedWords, seconds } from "./bits";
 
 const SWITCHES: { key: keyof StageSwitches; name: string; what: string }[] = [
-  { key: "keyterms", name: "Keyterms", what: "Tell Scribe your contacts and the words this assistant uses." },
+  { key: "keyterms", name: "Keyterms", what: "Tell Scribe the words this person tends to say." },
   { key: "gemini", name: "Gemini", what: "A second recogniser, running alongside Scribe." },
-  { key: "examples", name: "Your clips", what: "Show Gemini a few recordings of your own voice." },
+  { key: "examples", name: "Their clips", what: "Show Gemini a few recordings of the same voice." },
   { key: "phrasebook", name: "Phrasebook", what: "Catch a mishearing you confirmed before." },
-  { key: "repair", name: "Claude's repair", what: "Weigh the three texts with what was just said." },
+  { key: "repair", name: "Claude's repair", what: "Weigh the three texts and the phrasebook into one reading." },
 ];
 
 export function StageSwitchPanel(props: {
   switches: StageSwitches;
   onChange: (switches: StageSwitches) => void;
-  replaying: boolean;
 }) {
   return (
     <fieldset className="switches">
@@ -39,7 +39,6 @@ export function StageSwitchPanel(props: {
           </button>
         );
       })}
-      {props.replaying && <p className="muted switches-note">Switches change your own turns. Examples always play as recorded.</p>}
     </fieldset>
   );
 }
@@ -76,11 +75,11 @@ export function Settings(props: {
   );
 }
 
-/** The two latest finished turns of your own, side by side. */
+/** The two latest finished turns, side by side. */
 export function Compare({ turns }: { turns: TurnModel[] }) {
-  const finished = turns.filter((t) => t.stage === "done" && t.origin === "live");
+  const finished = turns.filter((t) => t.stage === "done" && (t.origin === "live" || t.origin === "file"));
   if (finished.length < 2) {
-    return <p className="muted compare-empty">Say two turns and they appear here side by side. Try the same sentence with one stage switched off.</p>;
+    return <p className="muted compare-empty">Hear two recordings and they appear here side by side. Try the same one again with a stage switched off.</p>;
   }
   const [before, now] = finished.slice(-2);
   return (
@@ -95,9 +94,11 @@ function TurnSummary({ turn, title }: { turn: TurnModel; title: string }) {
   const off = SWITCHES.filter((s) => !turn.switches[s.key]).map((s) => s.name);
   const route = turn.decision ? routeOf(turn.decision.decision) : "stop";
   const disputed = turn.agreement?.disputedWords ?? [];
+  const reference = turn.recording?.reference;
   return (
     <article className="summary">
       <h3>{title}</h3>
+      {turn.recording && <p className="summary-off">{turn.recording.label}</p>}
       <p className="summary-off">{off.length ? `Switched off: ${off.join(", ")}` : "Every stage on"}</p>
       <dl>
         {HEARERS.map((h) => (
@@ -114,8 +115,14 @@ function TurnSummary({ turn, title }: { turn: TurnModel; title: string }) {
             <strong>{bestText(turn)}</strong> {turn.repair.reading && <ConfidenceMeter level={turn.repair.reading.confidence} />}
           </dd>
         </div>
+        {reference && (
+          <div className="summary-row">
+            <dt>Words wrong</dt>
+            <dd className="num">{Math.round(errorRate(countErrors(reference, bestText(turn))) * 100)}%</dd>
+          </div>
+        )}
         <div className="summary-row">
-          <dt>Decision</dt>
+          <dt>{turn.origin === "file" ? "Would have" : "Decision"}</dt>
           <dd className={`route-word route-${route}`}>{turn.failed ?? (turn.decision ? decisionSpeech(turn.decision.decision) : "none")}</dd>
         </div>
         <div className="summary-row">

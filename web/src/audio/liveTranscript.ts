@@ -14,7 +14,7 @@ export interface LiveTranscriber {
   start(): Promise<void>;
   send(pcm: Int16Array): void;
   /** Ends the turn's transcript: asks for a final result, waits briefly, returns it, starts afresh. */
-  finishTurn(): Promise<string>;
+  finishTurn(waitMs?: number): Promise<string>;
   stop(): void;
 }
 
@@ -152,12 +152,12 @@ export class ScribeLiveTranscriber implements LiveTranscriber {
     else if (!this.socket && this.pending.length < 50) this.pending.push(message);
   }
 
-  async finishTurn(): Promise<string> {
+  async finishTurn(waitMs = SCRIBE_REALTIME.finalWaitMs): Promise<string> {
     this.flush();
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: "", commit: true, sample_rate: SAMPLE_RATE }));
       await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, SCRIBE_REALTIME.finalWaitMs);
+        const timer = setTimeout(resolve, waitMs);
         this.waitingForFinal = () => {
           clearTimeout(timer);
           resolve();

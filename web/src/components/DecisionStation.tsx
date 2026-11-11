@@ -61,6 +61,7 @@ export function DecisionStation({ state, turn }: { state: StationState; turn?: T
           <p className="rule">
             <span className="rule-label">Rule</span> {decision.rule}
           </p>
+          {turn.origin === "file" && <p className="rule">A recording is only transcribed: this is what it would have done, and nothing was acted on or asked.</p>}
         </div>
       ) : (
         <p className="muted">

@@ -134,8 +134,14 @@ export function checkUnderstand(body: unknown): Checked<UnderstandRequest> {
       keyterms: list(body.keyterms, "keyterms", 200, (item, name) => text(item, name, 100)!)!,
       context: context(body.context),
       switches: switches(body.switches),
+      ...(body.purpose === undefined ? {} : { purpose: purpose(body.purpose) }),
     };
   });
+}
+
+function purpose(value: unknown): "conversation" | "transcribe" {
+  if (value !== "conversation" && value !== "transcribe") return fail(`purpose must be "conversation" or "transcribe".`);
+  return value;
 }
 
 export function checkAct(body: unknown): Checked<ActRequest> {

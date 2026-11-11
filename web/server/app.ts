@@ -88,9 +88,9 @@ export function realDeps(env: Env): UnderstandDeps {
   return {
     hearScribe: (request) => hearWithScribe(env.ELEVENLABS_API_KEY ?? "", request),
     hearGemini: (request) => hearWithGemini(env.OPENROUTER_API_KEY ?? "", request),
-    repair: async (input, signal) => {
+    repair: async (input, signal, seconds) => {
       const answer = await askClaude(env.ANTHROPIC_API_KEY ?? "", {
-        instructions: repairInstructions, input: repairData(input), schema: repairSchema, signal, seconds: 3,
+        instructions: repairInstructions, input: repairData(input), schema: repairSchema, signal, seconds,
       });
       return readingFrom(answer, input);
     },

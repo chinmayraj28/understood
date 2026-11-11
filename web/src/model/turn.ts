@@ -1,7 +1,7 @@
 // What the page knows about one turn, built up one PipelineEvent at a time.
 //
 // `reduceTurn` is pure: given the turn so far and the next event, it returns the new turn. The
-// whole pipeline view is drawn from this one object, so a replayed turn and a live turn look the
+// whole pipeline view is drawn from this one object, so a recording and a spoken turn look the
 // same, and every time shown comes from the events themselves.
 
 import type {
@@ -22,9 +22,9 @@ export const HEARER_LABEL: Record<HearerName, string> = {
 };
 
 export const HEARER_NOTE: Record<HearerName, string> = {
-  scribe: "ElevenLabs Scribe, told your names and keyterms",
-  gemini: "Gemini Flash, shown clips of your own voice",
-  realtime: "The live transcript you watched while speaking",
+  scribe: "ElevenLabs Scribe, given the words this voice tends to say",
+  gemini: "Gemini Flash, shown a few clips of the same voice",
+  realtime: "ElevenLabs realtime: the live transcript, written as it was said",
 };
 
 /** The stations a turn passes, in order. */
@@ -61,8 +61,21 @@ export interface RepairState {
 
 export interface TurnModel {
   turnId: string;
-  /** Where the turn came from. Replays and evaluation turns are labelled as such on the page. */
-  origin: "live" | "replay" | "enrolment" | "evaluation";
+  /** Where the turn came from: the microphone, voice setup, or a recording that was chosen. */
+  origin: "live" | "enrolment" | "file";
+  /** For a recording: what it is, what was really said (when known), and whose voice it was heard as. */
+  recording?: {
+    label: string;
+    /** What the speaker was asked to say, or what the person typed. Scores the transcript. */
+    reference?: string;
+    voiceLabel: string;
+    /** The TORGO clip, when it is one. */
+    clipId?: string;
+    /** Why the score may flatter it, e.g. the clip was one the voice was set up from. */
+    caveat?: string;
+    /** True when the voice was set up from a clip with the same prompt (the evaluation's "seen"). */
+    seen?: boolean;
+  };
   label?: string;
   /** The live transcript as it was written while the person spoke. */
   liveText: string;

@@ -1,48 +1,80 @@
-// Wires the page together: the microphone, your own conversation, example replays and setup.
+// Wires the page together: the microphone, your own conversation, recordings and setup.
 // Your own conversation (live server, phrasebook in this browser) lives for the whole visit.
-// An example gets a fresh conversation with a replayed "server" and its own phrasebook, so
-// watching examples never changes yours.
+// A recording (a TORGO clip or a file) is played aloud while the live recogniser hears it, then
+// goes through the same pipeline as a spoken turn, heard as the voice it belongs to. Recordings
+// are transcribed only: nothing is acted on, and nothing is learned from them.
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Listener, type FinishedTurn } from "./audio/listener";
 import type { EnrolmentState } from "./components/Enrolment";
 import { ENROLMENT_START } from "./components/Enrolment";
-import type { EvalReplay } from "./components/Evaluation";
 import type { LiveInput } from "./components/Pipeline";
-import { partialsFor } from "./fixtures/build";
-import { REPLAYS, type Replay } from "./fixtures";
+import type { DatasetClip, DatasetIndex } from "../shared/dataset";
+import { scoringWords } from "../shared/wordErrors";
+import { decodeAudioFile, type DecodedAudio } from "./audio/decode";
+import { playAndTranscribe } from "./audio/fileHearing";
+import { encodeWav, toBase64 } from "./audio/wav";
 import { Conversation, type ConversationState } from "./model/conversation";
+import { loadClipAudio } from "./model/datasetLoader";
+import { speakerDescription } from "./model/dataset";
 import { enrolPhrase, setupCommand, SETUP_PHRASES } from "./model/enrolment";
 import { normalise } from "./model/learning";
-import { runReplay } from "./model/replayRunner";
-import { LiveTransport, ReplayTransport } from "./model/transport";
+import { LiveTransport } from "./model/transport";
+import type { TurnModel } from "./model/turn";
+import { NOBODY, setUpSpeaker, type Voice } from "./model/voices";
 import { readSetting, writeSetting } from "./storage/settings";
-import { BrowserStore, MemoryStore } from "./storage/store";
-
-export type Mode = { kind: "live" } | { kind: "replay"; id: string; title: string; running: boolean; evaluation: boolean };
+import { BrowserStore } from "./storage/store";
 
 /** Spoken commands for the page itself, so it can be used by voice alone. */
-function pageCommand(text: string | undefined): "setup" | "stop" | "example" | null {
+function pageCommand(text: string | undefined): "setup" | "stop" | null {
   const said = normalise(text ?? "");
   if (/^(set up|setup) (my|your) voice$/.test(said)) return "setup";
   if (said === "stop listening") return "stop";
-  if (/^(play|show) (an|me an) example$/.test(said)) return "example";
   return null;
 }
 
-function evaluationReplay(r: EvalReplay): Replay {
-  const first = r.events[0]?.at ?? 0;
-  const events = r.events.map((e) => ({ ...e, at: e.at - first }));
-  const live = events.find((e) => e.type === "hear.done" && e.hearer === "realtime");
-  const text = live && live.type === "hear.done" ? live.text : "";
-  return {
-    id: r.id,
-    title: r.intended,
-    summary: `${r.speaker}. Text and timings only.`,
-    phrasebook: [],
-    turns: [{ partials: text ? partialsFor(text, r.speechSeconds) : [], speechSeconds: r.speechSeconds, events }],
-    acts: {},
-  };
+/** A recording to hear: a TORGO clip, or a file the visitor chose. */
+export type RecordingChoice =
+  | { kind: "torgo"; clip: DatasetClip; index: DatasetIndex }
+  | { kind: "file"; name: string; data: ArrayBuffer; reference?: string; voiceId: VoiceId; index?: DatasetIndex };
+
+/** "own" (this browser's setup), "nobody", or "torgo:F03". */
+export type VoiceId = string;
+
+/** Where hearing a recording has got to. */
+export type HearingStatus =
+  | { step: "idle" }
+  | { step: "loading"; label: string }
+  | { step: "setup"; label: string; voiceLabel: string; done: number; total: number }
+  | { step: "playing"; label: string }
+  | { step: "hearing"; label: string }
+  | { step: "error"; message: string };
+
+/** A TORGO speaker's name on the page: "F03 (cerebral palsy, moderate)". */
+export function torgoVoiceLabel(index: DatasetIndex, speaker: string): string {
+  const description = speakerDescription(index.speakers.find((s) => s.id === speaker));
+  return description ? `${speaker} (${description})` : speaker;
+}
+
+const wavOf = (audio: DecodedAudio) => toBase64(encodeWav(audio.pcm));
+
+/** Waits for `promise`, or rejects as soon as `signal` fires; the promise itself goes on. */
+function untilStopped<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new DOMException("Stopped", "AbortError"));
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(new DOMException("Stopped", "AbortError"));
+    signal.addEventListener("abort", stop, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", stop);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", stop);
+        reject(error);
+      },
+    );
+  });
 }
 
 const EMPTY: ConversationState | null = null;
@@ -51,18 +83,33 @@ export function useSession() {
   const listener = useMemo(() => new Listener(), []);
   const transport = useMemo(() => new LiveTransport(), []);
   const [own, setOwn] = useState<Conversation | null>(null);
-  const [active, setActive] = useState<Conversation | null>(null);
-  const [mode, setMode] = useState<Mode>({ kind: "live" });
   const [listening, setListening] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [enrol, setEnrol] = useState<EnrolmentState>(ENROLMENT_START);
   const [endSilence, setEndSilence] = useState(() => readSetting("endSilence", 2.5));
   const [speakReplies, setSpeakReplies] = useState(() => readSetting("speakReplies", true));
   const [autoListen, setAutoListen] = useState(() => readSetting("autoListen", false));
-  const [live, setLive] = useState<LiveInput>({ text: "", level: 0, quietSeconds: 0, status: "off", endSilenceSeconds: endSilence, replaying: false });
+  const [live, setLive] = useState<LiveInput>({ text: "", level: 0, quietSeconds: 0, status: "off", endSilenceSeconds: endSilence, playing: false });
+  const [hearing, setHearing] = useState<HearingStatus>({ step: "idle" });
+  /** The voice the latest recording was heard as, when it is not your own. */
+  const [voiceInUse, setVoiceInUse] = useState<Voice | null>(null);
 
-  const replaying = useRef(false);
-  const replayAbort = useRef<AbortController | null>(null);
+  const playing = useRef(false);
+  const hearingAbort = useRef<AbortController | null>(null);
+  /** Counts hearings, so a stopped one never updates the page after a newer one started. */
+  const hearingToken = useRef(0);
+  /**
+   * True from the moment a recording is chosen until it has finished playing. Meanwhile the
+   * microphone stays closed (it would hear the speakers) and any spoken turn is dropped, so a
+   * clip saying "yes" can never answer a question for the person.
+   */
+  const recordingAloud = useRef(false);
+  /** The microphone was on (or asked for) while a recording played: open it again afterwards. */
+  const micAfterRecording = useRef(false);
+  const voices = useRef(new Map<string, Promise<Voice>>());
+  /** Setup progress per voice, and which voice the current hearing is waiting for. */
+  const setupProgress = useRef(new Map<string, { done: number; total: number }>());
+  const waitingForVoice = useRef<{ key: string; label: string; voiceLabel: string } | null>(null);
   const enrolRef = useRef(enrol);
   enrolRef.current = enrol;
   const enrolToken = useRef(0);
@@ -75,7 +122,6 @@ export function useSession() {
       const conversation = await Conversation.create(transport, store);
       if (gone) return;
       setOwn(conversation);
-      setActive((current) => current ?? conversation);
     })();
     return () => {
       gone = true;
@@ -94,37 +140,6 @@ export function useSession() {
   }, [listener, endSilence]);
 
   useEffect(() => writeSetting("autoListen", autoListen), [autoListen]);
-
-  const stopReplay = useCallback(() => {
-    replayAbort.current?.abort();
-    replayAbort.current = null;
-    replaying.current = false;
-  }, []);
-
-  const backToOwn = useCallback(() => {
-    stopReplay();
-    setMode({ kind: "live" });
-    setActive(own);
-    setLive((l) => ({ ...l, text: "", level: 0, replaying: false }));
-  }, [own, stopReplay]);
-
-  const playReplay = useCallback(
-    async (replay: Replay, evaluation = false) => {
-      stopReplay();
-      active?.transport.kind === "replay" && active.dispose();
-      const conversation = await Conversation.create(new ReplayTransport(replay), new MemoryStore(replay.phrasebook));
-      const abort = new AbortController();
-      replayAbort.current = abort;
-      replaying.current = true;
-      setActive(conversation);
-      setMode({ kind: "replay", id: replay.id, title: replay.title, running: true, evaluation });
-      const onLive = (text: string, level: number, isReplaying: boolean) => setLive((l) => ({ ...l, text, level, replaying: isReplaying }));
-      await runReplay(replay, conversation, { onLive }, abort.signal, evaluation ? "evaluation" : "replay").catch(() => {});
-      if (replayAbort.current === abort) replaying.current = false;
-      setMode((m) => (m.kind === "replay" && m.id === replay.id ? { ...m, running: false } : m));
-    },
-    [active, stopReplay],
-  );
 
   const handleEnrolTurn = useCallback(
     async (turn: FinishedTurn) => {
@@ -154,6 +169,12 @@ export function useSession() {
 
   const startListening = useCallback(async () => {
     setNotice(null);
+    if (recordingAloud.current) {
+      // Opened after the recording, never over it.
+      micAfterRecording.current = true;
+      setNotice("The microphone opens when the recording has finished playing.");
+      return;
+    }
     try {
       await listener.start({ liveTranscript: true });
       setListening(true);
@@ -163,44 +184,196 @@ export function useSession() {
     }
   }, [listener]);
 
+  const startListeningRef = useRef(startListening);
+  startListeningRef.current = startListening;
+
   const stopListening = useCallback(() => {
+    micAfterRecording.current = false; // a deliberate stop: do not reopen it after a recording
     listener.stop();
     setListening(false);
   }, [listener]);
 
   const handleTurn = useCallback(
     (turn: FinishedTurn) => {
+      // While a recording plays, whatever the microphone caught is the speakers, not the person.
+      if (recordingAloud.current) return;
       if (enrolRef.current.open) return void handleEnrolTurn(turn);
       if (!own) return;
       const command = own.getState().pending ? null : pageCommand(turn.realtimeText);
-      if (command === "setup") {
-        if (replaying.current || mode.kind === "replay") backToOwn();
-        return setEnrol({ ...ENROLMENT_START, open: true });
-      }
+      if (command === "setup") return setEnrol({ ...ENROLMENT_START, open: true });
       if (command === "stop") return stopListening();
-      if (command === "example") return void playReplay(REPLAYS[0]);
-      if (replaying.current || mode.kind === "replay") backToOwn();
+      setVoiceInUse(null);
       void own.submitTurn({ wavBase64: turn.wavBase64, realtimeText: turn.realtimeText, liveText: turn.realtimeText ?? "", speechSeconds: turn.speechSeconds, origin: "live", speechStartedAt: turn.speechStartedAt });
     },
-    [own, handleEnrolTurn, stopListening, playReplay, backToOwn, mode.kind],
+    [own, handleEnrolTurn, stopListening],
   );
 
   // The listener's callbacks always see the latest handlers.
   useEffect(() => {
     listener.onTick = (tick) => {
-      if (tick.status !== "speaking" && replaying.current) return setLive((l) => ({ ...l, status: tick.status }));
-      setLive((l) => ({ ...l, level: tick.level, quietSeconds: tick.quietSeconds, status: tick.status, replaying: false }));
+      if (playing.current) return setLive((l) => ({ ...l, status: tick.status }));
+      setLive((l) => ({ ...l, level: tick.level, quietSeconds: tick.quietSeconds, status: tick.status }));
     };
-    listener.onLiveText = (text) => setLive((l) => ({ ...l, text }));
+    listener.onLiveText = (text) => {
+      if (!playing.current) setLive((l) => ({ ...l, text }));
+    };
     listener.onSpeechStarted = () => {
-      // Speaking interrupts: the reply stops mid-word, and an example stops playing.
+      // Speaking interrupts: the reply stops mid-word.
       own?.interrupt();
-      active?.interrupt();
-      if (replaying.current) stopReplay();
     };
     listener.onTurn = handleTurn;
     listener.onNotice = setNotice;
-  }, [listener, own, active, handleTurn, stopReplay]);
+  }, [listener, own, handleTurn]);
+
+  /**
+   * A TORGO speaker's voice, set up once per visit from their own enrolment clips. The setup is
+   * shared by every hearing that wants the same voice and is not cancelled when one of them is
+   * stopped; it finishes in the background and is kept for the next clip.
+   */
+  const voiceFor = useCallback(
+    (index: DatasetIndex, speaker: string): Promise<Voice> => {
+      if (!own) return Promise.reject(new Error("The page is still starting."));
+      const key = `torgo:${speaker}`;
+      let voice = voices.current.get(key);
+      if (!voice) {
+        voice = setUpSpeaker(index, speaker, torgoVoiceLabel(index, speaker), {
+          understand: (request, s) => own.transport.understand(request, s),
+          loadWav: async (clip) => wavOf((await loadClipAudio(clip.id)).audio),
+          onProgress: (progress) => {
+            setupProgress.current.set(key, progress);
+            const waiting = waitingForVoice.current;
+            if (waiting?.key === key) setHearing({ step: "setup", label: waiting.label, voiceLabel: waiting.voiceLabel, ...progress });
+          },
+        });
+        voices.current.set(key, voice);
+        voice.catch(() => voices.current.delete(key));
+      }
+      return voice;
+    },
+    [own],
+  );
+
+  /** Ends the time a recording is playing aloud, and opens the microphone again if it was on. */
+  const endRecordingAloud = useCallback(() => {
+    recordingAloud.current = false;
+    playing.current = false;
+    setLive((l) => ({ ...l, level: 0, playing: false }));
+    if (micAfterRecording.current) {
+      micAfterRecording.current = false;
+      void startListeningRef.current();
+    }
+  }, []);
+
+  const stopHearing = useCallback(() => {
+    if (!hearingAbort.current) return;
+    hearingAbort.current.abort();
+    hearingAbort.current = null;
+    waitingForVoice.current = null;
+    setHearing({ step: "idle" });
+  }, []);
+
+  /**
+   * Hears a recording: loads it, sets up the voice it is heard as (once), plays it aloud while
+   * the live recogniser hears it, then sends it through the pipeline. The microphone is closed
+   * until the recording has finished playing, then opens again if it was on.
+   */
+  const hearRecording = useCallback(
+    async (choice: RecordingChoice) => {
+      if (!own) return;
+      stopHearing();
+      // Made inside the click, so the browser lets it play sound later.
+      const sound = new AudioContext();
+      void sound.resume().catch(() => {});
+      const token = ++hearingToken.current;
+      const abort = new AbortController();
+      hearingAbort.current = abort;
+      const { signal } = abort;
+      const current = () => hearingToken.current === token && !signal.aborted;
+      const show = (status: HearingStatus) => {
+        if (current()) setHearing(status);
+      };
+      const label = choice.kind === "torgo" ? `${choice.clip.speaker}: “${choice.clip.prompt}”` : choice.name;
+      recordingAloud.current = true;
+      if (listener.isOn) {
+        micAfterRecording.current = true;
+        listener.stop();
+        setListening(false);
+      }
+      own.interrupt();
+      setNotice(null);
+      try {
+        show({ step: "loading", label });
+        const audio = choice.kind === "torgo" ? (await loadClipAudio(choice.clip.id, signal)).audio : await decodeAudioFile(choice.data);
+        if (!current()) return;
+
+        // Whose voice it is heard as.
+        let voice: Voice | undefined;
+        let voiceLabel = "your voice (set up in this browser)";
+        const speaker = choice.kind === "torgo" ? choice.clip.speaker : choice.voiceId.startsWith("torgo:") ? choice.voiceId.slice(6) : null;
+        const index = choice.index;
+        if (speaker && index) {
+          const key = `torgo:${speaker}`;
+          const waiting = { key, label, voiceLabel: torgoVoiceLabel(index, speaker) };
+          waitingForVoice.current = waiting;
+          const progress = setupProgress.current.get(key);
+          if (!voices.current.has(key) || (progress && progress.done < progress.total)) {
+            show({ step: "setup", label, voiceLabel: waiting.voiceLabel, done: progress?.done ?? 0, total: progress?.total ?? 0 });
+          }
+          voice = await untilStopped(voiceFor(index, speaker), signal);
+          if (waitingForVoice.current === waiting) waitingForVoice.current = null;
+          voiceLabel = voice.label;
+        } else if (choice.kind === "file" && choice.voiceId === "nobody") {
+          voice = NOBODY;
+          voiceLabel = NOBODY.label.toLowerCase();
+        }
+        if (!current()) return;
+
+        const reference = choice.kind === "torgo" ? choice.clip.prompt : choice.reference?.trim() || undefined;
+        const recording: NonNullable<TurnModel["recording"]> = { label, reference, voiceLabel };
+        if (choice.kind === "torgo") {
+          recording.clipId = choice.clip.id;
+          if (voice?.setupClipIds.includes(choice.clip.id)) {
+            recording.caveat = `This clip is one of the ${voice.setupClipIds.length} that ${choice.clip.speaker}'s voice was set up from, so the pipeline has heard it before. Pick a test clip for a fair result.`;
+          }
+        }
+        if (voice && voice.setupPrompts.length > 0 && reference) recording.seen = voice.setupPrompts.includes(scoringWords(reference).join(" "));
+
+        setVoiceInUse(voice ?? null);
+        show({ step: "playing", label });
+        playing.current = true;
+        setLive((l) => ({ ...l, text: "", level: 0, playing: true }));
+        const played = await playAndTranscribe(audio.pcm, {
+          onText: (text) => {
+            if (current()) setLive((l) => ({ ...l, text }));
+          },
+          onLevel: (level) => {
+            if (current()) setLive((l) => ({ ...l, level }));
+          },
+          signal,
+          context: sound,
+        });
+        if (!current()) return;
+        endRecordingAloud();
+        if (played.realtimeFailure) setNotice(`${played.realtimeFailure} The other recognisers still hear the recording.`);
+
+        show({ step: "hearing", label });
+        await own.transcribe({ wavBase64: wavOf(audio), realtimeText: played.realtimeText, speechSeconds: audio.seconds, recording, voice });
+        show({ step: "idle" });
+      } catch (error) {
+        if ((error as Error).name === "AbortError" || !current()) return;
+        show({ step: "error", message: (error as Error).message || "The recording could not be heard." });
+      } finally {
+        void sound.close().catch(() => {});
+        if (hearingToken.current === token) {
+          if (hearingAbort.current === abort) hearingAbort.current = null;
+          if (waitingForVoice.current?.label === label) waitingForVoice.current = null;
+          // Stopped, failed or finished: the speakers are quiet now either way.
+          if (recordingAloud.current) endRecordingAloud();
+        }
+      }
+    },
+    [own, listener, stopHearing, voiceFor, endRecordingAloud],
+  );
 
   // Hands-free start: if the visitor asked for it and the browser already allows the microphone.
   useEffect(() => {
@@ -243,16 +416,13 @@ export function useSession() {
     };
   }, [listener]);
 
-  const subscribe = useCallback((fn: () => void) => (active ? active.subscribe(fn) : () => {}), [active]);
-  const state = useSyncExternalStore(subscribe, () => active?.getState() ?? EMPTY);
   const ownSubscribe = useCallback((fn: () => void) => (own ? own.subscribe(fn) : () => {}), [own]);
   const ownState = useSyncExternalStore(ownSubscribe, () => own?.getState() ?? EMPTY);
 
   return {
-    state,
+    state: ownState,
     ownState,
     own,
-    mode,
     live,
     listening,
     notice,
@@ -262,9 +432,13 @@ export function useSession() {
     startListening,
     stopListening,
     endTurn: () => listener.endTurn(),
-    playReplay,
-    playEvaluation: (r: EvalReplay) => playReplay(evaluationReplay(r), true),
-    backToOwn,
+    hearing,
+    /** True while a recording is loading, being set up or playing: the microphone stays closed. */
+    recordingBusy: hearing.step === "loading" || hearing.step === "setup" || hearing.step === "playing",
+    voiceInUse,
+    hearRecording,
+    stopHearing,
+    dismissHearing: () => setHearing({ step: "idle" }),
     settings: { endSilence, setEndSilence, speakReplies, setSpeakReplies, autoListen, setAutoListen },
   };
 }

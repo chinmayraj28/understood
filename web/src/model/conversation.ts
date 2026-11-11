@@ -19,6 +19,7 @@ import { PHONE_HOME, phoneCancel, type PhoneState } from "./phone";
 import { similarity } from "../../shared/rules";
 import { afterAct, isExpired, resolveDecision, type Pending } from "./answers";
 import type { Transport } from "./transport";
+import type { Voice } from "./voices";
 import { ALL_ON, bestText, heardText, newTurn, reduceTurn, type TurnModel } from "./turn";
 
 export type { Pending } from "./answers";
@@ -53,8 +54,19 @@ export interface TurnInput {
   speechSeconds?: number;
   origin: TurnModel["origin"];
   label?: string;
-  /** performance.now() when the person started speaking. Missing for replays. */
+  /** performance.now() when the person started speaking. Missing in scripted tests. */
   speechStartedAt?: number;
+}
+
+/** A recording to transcribe: a TORGO clip or a file the person chose. */
+export interface RecordingInput {
+  wavBase64: string;
+  /** The live recogniser's final text from playing the recording, if it could be reached. */
+  realtimeText?: string;
+  speechSeconds: number;
+  recording: NonNullable<TurnModel["recording"]>;
+  /** Whose voice to hear it as. Undefined means your own (this browser's phrasebook and clips). */
+  voice?: Voice;
 }
 
 let lineId = 0;
@@ -144,6 +156,52 @@ export class Conversation {
       )
       .catch(() => {});
     return this.queue;
+  }
+
+  /**
+   * Hears a recording through the whole pipeline and shows what it understood. Nothing is acted
+   * on, asked, spoken or learned: the point is the transcript. The context is empty, as in the
+   * evaluation, so earlier recordings cannot steer this one.
+   */
+  transcribe(input: RecordingInput): Promise<void> {
+    this.queue = this.queue
+      .then(() =>
+        this.runRecording(input).finally(() => {
+          if (this.state.busy) this.set({ busy: false });
+        }),
+      )
+      .catch(() => {});
+    return this.queue;
+  }
+
+  private async runRecording(input: RecordingInput) {
+    const { switches } = this.state;
+    const turnId = `file-${Date.now().toString(36)}-${++turnCount}`;
+    let turn = newTurn({ turnId, origin: "file", label: input.recording.label, liveText: input.realtimeText ?? "", switches });
+    turn = { ...turn, speechSeconds: input.speechSeconds, recording: input.recording };
+    this.set({ turns: [...this.state.turns.slice(-11), turn], busy: true, justLearned: [] });
+    const voice = input.voice;
+    const request: UnderstandRequest = {
+      turnId,
+      wavBase64: input.wavBase64,
+      realtimeText: input.realtimeText,
+      realtimeKeyterms: SCRIBE_REALTIME.keyterms,
+      phrasebook: voice ? voice.phrasebook : this.state.entries,
+      examples: voice ? voice.examples : chooseExamples(this.clips),
+      keyterms: voice ? voice.keyterms : keytermsFor(this.state.entries),
+      context: { recentTurns: [] },
+      switches,
+      purpose: "transcribe",
+    };
+    try {
+      for await (const event of this.transport.understand(request, this.abort.signal)) {
+        this.patchTurn(turnId, (t) => reduceTurn(t, event, performance.now()));
+      }
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+      const message = (error as Error).message || "The recording could not be heard.";
+      this.patchTurn(turnId, (t) => reduceTurn(t, { type: "turn.failed", at: Date.now(), message }, performance.now()));
+    }
   }
 
   private async runTurn(input: TurnInput) {

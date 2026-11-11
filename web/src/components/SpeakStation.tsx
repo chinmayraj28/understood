@@ -23,24 +23,28 @@ export function SpeakStation(props: {
   listening: boolean;
   onStart: () => void;
   onEndTurn: () => void;
+  micBlocked?: boolean;
 }) {
   const { live, turn } = props;
   const speaking = live.status === "speaking";
-  const text = speaking || live.replaying ? live.text : turn?.liveText || live.text;
-  const example = turn?.origin === "replay" || (live.replaying && turn?.origin !== "evaluation");
-  const evaluation = turn?.origin === "evaluation";
+  const text = speaking || live.playing ? live.text : turn?.liveText || live.text;
+  const recording = live.playing ? undefined : turn?.recording;
   const patience = speaking ? Math.min(1, live.quietSeconds / live.endSilenceSeconds) : 0;
 
   return (
     <Station
       state={props.state}
       variant="speak"
-      title="You speak"
-      note={`It waits through pauses. A turn ends after ${seconds(live.endSilenceSeconds, 1)} of quiet, or when you say "done".`}
+      title={live.playing || turn?.origin === "file" ? "The recording plays" : "You speak"}
+      note={
+        live.playing || turn?.origin === "file"
+          ? "It plays out loud at its own pace while the live recogniser writes down what it hears. That text is the third vote."
+          : `It waits through pauses. A turn ends after ${seconds(live.endSilenceSeconds, 1)} of quiet, or when you say "done".`
+      }
       aside={
-        <span className={`listen-status status-${live.replaying ? "speaking" : live.status}`}>
+        <span className={`listen-status status-${live.playing ? "speaking" : live.status}`}>
           <span className="dot" aria-hidden="true" />
-          {live.replaying ? "Example playing" : STATUS_WORDS[live.status]}
+          {live.playing ? "Playing the recording" : STATUS_WORDS[live.status]}
         </span>
       }
     >
@@ -48,22 +52,25 @@ export function SpeakStation(props: {
         {text ? (
           <>
             <LandingWords text={text} />
-            {(speaking || live.replaying) && <span className="caret" aria-hidden="true" />}
+            {(speaking || live.playing) && <span className="caret" aria-hidden="true" />}
           </>
         ) : props.listening ? (
           <>Say something like &ldquo;Message Mum, I&rsquo;m running late&rdquo;.</>
+        ) : live.playing ? (
+          <>Listening to the recording…</>
+        ) : turn?.origin === "file" ? (
+          <>The live recogniser heard nothing it could write down.</>
         ) : (
-          <>Start listening, or play an example above.</>
+          <>Hear a recording above, or start listening and speak.</>
         )}
       </p>
-      {example && text && !evaluation && <p className="example-label">Example text, written for this demo. Not a real recording.</p>}
-      {evaluation && <p className="example-label">An evaluation turn, replayed from its text and timings. No audio is played.</p>}
+      {recording && <p className="example-label">{recording.label}, heard as {recording.voiceLabel}.</p>}
 
-      <Waveform level={live.level} active={speaking || live.replaying} />
+      <Waveform level={live.level} active={speaking || live.playing} />
 
       <div className="speak-controls">
         {!props.listening ? (
-          <button className="button primary" onClick={props.onStart}>
+          <button className="button primary" onClick={props.onStart} disabled={props.micBlocked}>
             <MicIcon /> Start listening
           </button>
         ) : (

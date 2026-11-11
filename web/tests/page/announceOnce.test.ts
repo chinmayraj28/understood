@@ -1,9 +1,9 @@
 // Each decision reaches a screen reader exactly once: as one line in the conversation log (the
 // turn's only live region). The page-level region stays silent for it and speaks only failures.
 import { describe, expect, it } from "vitest";
-import { REPLAYS } from "../../src/fixtures";
+import { REPLAYS } from "../fixtures";
 import { Conversation, type ConversationState } from "../../src/model/conversation";
-import { ReplayTransport } from "../../src/model/transport";
+import { ReplayTransport } from "../fixtures/replayTransport";
 import { pageAnnouncement } from "../../src/model/turn";
 import { MemoryStore } from "../../src/storage/store";
 
@@ -14,7 +14,7 @@ async function play(id: string) {
   const pageSaid: string[] = [];
   for (const turn of replay.turns) {
     const text = turn.partials.at(-1)?.[1] ?? "";
-    await conversation.submitTurn({ wavBase64: "", realtimeText: text || undefined, liveText: text, origin: "replay" });
+    await conversation.submitTurn({ wavBase64: "", realtimeText: text || undefined, liveText: text, origin: "live" });
     const latest = conversation.getState().turns.at(-1);
     const said = pageAnnouncement(latest);
     if (said) pageSaid.push(said);

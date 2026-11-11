@@ -77,6 +77,12 @@ export interface UnderstandRequest {
   keyterms: string[];
   context: TurnContext;
   switches: StageSwitches;
+  /**
+   * "transcribe" for a recording, where the transcript is the point and nobody is waiting to be
+   * answered: the recognisers and Claude get longer to answer (Gemini with example clips can take
+   * well over 4 s), and the demo phone's contact names are not added as hints. Default "conversation".
+   */
+  purpose?: "conversation" | "transcribe";
 }
 
 export interface PhrasebookMatch {

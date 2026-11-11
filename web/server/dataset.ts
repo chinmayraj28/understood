@@ -77,6 +77,7 @@ export function buildIndex(manifest: unknown, results: unknown): Loaded {
     clips.push({
       id: c.id, speaker: String(c.speaker ?? ""), kind: String(c.kind ?? ""), prompt: String(c.prompt ?? ""),
       seconds: Number(c.seconds) || 0, session: String(c.session ?? ""), split: String(c.split ?? ""),
+      ...(c.repeatedLater === true ? { repeatedLater: true } : {}),
     });
     counts.set(c.speaker, (counts.get(c.speaker) ?? 0) + 1);
   }

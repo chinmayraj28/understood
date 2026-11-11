@@ -9,8 +9,11 @@ import { HEARER_LABEL, HEARER_NOTE, HEARERS, type Lane, type TurnModel } from ".
 import { MarkedWords, Stopwatch } from "./bits";
 import { Station, type StationState } from "./Pipeline";
 
-/** The server leaves a recogniser out after this long (SPEECH_PLAN, failure modes). */
+/** The server leaves a recogniser out after this long (SPEECH_PLAN, failure modes). A recording
+ * being transcribed gets longer (server/understand.ts, TRANSCRIBE_LIMITS). */
 const LIMIT_SECONDS = 4;
+const RECORDING_LIMIT_SECONDS = 15;
+const limitFor = (turn?: TurnModel) => (turn?.origin === "file" ? RECORDING_LIMIT_SECONDS : LIMIT_SECONDS);
 
 function useRunningNow(running: boolean) {
   const [now, setNow] = useState(() => performance.now());
@@ -36,7 +39,9 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
   const anyRunning = lanes.some((l) => l.status === "running");
   const now = useRunningNow(anyRunning);
   const longest = Math.max(0, ...lanes.map((l) => l.seconds ?? 0));
-  const scale = Math.max(LIMIT_SECONDS, longest);
+  const limit = limitFor(turn);
+  // A recording's scale grows with the slowest recogniser, up to its longer limit.
+  const scale = turn?.origin === "file" ? Math.max(LIMIT_SECONDS, Math.min(limit, Math.ceil(longest))) : Math.max(limit, longest);
   const disputed = turn?.agreement?.disputedWords ?? [];
 
   return (
@@ -45,13 +50,19 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
       variant="hear"
       title="Heard three ways"
       note="Three recognisers listen at once, each with a stopwatch."
-      aside={turn?.exampleCount ? <span className="chip">{turn.exampleCount} of your clips shown to Gemini</span> : undefined}
+      aside={
+        turn?.exampleCount ? (
+          <span className="chip">
+            {turn.exampleCount} {turn.origin === "file" ? "clips of the same voice" : "of your clips"} shown to Gemini
+          </span>
+        ) : undefined
+      }
     >
       <div className="race" role="list">
         <div className="race-scale" aria-hidden="true">
           {Array.from({ length: Math.floor(scale) + 1 }, (_, i) => (
             <span key={i} style={{ left: `${(i / scale) * 100}%` }}>
-              {i === LIMIT_SECONDS ? `${i} s limit` : `${i}`}
+              {i === limit ? `${i} s limit` : `${i}`}
             </span>
           ))}
         </div>
@@ -60,6 +71,7 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
             key={hearer}
             lane={turn?.lanes[hearer] ?? { hearer, status: "waiting" }}
             scale={scale}
+            limit={limit}
             now={now}
             disputed={disputed}
             off={switchedOff(turn, hearer)}
@@ -71,7 +83,7 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
   );
 }
 
-function Track({ lane, scale, now, disputed, off }: { lane: Lane; scale: number; now: number; disputed: string[]; off: boolean }) {
+function Track({ lane, scale, limit, now, disputed, off }: { lane: Lane; scale: number; limit: number; now: number; disputed: string[]; off: boolean }) {
   const elapsed =
     lane.seconds ?? (lane.status === "running" && lane.localStartedAt !== undefined ? (now - lane.localStartedAt) / 1000 : 0);
   const width = Math.min(1, elapsed / scale);
@@ -93,7 +105,7 @@ function Track({ lane, scale, now, disputed, off }: { lane: Lane; scale: number;
       <div className="track-rail" aria-hidden="true">
         <span className="track-fill" style={{ width: `${width * 100}%` }} />
         {(lane.status === "done" || lane.status === "failed") && <span className="track-end" style={{ left: `${width * 100}%` }} />}
-        <span className="track-limit" style={{ left: `${(LIMIT_SECONDS / scale) * 100}%` }} />
+        {limit <= scale && <span className="track-limit" style={{ left: `${(limit / scale) * 100}%` }} />}
       </div>
       <p className="track-text">
         {lane.status === "done" && lane.text ? (

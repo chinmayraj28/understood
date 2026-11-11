@@ -43,10 +43,12 @@ The recognisers disagreed, so it asked rather than guessing. That is the behavio
 
 ## What else is on the page
 
-- **Watch an example.** Six recorded turns play through the pipeline with no microphone and no keys: "Call Sam", "Message Mum?", "Amma or Mum?", "A plain no", "Gemini is slow" and "Nothing works".
+- **Hear a recording.** The main way in. Pick a real TORGO recording of a person with dysarthria (by speaker, test or set-up clip, or search), or choose your own audio file (WAV, MP3, M4A, OGG or WebM, up to 60 seconds, decoded in the browser). It plays out loud while the live recogniser writes it down, then goes through every stage. The answer is shown as a transcript in large type and, when what was said is known (the TORGO prompt, or text you type), every word is marked right or wrong, with the share of words wrong for each recogniser on its own and for the whole pipeline, scored exactly as the evaluation scored it. A recording is only transcribed: nothing is acted on, asked, spoken or learned.
+- **Heard as the right voice.** The first time you hear one of a TORGO speaker's clips, the page sets up that speaker's voice from up to 20 of their own set-up clips, as the evaluation did: their phrases become Scribe's hints, five clips become Gemini's examples, and every mishearing becomes a phrasebook entry (about 20 seconds, once per visit). Test clips are never used for this, so a test clip is a fair test; hearing a set-up clip says so. Your own file can be heard as nobody in particular, as your own voice, or as a TORGO speaker.
 - **Set up your voice.** Read 10 short phrases. Their recordings become Gemini's examples and the first phrasebook entries.
-- **Stage switches.** Turn off the hints, Gemini, the examples, the phrasebook or the repair, say the same thing again, and compare.
-- **Evaluation.** The numbers from real recordings of people with dysarthria (below), with evaluation turns replayed through the same view.
+- **Stage switches.** Turn off the hints, Gemini, the examples, the phrasebook or the repair, hear the same recording again, and compare the two results side by side.
+- **Evaluation.** The numbers from real recordings of people with dysarthria (below), led by how many words the transcript got wrong.
+- **Speak live.** **Start listening** still runs your own speech through the same pipeline, with the pretend phone acting or asking first.
 - **Recordings** (the second tab). Every TORGO clip on your computer, playable, filtered by speaker, severity, word or sentence, and set-up or test. For the 121 clips the evaluation tested, open one to see what each recogniser heard, Claude's reading and the decision, next to what Scribe alone did. It needs the data on disk (`eval/scripts/fetch_torgo.sh`, about 1 GB). Because TORGO may not be redistributed, the audio is served only by the local server, only to this computer, and only for clips listed in the manifest; a hosted copy of the site has no such route.
 - **Clear everything** deletes the phrasebook, the recordings and the conversation from the browser.
 
@@ -84,19 +86,19 @@ npm install
 npm run dev
 ```
 
-4. Open http://localhost:5173 and allow the microphone. Click **Start listening** and say "message Sam running late". The turn ends after 2.5 seconds of silence, which you can change on the page, or when you say "done". Without keys, the examples and the evaluation still work.
+4. Open http://localhost:5173. Under **Hear a recording**, pick a TORGO clip (this needs the data: `eval/scripts/fetch_torgo.sh`) or choose your own audio file, and watch it go through the pipeline. To speak instead, click **Start listening**, allow the microphone and say "message Sam running late"; the turn ends after 2.5 seconds of silence, or when you say "done".
 
-The server keeps the keys. They never reach the browser: the page gets only a short-lived token for the live transcript. Each visitor is limited to 20 sentences a minute. If a key is missing, the server says so when it starts, and that stage shows as failed on the page.
+The server keeps the keys. They never reach the browser: the page gets only a short-lived token for the live transcript. Each visitor is limited to 20 sentences a minute (90 on the local server, because setting up a TORGO speaker's voice hears 20 clips at once). If a key is missing, the server says so when it starts, and that stage shows as failed on the page.
 
 ## Run the tests
 
 ```bash
 cd web
-npm test            # 227 tests in 22 files, no network
+npm test            # 249 tests in 26 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 227 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 11 Nov 2026: all 249 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -139,7 +141,7 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 ## Privacy
 
 - **Recordings and the phrasebook stay in the browser** (IndexedDB), because speech recordings of a disabled person are health data. Each request carries only the clips it needs, and the server stores nothing.
-- Audio goes to ElevenLabs (Scribe) and to Google's Gemini through OpenRouter, and the transcripts go to Anthropic (Claude), only while a sentence is being understood. The live transcript streams audio only during a turn.
+- Audio goes to ElevenLabs (Scribe) and to Google's Gemini through OpenRouter, and the transcripts go to Anthropic (Claude), only while a sentence or recording is being understood. The live transcript streams audio only during a turn. A TORGO clip heard in the pipeline goes to the same services, as it did in the evaluation; it is never stored by the server or added to the repo.
 - Keys stay on the server and are never logged.
 
 ## Safety rules it follows
@@ -154,8 +156,8 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 ## Known limits
 
 - **Not hosted yet.** It runs locally. Cloudflare Workers was planned (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6.
-- **Speed.** About 3 to 6 seconds from the end of a sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. This is deliberate, but it is slow.
-- **Gemini sometimes times out** at its 4-second limit. The pipeline then goes on with two votes and asks more often.
+- **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. This is deliberate, but it is slow.
+- **Gemini with example clips is erratic.** On 11 Nov the same request took anywhere from 1.4 to 14 seconds. A spoken turn gives it 4 seconds and goes on with two votes when it is late. A recording, where the transcript is the point, gives it 15 seconds and Claude 8, so a recording can take up to about 25 seconds.
 - **Not tested with a person with dysarthria using it live.** The evaluation used real recordings, played in offline; the live checks used synthetic voices.
 - **English only, and a pretend phone.** Nothing on the page reaches a real person.
 - The per-visitor limit is kept in memory, which is enough locally but not for a public deployment.
@@ -169,7 +171,7 @@ web/                  the website (submission)
                       /api/speak, /api/act; the three recognisers and the repair;
                       dataset.ts, the local-only TORGO route for the Recordings tab
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
-  tests/              Vitest: 227 tests, plus live.smoke.ts
+  tests/              Vitest: 249 tests, plus live.smoke.ts
 Packages/
   HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)

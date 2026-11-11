@@ -3,8 +3,9 @@
 // local server; it is never part of the page or the repo (TORGO may not be redistributed).
 
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
-import type { DatasetClip, DatasetIndex, DatasetResponse, DatasetResult } from "../../shared/dataset";
+import type { DatasetClip, DatasetIndex, DatasetResult } from "../../shared/dataset";
 import { clipAudioUrl } from "../../shared/dataset";
+import { loadDataset, type DatasetLoad } from "../model/datasetLoader";
 import {
   decisionWords,
   filterClips,
@@ -19,7 +20,7 @@ import {
   type DatasetFilter,
 } from "../model/dataset";
 
-type Load = { status: "loading" } | { status: "missing"; reason: string } | { status: "failed" } | { status: "ready"; index: DatasetIndex };
+type Load = { status: "loading" } | DatasetLoad;
 
 export function Dataset() {
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -31,23 +32,13 @@ export function Dataset() {
   useEffect(() => heading.current?.focus(), []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/dataset", { signal: controller.signal })
-      .then(async (r) => {
-        // The hosted site has no dataset route (a 404, or its page instead of JSON), and the
-        // local server refuses other machines (403).
-        const json = (r.headers.get("content-type") ?? "").includes("application/json");
-        if (r.status === 404 || r.status === 403 || (r.ok && !json)) {
-          return setLoad({ status: "missing", reason: "The recordings can only be browsed when you run the site on your own computer." });
-        }
-        if (!r.ok) throw new Error(String(r.status));
-        const body = (await r.json()) as DatasetResponse;
-        setLoad(body.available ? { status: "ready", index: body } : { status: "missing", reason: body.reason });
-      })
-      .catch((error) => {
-        if ((error as { name?: string })?.name !== "AbortError") setLoad({ status: "failed" });
-      });
-    return () => controller.abort();
+    let gone = false;
+    void loadDataset().then((result) => {
+      if (!gone) setLoad(result);
+    });
+    return () => {
+      gone = true;
+    };
   }, []);
 
   const update = (change: Partial<DatasetFilter>) => {
@@ -199,6 +190,9 @@ function ClipRow({ clip, speaker, results }: { clip: DatasetClip; speaker: strin
         onPlay={pauseOthers}
         aria-label={`${clip.speaker} saying “${clip.prompt}”`}
       />
+      <a className="button small quiet clip-hear" href={`#hear=${encodeURIComponent(clip.id)}`}>
+        Hear it in the pipeline<span className="visually-hidden">: {clip.speaker} saying &ldquo;{clip.prompt}&rdquo;</span>
+      </a>
       {full && (
         <details className="clip-result">
           <summary>

@@ -1,25 +1,30 @@
-// The page: a short story, the examples, the pipeline line with the phone beside it, the stage
-// switches, and the evaluation.
+// The page: a short story, a recording to hear (TORGO or your own file), its transcript scored
+// against what was said, the pipeline line with the phone beside it, the stage switches, and the
+// evaluation. Speaking live still works too.
 
 import { useEffect, useRef, useState } from "react";
 import { Compare, Settings, StageSwitchPanel } from "./components/Compare";
 import { Dataset } from "./components/Dataset";
 import { Enrolment, ENROLMENT_START } from "./components/Enrolment";
 import { Evaluation } from "./components/Evaluation";
+import { HearRecording } from "./components/HearRecording";
+import { TranscriptResult } from "./components/TranscriptResult";
 import { Phone } from "./components/Phone";
 import { Pipeline } from "./components/Pipeline";
 import { ConversationLog, PhrasebookPanel } from "./components/SidePanels";
-import { REPLAYS } from "./fixtures";
+import { loadDataset } from "./model/datasetLoader";
 import { PHONE_HOME } from "./model/phone";
 import { ALL_ON, pageAnnouncement } from "./model/turn";
 import { useSession } from "./useSession";
 
 /** Which view the address shows: "#dataset…" is the recordings; anything else is the pipeline. */
 const viewFromHash = () => (window.location.hash.startsWith("#dataset") ? "dataset" : "pipeline");
+/** "#hear=F03-S3-0012" asks the pipeline to hear that TORGO clip (the recordings view links here). */
+const clipFromHash = () => (window.location.hash.startsWith("#hear=") ? decodeURIComponent(window.location.hash.slice(6)) : null);
 
 export function App() {
   const session = useSession();
-  const { state, ownState, mode, live } = session;
+  const { state, ownState, live } = session;
   const [view, setView] = useState<"pipeline" | "dataset">(viewFromHash);
 
   useEffect(() => {
@@ -29,32 +34,57 @@ export function App() {
   }, []);
 
   // A recording playing out of the speakers would be heard as the person's own turn, so the
-  // microphone and any example stop when the recordings open. If the microphone was on, it comes
-  // back on with the pipeline, so a hands-free visitor does not lose their voice control.
-  const { listening, stopListening, startListening, backToOwn } = session;
-  const replaying = mode.kind === "replay";
+  // microphone stops when the recordings open. If it was on, it comes back on with the pipeline,
+  // so a hands-free visitor does not lose their voice control.
+  const { listening, stopListening, startListening, hearRecording, stopHearing } = session;
   const resumeListening = useRef(false);
   useEffect(() => {
     if (view === "dataset") {
+      stopHearing();
       if (listening) {
         resumeListening.current = true;
         stopListening();
       }
-      if (replaying) backToOwn();
     } else if (resumeListening.current) {
       resumeListening.current = false;
       void startListening();
     }
-  }, [view, listening, stopListening, startListening, replaying, backToOwn]);
+  }, [view, listening, stopListening, startListening, stopHearing]);
+
+  // A clip chosen in the recordings view is heard here, once the page is ready for it.
+  const ready = session.own !== null;
+  useEffect(() => {
+    if (!ready) return;
+    const hearFromHash = () => {
+      const id = clipFromHash();
+      if (!id) return;
+      history.replaceState(null, "", "#top");
+      setView("pipeline");
+      // Take the visitor to the recording panel, where its progress is shown.
+      requestAnimationFrame(() => {
+        const title = document.getElementById("hear-title");
+        const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        title?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+        title?.focus({ preventScroll: true });
+      });
+      void loadDataset().then((load) => {
+        if (load.status !== "ready") return;
+        const clip = load.index.clips.find((c) => c.id === id);
+        if (clip) void hearRecording({ kind: "torgo", clip, index: load.index });
+      });
+    };
+    hearFromHash();
+    window.addEventListener("hashchange", hearFromHash);
+    return () => window.removeEventListener("hashchange", hearFromHash);
+  }, [ready, hearRecording]);
 
   useEffect(() => {
     document.title = view === "dataset" ? "Recordings · Understood" : "Understood";
   }, [view]);
   const turn = state?.turns[state.turns.length - 1];
-  const inExample = mode.kind === "replay";
-  // Setup works on your own voice: leave any example, and open the microphone if it is off.
+  // Setup works on your own voice: open the microphone if it is off.
   const openSetup = () => {
-    if (inExample) session.backToOwn();
+    session.stopHearing();
     session.setEnrol({ ...ENROLMENT_START, open: true });
     if (!session.listening) void session.startListening();
   };
@@ -91,7 +121,12 @@ export function App() {
             <button className="button quiet small" onClick={openSetup}>
               Set up your voice
             </button>
-            <button className={`button small${session.listening ? "" : " primary"}`} onClick={session.listening ? session.stopListening : session.startListening}>
+            <button
+              className={`button small${session.listening ? "" : " primary"}`}
+              onClick={session.listening ? session.stopListening : session.startListening}
+              disabled={!session.listening && session.recordingBusy}
+              title={!session.listening && session.recordingBusy ? "The microphone opens when the recording has finished playing" : undefined}
+            >
               {session.listening ? "Stop listening" : "Start listening"}
             </button>
           </div>
@@ -109,41 +144,24 @@ export function App() {
           <p className="intro-text">
             Voice assistants fail people with dysarthria: slow, slurred or quiet speech, common with ALS, cerebral palsy, Parkinson&rsquo;s
             and stroke. Often they cannot use their hands either, so voice is their only way in. On severe dysarthria, recognisers get over
-            49% of words wrong, yet the meaning often survives. Here each turn is heard three ways, checked against your phrasebook,
-            repaired by Claude, and a rule in code decides whether to act or to ask first, because a wrong action is one you cannot undo by
-            hand. Every step is shown below, with its real timings.
+            49% of words wrong, yet the meaning often survives. Here each recording is heard by three recognisers, checked against the
+            speaker&rsquo;s phrasebook and repaired by Claude into one transcript. Hear a real recording of a person with dysarthria, or your
+            own file, and every step is shown below with its real timings and the words it got right and wrong.
           </p>
         </section>
 
-        <section className="examples" aria-labelledby="examples-title">
-          <h2 id="examples-title">Watch an example</h2>
-          <ul className="example-list">
-            {REPLAYS.map((r) => {
-              const playing = mode.kind === "replay" && mode.id === r.id;
-              return (
-                <li key={r.id}>
-                  <button className={`example-chip${playing ? " playing" : ""}`} onClick={() => void session.playReplay(r)} aria-pressed={playing}>
-                    {r.title}
-                    <span className="visually-hidden">. {r.summary}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {inExample && (
-            <div className="mode-banner" role="status">
-              <p>
-                {!mode.evaluation && <span className="banner-summary">{REPLAYS.find((r) => r.id === mode.id)?.summary} </span>}
-                {mode.running ? "Playing" : "Played"} {mode.evaluation ? "an evaluation turn" : "an example"}: <strong>{mode.title}</strong>.{" "}
-                {mode.evaluation ? "Text and timings recorded in the evaluation run, without audio." : "Made-up text with scripted timings."} Your own
-                phrasebook is untouched.
-              </p>
-              <button className="button small" onClick={session.backToOwn}>
-                Back to your own voice
-              </button>
-            </div>
-          )}
-        </section>
+        <HearRecording
+          hearing={session.hearing}
+          busy={state?.busy ?? false}
+          onHear={(choice) => {
+            // Go down to the result, where the recording is about to play.
+            const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            document.getElementById("pipeline")?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+            void session.hearRecording(choice);
+          }}
+          onStop={session.stopHearing}
+          onDismiss={session.dismissHearing}
+        />
 
         {session.notice && (
           <div className="notice" role="alert">
@@ -156,12 +174,14 @@ export function App() {
 
         <div className="layout" id="pipeline">
           <div className="main-col">
+            <TranscriptResult turn={turn} />
             <Pipeline
               turn={turn}
               live={live}
               listening={session.listening}
-              entryCount={state?.entries.length ?? 0}
+              entryCount={session.voiceInUse?.phrasebook.length ?? state?.entries.length ?? 0}
               onStart={session.startListening}
+              micBlocked={session.recordingBusy}
               onEndTurn={session.endTurn}
             />
           </div>
@@ -169,10 +189,11 @@ export function App() {
             <Phone phone={state?.phone ?? PHONE_HOME} />
             <ConversationLog chat={state?.chat ?? []} />
             <PhrasebookPanel
-              entries={state?.entries ?? []}
-              justLearned={state?.justLearned ?? []}
+              entries={session.voiceInUse?.phrasebook ?? state?.entries ?? []}
+              justLearned={session.voiceInUse ? [] : (state?.justLearned ?? [])}
               clipCount={state?.clipCount ?? 0}
-              scope={inExample ? "example" : state?.persistent === false ? "memory" : "yours"}
+              scope={session.voiceInUse ? "voice" : state?.persistent === false ? "memory" : "yours"}
+              voiceLabel={session.voiceInUse?.label}
               onForget={(id) => void session.own?.forget(id)}
               onClear={() => void session.own?.clearEverything()}
               onSetup={openSetup}
@@ -182,9 +203,12 @@ export function App() {
 
         <section className="section" id="try" aria-labelledby="try-title">
           <h2 id="try-title">Switch a stage off</h2>
-          <p>Say something, switch one stage off, and say the same thing again. The two turns appear side by side, so you can see what that stage adds.</p>
+          <p>
+            Hear a recording, switch one stage off, and hear the same recording again. The two results appear side by side, so you can see
+            what that stage adds.
+          </p>
           <div className="try-grid">
-            <StageSwitchPanel switches={ownState?.switches ?? ALL_ON} onChange={(s) => session.own?.setSwitches(s)} replaying={inExample} />
+            <StageSwitchPanel switches={ownState?.switches ?? ALL_ON} onChange={(s) => session.own?.setSwitches(s)} />
             <Settings
               endSilence={session.settings.endSilence}
               onEndSilence={session.settings.setEndSilence}
@@ -199,14 +223,8 @@ export function App() {
 
         <section className="section" id="evaluation" aria-labelledby="eval-title">
           <h2 id="eval-title">How well it works</h2>
-          <p>Measured on recordings of people with dysarthria. Success is judged by whether it did what the person meant, not only by how many words it got right.</p>
-          <Evaluation
-            onReplay={(r) => {
-              const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-              document.getElementById("pipeline")?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
-              void session.playEvaluation(r);
-            }}
-          />
+          <p>Measured on real recordings of people with dysarthria, each stage added to the one before. Words wrong is the share of the words said that the transcript got wrong.</p>
+          <Evaluation />
         </section>
 
         <footer className="footer">
@@ -215,8 +233,8 @@ export function App() {
             server keeps nothing. The phone is pretend: nothing is really sent or called.
           </p>
           <p className="muted">
-            Voice commands for this page: &ldquo;set up my voice&rdquo;, &ldquo;play an example&rdquo;, &ldquo;stop listening&rdquo;. End a turn
-            by pausing, by saying &ldquo;done&rdquo;, or with the space bar.
+            Voice commands for this page: &ldquo;set up my voice&rdquo;, &ldquo;stop listening&rdquo;. End a spoken turn by pausing, by
+            saying &ldquo;done&rdquo;, or with the space bar.
           </p>
         </footer>
       </main>

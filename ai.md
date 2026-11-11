@@ -70,7 +70,7 @@ I am listing these because they show where the process needs checking, and becau
 
 ## How I can vouch for the code
 
-- **The tests.** The website has 227 tests in 22 files, all passing on 11 Nov 2026, with no network. They include the safety cases above, and the checks that keep the TORGO recordings on this computer. The Swift package has its own tests, including the review findings.
+- **The tests.** The website has 249 tests in 26 files, all passing on 11 Nov 2026, with no network. They include the safety cases above, and the checks that keep the TORGO recordings on this computer. The Swift package has its own tests, including the review findings.
 - **A live run.** `web/tests/live.smoke.ts` sends a real clip through every stage with real keys. On 11 Nov 2026, Scribe misheard a synthetic "message Sam running late" as "Mum sis, I'm running late", Gemini timed out, and the pipeline asked "Message Sam running late?" rather than acting.
 - **The decision log.** `DECISIONS.md` records each choice, what was rejected and why.
 - **Plain rules.** Each decision on the page comes with the rule that fired, in words, and the rules are one short file (`web/shared/rules/decider.ts`).

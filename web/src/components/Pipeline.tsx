@@ -16,8 +16,8 @@ export interface LiveInput {
   quietSeconds: number;
   status: ListenerStatus;
   endSilenceSeconds: number;
-  /** Synthetic levels while a replay "speaks". */
-  replaying: boolean;
+  /** True while a chosen recording plays; level and text then come from the recording. */
+  playing: boolean;
 }
 
 type StationState = "passed" | "current" | "ahead";
@@ -65,10 +65,12 @@ export function Pipeline(props: {
   entryCount: number;
   onStart: () => void;
   onEndTurn: () => void;
+  /** True while a recording is loading or playing: the microphone cannot be opened. */
+  micBlocked?: boolean;
 }) {
   const { turn, live } = props;
   // While a new turn is being spoken, the previous turn's stations fade back.
-  const speakingNow = live.status === "speaking" || live.replaying;
+  const speakingNow = live.status === "speaking" || live.playing;
   const stale = speakingNow && turn?.stage === "done";
   const speakState: StationState = speakingNow || (!turn && props.listening) ? "current" : turn ? "passed" : "ahead";
   const line = useRef<HTMLOListElement>(null);
@@ -81,7 +83,15 @@ export function Pipeline(props: {
       </h2>
       <div className="line-wrap">
         <ol ref={line} className={`line${stale ? " stale" : ""}${turn ? "" : " empty"}`}>
-          <SpeakStation state={speakState} turn={turn} live={live} listening={props.listening} onStart={props.onStart} onEndTurn={props.onEndTurn} />
+          <SpeakStation
+            state={speakState}
+            turn={turn}
+            live={live}
+            listening={props.listening}
+            onStart={props.onStart}
+            onEndTurn={props.onEndTurn}
+            micBlocked={props.micBlocked}
+          />
           <HearStation state={stateOf(turn, "hear")} turn={turn} />
           <PhrasebookStation state={stateOf(turn, "phrasebook")} turn={turn} entryCount={props.entryCount} />
           <ReadingStation state={stateOf(turn, "repair")} turn={turn} />
