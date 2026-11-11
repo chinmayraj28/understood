@@ -113,7 +113,7 @@ npm test            # 283 tests in 30 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 283 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 11 Nov 2026: all 283 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift implementation the 9 Nov evaluation ran against (not included in this submission). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -159,12 +159,12 @@ How to read this: with Scribe alone the rules almost always asked, because one r
 
 **Limits of the evaluation:** one dataset, a handful of speakers, single runs, and mostly single words and short phrases. TORGO is free for academic, non-profit use. It is used here only to evaluate; its audio is never committed or published, and the page shows text and timings only.
 
-To rerun it (Swift, macOS; downloads about 4.4 GB once):
+That run used the Swift implementation, which is not included here. To measure the website's own pipeline on TORGO (downloads about 4.4 GB once; uses your API keys):
 
 ```bash
 eval/scripts/fetch_torgo.sh
-cd Packages/HFUnderstand
-swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --limit 30
+cd web
+npx tsx scripts/evalTranscription.ts --split dev --per-speaker 10
 ```
 
 ## Privacy
@@ -204,8 +204,6 @@ web/                  the website (submission)
                       dataset.ts, the local-only TORGO route for the Recordings tab
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
   tests/              Vitest: 283 tests, plus live.smoke.ts
-Packages/
-  HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)
 docs/                 SPEECH_PLAN.md (the design), WEB_PLAN.md (the website)
 DECISIONS.md          every significant choice, what was rejected, and why

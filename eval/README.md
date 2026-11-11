@@ -102,11 +102,11 @@ Each is built fresh per speaker.
 Keys come from `.env` at the repo root (`ELEVENLABS_API_KEY`, `OPENROUTER_API_KEY`,
 `ANTHROPIC_API_KEY`), read through `Settings.load()` and never printed.
 
+The Swift tool (`hf-understand`) that produced the 9 Nov results is not included in this submission. The website's own pipeline is measured the same way, with the same split rule, by `web/scripts/evalTranscription.ts` (see `docs/TRANSCRIPTION.md`):
+
 ```bash
-cd Packages/HFUnderstand
-swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --limit 30
-swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --setups scribe,keyterms --limit 100
-swift run -c release hf-understand hear ../../eval/data/torgo/raw/F01/Session1/wav_arrayMic/0006.wav
+cd web
+npx tsx scripts/evalTranscription.ts --split dev --per-speaker 10
 ```
 
 Options: `--setups a,b`, `--limit N` (test clips, taken in turn from each speaker and alternating
