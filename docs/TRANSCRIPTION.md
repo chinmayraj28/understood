@@ -94,6 +94,7 @@ Merging (66 clips, the same cached transcripts):
 | Examples in one labelled message, new clip last and named | fixed copying; Pro 19.8% → 13.9% |
 | A fourth lane, Gemini 4 Carbon | an independent second listener; the merge drops to 11.4% |
 | Repair for a recording: a transcription prompt, Claude Opus 5.5, the speaker's set-up phrases as known phrases | merging, not guessing a command; Opus beat Sonnet and Haiku |
+| The prompt says which recognisers are related, and uses a known phrase only when a transcript nearly matches it | the first end-to-end run showed Claude replacing correctly heard words with words from the speaker's list ("horn" became "warm") and the two Scribe voices outvoting Gemini; on the same 110 dev transcripts, 13.4% → 9.6% |
 | Live transcript: `scribe_v3_live` | 32.7% vs 37.6% |
 | Voice setup hears its clips with Scribe only | the phrasebook matches Scribe; setup is fast |
 | Longer limits for a recording (15 s to hear, 8 s to repair) | Gemini with examples sometimes needs 5–14 s |
@@ -108,14 +109,54 @@ Spoken turns to the pretend phone are unchanged: Scribe with hints, Gemini Flash
 
 ## Results
 
-(Filled in below from `evalTranscription.ts`: before = the pipeline at commit cd48785; after =
-this change; same clips, same scoring.)
+The website's pipeline end to end (`evalTranscription.ts`): the speaker's voice set up from
+their own enrolment clips, then each clip heard, merged and decided as the page does it.
+**Before** is the pipeline at commit cd48785 (11 Nov morning); **after** is this change. Same
+clips, same scoring, 10 clips per speaker (4 sentences, 6 words), 110 clips per half.
+
+**Held-out half (never used for any choice; the number to quote):**
+
+| Held-out, 110 clips | Before | After |
+|---|---|---|
+| Words wrong, all | 42.4% | **18.7%** |
+| Single words | 65.2% | 39.4% |
+| Sentences | 37.4% | 14.1% |
+| Speakers with dysarthria | 55.7% | 24.4% |
+| Speakers without | 7.9% | 4.0% |
+| Every word right | 43% | 64% |
+
+Each listener alone on the same held-out clips: Scribe v3 35.0%, Gemini 3.1 Pro 33.1%, Scribe v3
+live 40.8%. The merge is what brings it to 18.7%.
+
+**Dev half (used for the choices, so it flatters):** before 34.8%, after 9.9% (single words 31.8%,
+sentences 5.2%, every word right 77%). The gap between dev and held-out is partly tuning and partly
+that the held-out half is harder (Scribe alone: 23.3% on dev, 35.0% held-out).
+
+Per speaker, held-out, after: F01 14%, F03 11%, F04 17%, M01 34%, M02 48%, M03 0%, M04 51%,
+M05 17%; controls FC01 3%, FC02 9%, MC01 0%. The most severe speakers remain hard: some long
+sentences come back as a different sentence of similar sound ("Alimony harms a divorced man's
+wealth" → "I live on the hill I suppose meant to work").
+
+**Beyond TORGO** (`evalUploads.ts`): 24 sentences synthesised with four macOS voices at 80 to 150
+words a minute, half with white noise at about 15 dB SNR, heard as an uploaded file with no voice
+set up (no examples, no phrasebook). Words wrong 0.7%, 23 of 24 exactly right (the miss: "Mum"
+written "Mom"). This is clear speech, not impaired speech: it checks that the pipeline handles
+audio it has never seen and does not damage clear speech, nothing more.
+
+**On the page:** a TORGO sentence (M02, severe, "I can read") and a noisy M4A upload ("Please read
+me the last message from Sam") both came back every word right, in 12 to 14 seconds including the
+recording playing.
 
 ## Known limits
 
 - One dataset, 11 speakers, mostly single words; TORGO's single words are isolated prompts with no
   context, which is the hardest case and not how people talk to an assistant.
-- A recording now takes about 6 to 15 seconds (Gemini 4 Carbon is the slowest listener).
+- A recording now takes about 6 to 15 seconds (Gemini 4 Carbon is the slowest listener, and on
+  the held-out run it sometimes ran out its 15 seconds; the merge then works with the others).
+- Isolated single words stay hard (39% wrong held-out), and homophones cannot be told apart
+  without context ("knew" and "new").
+- The prompt was tuned on dev transcripts; its examples of Scribe's habits ("Got it", "Yep")
+  came from reading dev failures.
 - The cost per recording is higher: two Gemini Pro-class calls with five example clips each, and
   an Opus call.
 - Not tested with people with dysarthria using it live.

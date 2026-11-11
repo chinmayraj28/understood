@@ -11,8 +11,8 @@ const STAGES = [
     text: "A sentence is spoken, or a recording is played. The live transcript writes it down as it goes.",
   },
   {
-    name: "Hear it three ways",
-    text: "ElevenLabs Scribe, Gemini shown a few clips of the same voice, and the live transcript all hear it at once.",
+    name: "Hear it several ways",
+    text: "ElevenLabs Scribe, the live transcript, and Gemini models shown a few clips of the same voice all hear it at once.",
   },
   {
     name: "Check the phrasebook",
@@ -20,7 +20,7 @@ const STAGES = [
   },
   {
     name: "Repair",
-    text: "Claude Haiku weighs the three texts and the phrasebook into one reading, and says how sure it is.",
+    text: "Claude weighs the transcripts, the phrasebook and the phrases this person says into one transcript, and says how sure it is.",
   },
   {
     name: "Decide",
@@ -59,6 +59,7 @@ export function Landing({ section }: { section?: string }) {
     else window.scrollTo({ top: 0 });
   }, [section]);
   const results = useEvalResults();
+  const transcription = useTranscriptionResults();
   const scribe = results.data?.setups.find((s) => s.id === "scribe");
   const full = results.data?.setups.find((s) => s.id === "phrasebook");
   const pct = (v?: number | null) => (v === undefined || v === null ? "…" : `${Math.round(v * 100)}%`);
@@ -70,7 +71,7 @@ export function Landing({ section }: { section?: string }) {
           <h1 id="hero-title" tabIndex={-1}>Understands speech that voice assistants get wrong.</h1>
           <p className="hero-lede">
             Slow, slurred or quiet speech, common with cerebral palsy, ALS, Parkinson&rsquo;s and stroke, defeats ordinary
-            recognisers. Understood hears each sentence three ways, checks it against what this person has said before, and repairs
+            recognisers. Understood hears each sentence several ways, checks it against what this person has said before, and repairs
             it into one transcript, showing every step as it happens.
           </p>
           <div className="hero-actions">
@@ -141,28 +142,35 @@ export function Landing({ section }: { section?: string }) {
         <div className="band-head">
           <h2 id="results-title" tabIndex={-1}>Measured on real recordings</h2>
           <p>
-            {results.data
-              ? `${results.data.utterances} recordings of ${results.data.speakers} speakers from TORGO, most with dysarthria from cerebral palsy. Each speaker's setup was learned from their own earlier clips and tested on later ones.`
+            {transcription
+              ? `${transcription.clips} recordings of ${transcription.speakers} speakers from TORGO, most with dysarthria from cerebral palsy, held back from every choice made while improving the pipeline. Each speaker's voice was set up only from their own earlier clips.`
               : "Recordings of people with dysarthria from TORGO."}
           </p>
         </div>
         <div className="results-grid">
           <div className="results-lead">
             <p className="results-sentence">
-              Words wrong fell from <strong>{pct(scribe?.wordErrorRate)}</strong> with Scribe alone to <strong>{pct(full?.wordErrorRate)}</strong>{" "}
-              with the full pipeline, and to <strong>{pct(full?.seenWordErrorRate)}</strong> on phrases the person had said before. It went ahead
-              wrongly on <strong>{pct(full?.wrongActionRate)}</strong> of recordings.
+              This pipeline gets <strong>{pct(transcription?.after.wordErrorRate)}</strong> of words wrong, down from{" "}
+              <strong>{pct(transcription?.before.wordErrorRate)}</strong> before the 11 November changes. For speakers with dysarthria:{" "}
+              <strong>{pct(transcription?.after.dysarthric)}</strong>, down from {pct(transcription?.before.dysarthric)}. Every word right on{" "}
+              <strong>{pct(transcription?.after.exact)}</strong> of recordings.
             </p>
             <p className="muted">
-              One dataset, a handful of speakers, single runs, mostly single words: a first measurement, not a benchmark. In the evaluation the
-              third recogniser was Apple&rsquo;s on-device one; this site uses ElevenLabs realtime instead.
+              One dataset, eleven speakers, one run, many isolated single words, the hardest case: a first measurement, not a benchmark. The
+              most severe speakers are still often misheard.
             </p>
           </div>
-          {results.data ? <WordsWrongChart setups={results.data.setups} /> : <p className="muted">{results.failed ? "The results could not be loaded." : "Loading the results…"}</p>}
+          {transcription ? <BeforeAfterChart data={transcription} /> : <p className="muted">Loading the results…</p>}
         </div>
         {results.data && (
           <details className="results-more">
-            <summary>Show the full table</summary>
+            <summary>The earlier stage-by-stage evaluation (9 November)</summary>
+            <p className="muted results-earlier">
+              Measured on 9 November with the first version of the pipeline, built in Swift, where the third recogniser was Apple&rsquo;s
+              on-device one. Each stage is added to the one above. Words wrong fell from {pct(scribe?.wordErrorRate)} with Scribe alone to{" "}
+              {pct(full?.wordErrorRate)}; it went ahead wrongly on {pct(full?.wrongActionRate)} of recordings.
+            </p>
+            <WordsWrongChart setups={results.data.setups} />
             <EvaluationTable results={results.data} />
           </details>
         )}
@@ -202,6 +210,54 @@ export function Landing({ section }: { section?: string }) {
         </div>
       </section>
     </main>
+  );
+}
+
+interface TranscriptionResults {
+  clips: number;
+  speakers: number;
+  note: string;
+  before: { wordErrorRate: number; words: number; sentences: number; dysarthric: number; exact: number };
+  after: { wordErrorRate: number; words: number; sentences: number; dysarthric: number; exact: number };
+  alone: Record<string, number>;
+}
+
+/** The held-out before-and-after measurement, written by scripts/exportTranscription.ts. */
+function useTranscriptionResults(): TranscriptionResults | null {
+  const [data, setData] = useState<TranscriptionResults | null>(null);
+  useEffect(() => {
+    fetch("/eval/transcription.json")
+      .then((r) => (r.ok ? (r.json() as Promise<TranscriptionResults>) : null))
+      .then(setData)
+      .catch(() => setData(null));
+  }, []);
+  return data;
+}
+
+/** Words wrong: before, each listener alone, and the pipeline now. */
+function BeforeAfterChart({ data }: { data: TranscriptionResults }) {
+  const bars = [
+    { name: "Before (11 Nov morning)", value: data.before.wordErrorRate, tone: "before" },
+    ...Object.entries(data.alone).map(([name, value]) => ({ name, value, tone: "alone" })),
+    { name: "The pipeline now", value: data.after.wordErrorRate, tone: "now" },
+  ];
+  const most = Math.max(...bars.map((b) => b.value));
+  return (
+    <figure className="ww-chart">
+      <figcaption className="ww-caption">Share of words wrong on the held-out recordings (lower is better)</figcaption>
+      <ul>
+        {bars.map((b) => (
+          <li key={b.name} className={b.tone === "now" ? "best" : ""}>
+            <span className="ww-name">{b.name}</span>
+            <span className="ww-bar" aria-hidden="true">
+              <span style={{ width: `${(b.value / most) * 100}%` }} />
+            </span>
+            <span className="ww-value num">{Math.round(b.value * 100)}%</span>
+          </li>
+        ))}
+      </ul>
+      <p className="muted ww-note">{data.note}</p>
+    </figure>
   );
 }
 

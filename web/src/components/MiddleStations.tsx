@@ -66,7 +66,7 @@ export function ReadingStation({ state, turn }: { state: StationState; turn?: Tu
       state={state}
       variant="reading"
       title="Claude's reading"
-      note={turn?.origin === "file" ? "Claude weighs the three texts and the phrasebook into one reading." : "Claude weighs the three texts, your phrasebook and what was just said."}
+      note={turn?.origin === "file" ? "Claude (Opus) weighs the four transcripts, the phrasebook and this speaker’s known phrases into one transcript." : "Claude weighs the three texts, your phrasebook and what was just said."}
       aside={
         repair && (repair.status === "running" || repair.status === "done") ? (
           <Stopwatch label="Repair time" runningSince={repair.status === "running" ? repair.localStartedAt : undefined} final={repair.seconds} />

@@ -262,3 +262,21 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 - One typeface (Atkinson Hyperlegible Next, made for low-vision readers) and the existing palette: cool paper, navy ink, the three recogniser colours and signal yellow.
 
 **Rejected.** A router library (three pages do not need one, and hash routes keep hosting static). A dark marketing-style hero (the product's identity is the transit map, which reads best on light paper). Keeping everything on one long page (what the user asked to change).
+
+## 11 Nov 2026: transcription accuracy first, measured on held-out recordings
+
+**What the user asked.** "The current transcription quality is poor. Improve it until the pipeline produces accurate, genuinely useful transcripts. Don't check only with known audios and give fake benchmarks." Focus on transcription; actions later.
+
+**How it was decided.** A harness that runs the website's own pipeline on TORGO test clips the way the page does (`web/scripts/evalTranscription.ts`), with the test clips split once into a dev half (all choices) and a held-out half (run once, at the end). Component bake-offs on dev: 13 speech recognisers, 5 audio language models with and without the speaker's clips, merging strategies, repair prompts. Full record: `docs/TRANSCRIPTION.md`.
+
+**What was chosen, for a recording** (spoken turns to the pretend phone are unchanged):
+- Scribe `scribe_v3` with `no_verbatim`, and no hints (hints hurt new sentences).
+- Two Gemini listeners shown five of the speaker's clips, in one labelled message with the new clip last: Gemini 3.1 Pro (the Gemini lane) and Gemini 4 Carbon (a new fourth lane). The old chat-turn layout let Gemini answer with an example's text.
+- Claude Opus 5.5 merging the transcripts with a transcription prompt: it knows Scribe and the live transcript are one engine, and uses the speaker's known phrases only when a transcript nearly matches one.
+- `scribe_v3_live` for the live transcript.
+
+**Result (held-out, 110 clips):** words wrong 42.4% → 18.7%; speakers with dysarthria 55.7% → 24.4%; every word right 43% → 64%.
+
+**Rejected after measuring:** giving Claude the recording's length; snapping Claude's text to the nearest transcript; ten examples instead of five (no gain); an audio "re-listen" stage (within noise, 4 s slower); Gemini 4 Argon (invents long text for single words); Sonnet and Haiku for the merge (more errors than Opus); OpenAI, Deepgram, AssemblyAI and other recognisers as the main voice (Scribe v3 was best alone; they did not add enough to the merge with the Gemini pair).
+
+**The cost.** A recording takes about 6 to 15 seconds after it plays and costs more (two large audio models with example clips, and Opus). Accepted because the transcript is the point; spoken turns keep the fast path.

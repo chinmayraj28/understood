@@ -33,7 +33,7 @@ export function TranscriptResult({ turn, pending }: { turn?: TurnModel; pending?
   const count = done && !turn.failed && reference ? countErrors(reference, text) : null;
   const announcement =
     done && !turn.failed
-      ? `Heard: ${text || "nothing"}.${count ? (count.errors === 0 ? " Every word right." : ` ${count.errors} of ${count.referenceWords} words wrong.`) : ""}`
+      ? `Heard: ${text.replace(/[.!?…]+$/, "") || "nothing"}.${count ? (count.errors === 0 ? " Every word right." : ` ${count.errors} of ${count.referenceWords} words wrong.`) : ""}`
       : "";
 
   return (

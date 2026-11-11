@@ -696,3 +696,16 @@
     font-size: var(--t-2);
   }
 }
+
+.ww-note {
+  font-size: var(--t-0);
+  margin-top: 4px;
+}
+.results-earlier {
+  font-size: var(--t-0);
+  max-width: 70ch;
+  margin-bottom: 16px;
+}
+.results-more .ww-chart {
+  margin-bottom: 24px;
+}

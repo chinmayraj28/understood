@@ -21,7 +21,7 @@ import type { DatasetClip, DatasetIndex } from "../shared/dataset";
 import type { PipelineEvent, UnderstandRequest } from "../shared/pipeline";
 import { countErrors, errorRate, sameWords, scoringWords } from "../shared/wordErrors";
 import { realDeps, type Env } from "../server/app";
-import { geminiBody, type HearingRequest } from "../server/hearers";
+import { geminiBody, scribeForm, type HearingRequest } from "../server/hearers";
 import { understandTurn, type UnderstandDeps } from "../server/understand";
 import { bestText, HEARERS, newTurn, reduceTurn } from "../src/model/turn";
 import { setUpSpeaker, type Voice } from "../src/model/voices";
@@ -119,7 +119,11 @@ const keyOf = (name: string, r: HearingRequest, extra: unknown) => {
 };
 const deps: UnderstandDeps = {
   ...real,
-  hearScribe: (r) => cached(keyOf("scribe", r, "v1"), () => real.hearScribe(r)),
+  // The Scribe model and options (v2 or v3, no_verbatim) are part of the key.
+  hearScribe: (r) => {
+    const form = scribeForm({ ...r, wavBase64: "" });
+    return cached(keyOf("scribe", r, [form.get("model_id"), form.get("no_verbatim")]), () => real.hearScribe(r));
+  },
   // The Gemini request body (instruction, model, example layout) is part of the key.
   hearGemini: (r) => cached(keyOf("gemini", r, hash(JSON.stringify(geminiBody({ ...r, wavBase64: "", examples: r.examples.map((e) => ({ ...e, wavBase64: "" })) })))), () => real.hearGemini(r)),
 };

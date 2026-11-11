@@ -16,14 +16,15 @@ Two things from the research shaped the design. First, the **meaning often survi
 
 Say "message Sam running late". The page draws the sentence moving along a line of five stations:
 
-1. **Hear it three ways, at the same time.**
-   - **ElevenLabs Scribe** is the main recogniser. It gets hints: the person's contacts and their usual phrases.
-   - **Gemini Flash** (through OpenRouter) hears the clip after being shown a few recordings of this same person with their correct text.
-   - **Scribe realtime** writes the live transcript you see while you speak, and is the third vote.
+1. **Hear it several ways, at the same time.**
+   - **ElevenLabs Scribe v3** is the main recogniser. For a spoken turn it gets hints: the person's contacts and usual phrases.
+   - **Gemini** (through OpenRouter) hears the clip after being shown a few recordings of this same person with their correct text: Gemini 3.8 Flash for a spoken turn, Gemini 3.1 Pro for a recording.
+   - **Gemini 4 Carbon**, for a recording only, listens the same way as a second, independent ear.
+   - **Scribe v3 live** writes the live transcript you see while you speak or a recording plays, and is a vote too.
 
    ElevenLabs gives no "how sure am I" score, so **agreement between the recognisers is the confidence signal**. Words they disagree on light up.
 2. **Phrasebook.** It keeps the mishearings this person has corrected before ("heard *call some*, meant *call Sam*, confirmed 3 times"). If a recogniser makes the same mistake again, the phrasebook catches it.
-3. **Repair.** Claude Haiku 5.5 reads the three transcripts, the phrasebook matches and the conversation so far. It picks the most likely meaning, gives a confidence (high, medium or low) and explains why in one sentence.
+3. **Repair.** For a spoken turn, Claude Haiku 5.5 reads the transcripts, the phrasebook matches and the conversation so far, and picks the most likely meaning. For a recording, Claude Opus 5.5 merges the transcripts into one verbatim transcript, knowing which recognisers are related and which phrases this person says. Either way it gives a confidence (high, medium or low) and explains why in one sentence.
 4. **Decide, in code.** Fixed rules decide whether to act, ask a yes/no question, offer a choice ("Mum or Sam?") or ask once to repeat only the unclear part. The page writes out the rule that fired. **Claude alone never makes it act:** a reading is acted on only when the recognisers, or a phrasebook entry confirmed at least twice, back it word for word. The rules are in [`web/shared/rules/decider.ts`](web/shared/rules/decider.ts).
 5. **Act or ask.** A pretend phone beside the line sends a message, makes a call, or sets a timer, a song or a reminder. Anything that would reach another person always asks first ("Send 'I'm running late' to Sam?"). Your answer is a new sentence that goes through the same pipeline.
 
@@ -67,8 +68,8 @@ You need [Node.js](https://nodejs.org/) (built and tested with v24.13.0), a micr
 | Key | What it is for |
 |---|---|
 | `ELEVENLABS_API_KEY` | Scribe (batch and realtime) and the spoken replies. It needs Speech to Text and Text to Speech access |
-| `OPENROUTER_API_KEY` | Gemini Flash hearing the audio |
-| `ANTHROPIC_API_KEY` | Claude Haiku 5.5: the repair step, and choosing the pretend-phone action |
+| `OPENROUTER_API_KEY` | Gemini hearing the audio (3.8 Flash for speech; 3.1 Pro and 4 Carbon for recordings) |
+| `ANTHROPIC_API_KEY` | Claude: the repair step (Haiku 5.5 for speech, Opus 5.5 for recordings), and choosing the pretend-phone action |
 | `ELEVENLABS_VOICE_ID` | Optional. The voice the assistant speaks in; a default is used without it |
 
 1. Get the code and enter the folder.
@@ -102,11 +103,11 @@ The server keeps the keys. They never reach the browser: the page gets only a sh
 
 ```bash
 cd web
-npm test            # 259 tests in 28 files, no network
+npm test            # 281 tests in 30 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 259 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 11 Nov 2026: all 281 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -120,9 +121,23 @@ npx tsx tests/live.smoke.ts x.wav
 
 It prints each stage with its time, then checks the phone action, the spoken reply and the live-transcript token. The table above came from this check on 11 Nov 2026.
 
-## Does it work? The evaluation
+## Does it work? Transcription accuracy
 
-The pipeline was measured on **TORGO**, recordings of people with dysarthria (mostly from cerebral palsy) made by the University of Toronto. Each speaker's earlier recordings were used to set them up; their later recordings were the test, so no clip was in both. There were 121 test clips. Full method and results are in [`eval/README.md`](eval/README.md) and [`eval/results/2026-11-09-second-run/results.md`](eval/results/2026-11-09-second-run/results.md).
+On 11 November the pipeline's transcription was measured end to end, the way the pipeline page hears a recording, on **held-out TORGO test clips**. These are a fixed half of the test clips, set aside before any change was made and never used to choose anything: 110 clips from 11 speakers, 8 with dysarthria.
+
+| Held-out, 110 clips | Before (11 Nov morning) | Now |
+|---|---|---|
+| Words wrong, all | 42.4% | **18.7%** |
+| Single words | 65.2% | 39.4% |
+| Sentences | 37.4% | 14.1% |
+| Speakers with dysarthria | 55.7% | 24.4% |
+| Every word right | 43% | 64% |
+
+Each listener alone gets 33% to 41% wrong on the same clips; merging them is what brings it to 19%. What changed, the evidence behind each choice (including a comparison of 13 speech recognisers and 5 audio models), how it was measured, and the limits are in [`docs/TRANSCRIPTION.md`](docs/TRANSCRIPTION.md). The scripts are in `web/scripts/` (`evalTranscription.ts` runs the whole pipeline).
+
+## The earlier evaluation: deciding when to act
+
+The first version of the pipeline was measured on **TORGO**, recordings of people with dysarthria (mostly from cerebral palsy) made by the University of Toronto. Each speaker's earlier recordings were used to set them up; their later recordings were the test, so no clip was in both. There were 121 test clips. Full method and results are in [`eval/README.md`](eval/README.md) and [`eval/results/2026-11-09-second-run/results.md`](eval/results/2026-11-09-second-run/results.md).
 
 | Setup (each adds to the one above) | Words wrong | Acted, and was right | Acted, and was **wrong** | Asked first |
 |---|---|---|---|---|
@@ -164,7 +179,8 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 ## Known limits
 
 - **Not hosted yet.** It runs locally. Cloudflare Workers was planned (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6.
-- **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. This is deliberate, but it is slow.
+- **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. A recording, where accuracy matters most, takes about 6 to 15 seconds after it has played, because the stronger listeners are slower.
+- **Hard cases.** Isolated single words stay hard (39% wrong held-out), homophones such as "knew" and "new" cannot be told apart without context, and the most severe speakers (M02, M04) are still misheard about half the time.
 - **Gemini with example clips is erratic.** On 11 Nov the same request took anywhere from 1.4 to 14 seconds. A spoken turn gives it 4 seconds and goes on with two votes when it is late. A recording, where the transcript is the point, gives it 15 seconds and Claude 8, so a recording can take up to about 25 seconds.
 - **Not tested with a person with dysarthria using it live.** The evaluation used real recordings, played in offline; the live checks used synthetic voices.
 - **English only, and a pretend phone.** Nothing on the page reaches a real person.
@@ -180,7 +196,7 @@ web/                  the website (submission)
                       /api/speak, /api/act; the three recognisers and the repair;
                       dataset.ts, the local-only TORGO route for the Recordings tab
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
-  tests/              Vitest: 259 tests, plus live.smoke.ts
+  tests/              Vitest: 281 tests, plus live.smoke.ts
 Packages/
   HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)
@@ -194,7 +210,7 @@ Where to read first: [`docs/SPEECH_PLAN.md`](docs/SPEECH_PLAN.md) (why each stag
 
 ## Credits
 
-- **ElevenLabs** (Scribe speech-to-text and text-to-speech), **Google Gemini** through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5).
+- **ElevenLabs** (Scribe v3 and Scribe v3 live speech-to-text, and text-to-speech), **Google Gemini** (3.8 Flash, 3.1 Pro, 4 Carbon) through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5 and Opus 5.5).
 - **TORGO**: Rudzicz, Namasivayam and Wolff (2012), *The TORGO database of acoustic and articulatory speech from speakers with dysarthria*, Language Resources and Evaluation 46(4):523–541.
 - Fonts: Atkinson Hyperlegible, self-hosted (see `web/public/fonts/README.md`).
 - The earlier Mac prototype in the repo adapts parts of **Clicky** by Farza (MIT). Details are in `third_party/clicky/NOTICE.md`.

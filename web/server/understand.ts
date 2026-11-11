@@ -130,7 +130,7 @@ export async function understandTurn(
       // Contacts first: Claude is shown at most 40 known words, and the contacts must be among them.
       const knownWords = transcribing ? (request.switches.keyterms ? request.keyterms : []) : [...DEMO_CONTACTS, ...request.keyterms];
       input.reading = await deps.repair(
-        { hypotheses, phrasebookMatch: hint, context: request.context, knownWords, purpose: request.purpose },
+        { hypotheses, phrasebookMatch: hint, context: request.context, knownWords, purpose: request.purpose, examplesShown: examples.length },
         withTimeLimit(repairSeconds * 1000, signal),
         repairSeconds,
       );

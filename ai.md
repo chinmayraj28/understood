@@ -15,9 +15,11 @@ Where a sentence below is marked **[CHECK]**, it is something I must confirm in 
 
 Haiku was chosen over Sonnet 5.5 by measurement. On the real repair request, 7 calls each, Haiku took 1.3 to 1.7 s and Sonnet 2.2 to 4.1 s. Both read the test cases correctly, but Sonnet's slow calls would overrun the 3-second repair limit (`DECISIONS.md`, 9 Nov).
 
+For a recording (the pipeline page's main use since 11 Nov), Claude Opus 5.5 does the repair instead, with a prompt for merging transcripts rather than guessing a command. On TORGO dev clips it made fewer word errors than Sonnet and Haiku (`docs/TRANSCRIPTION.md`).
+
 **ElevenLabs.** Scribe (`scribe_v2`) is the main recogniser, given the person's contacts and phrases as hints (keyterms). Scribe realtime writes the live transcript on the page and is the third vote. ElevenLabs text-to-speech speaks the assistant's questions.
 
-**Gemini, through OpenRouter.** Gemini Flash (`google/gemini-3.8-flash`) hears each clip after being shown a few recordings of the same person with their correct text. A published study found this cut errors on impaired speech by about a fifth with no training (arXiv 2509.15516).
+**Gemini, through OpenRouter.** Gemini hears each clip after being shown a few recordings of the same person with their correct text. A published study found this cut errors on impaired speech by about a fifth with no training (arXiv 2509.15516). A spoken turn uses Gemini 3.8 Flash; a recording uses Gemini 3.1 Pro and, as a second independent listener, Gemini 4 Carbon, chosen by measuring five audio models on TORGO.
 
 **The earlier Mac prototype** still in the repo also used Jev (TypeSafe's classifier, through OpenRouter) and code adapted from Clicky, an MIT-licensed open-source Mac app by Farza (`third_party/clicky/NOTICE.md`). Neither is part of the website.
 
@@ -61,6 +63,10 @@ I am listing these because they show where the process needs checking, and becau
 
 **The limit of AI review.** A reviewer is also an AI. It caught what it was pointed at. None of this replaces testing with real people.
 
+## The transcription work on 11 November
+
+I said the transcription quality was poor and asked for it to be improved until it was genuinely useful, measured on real audio rather than with made-up results. The agents built a harness that runs the website's own pipeline on TORGO, split the test clips into a dev half for every choice and a held-out half run once at the end, compared 13 recognisers and 5 audio models, read the failures, and changed the listeners, the Gemini prompt and the repair. One subagent searched the research literature and current API documentation; its sources are listed in `docs/TRANSCRIPTION.md`. On the held-out clips, words wrong fell from 42.4% to 18.7%. The record of what changed, why, and the limits is `docs/TRANSCRIPTION.md`.
+
 ## How the evaluation was kept honest
 
 - **No clip is in both the setup and the test.** For each speaker, a phrase said more than once has its first recording used for setup and later ones for testing. Results are split into phrases seen during setup and phrases not seen (`eval/README.md`, section 2).
@@ -70,7 +76,7 @@ I am listing these because they show where the process needs checking, and becau
 
 ## How I can vouch for the code
 
-- **The tests.** The website has 259 tests in 28 files, all passing on 11 Nov 2026, with no network. They include the safety cases above, and the checks that keep the TORGO recordings on this computer. The Swift package has its own tests, including the review findings.
+- **The tests.** The website has 281 tests in 30 files, all passing on 11 Nov 2026, with no network. They include the safety cases above, and the checks that keep the TORGO recordings on this computer. The Swift package has its own tests, including the review findings.
 - **A live run.** `web/tests/live.smoke.ts` sends a real clip through every stage with real keys. On 11 Nov 2026, Scribe misheard a synthetic "message Sam running late" as "Mum sis, I'm running late", Gemini timed out, and the pipeline asked "Message Sam running late?" rather than acting.
 - **The decision log.** `DECISIONS.md` records each choice, what was rejected and why.
 - **Plain rules.** Each decision on the page comes with the rule that fired, in words, and the rules are one short file (`web/shared/rules/decider.ts`).
