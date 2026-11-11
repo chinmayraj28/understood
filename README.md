@@ -211,7 +211,7 @@ docs/                 SPEECH_PLAN.md (the design), WEB_PLAN.md (the website)
 DECISIONS.md          every significant choice, what was rejected, and why
 ```
 
-The other folders (`Handsfree/`, the other `Packages/`, `scripts/`, `third_party/`) hold an earlier Mac prototype that is not part of this submission.
+This repo holds the website and the evaluation only. An earlier Mac prototype, built the first week, was removed for the submission; its history is in `DECISIONS.md`.
 
 Where to read first: [`docs/SPEECH_PLAN.md`](docs/SPEECH_PLAN.md) (why each stage exists), then [`DECISIONS.md`](DECISIONS.md).
 
@@ -220,4 +220,4 @@ Where to read first: [`docs/SPEECH_PLAN.md`](docs/SPEECH_PLAN.md) (why each stag
 - **ElevenLabs** (Scribe v2, v3 and realtime speech-to-text, and text-to-speech), **Google Gemini** (3.8 Flash, 3.1 Pro, 4 Carbon) through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5 and Opus 5.5).
 - **TORGO**: Rudzicz, Namasivayam and Wolff (2012), *The TORGO database of acoustic and articulatory speech from speakers with dysarthria*, Language Resources and Evaluation 46(4):523–541.
 - Fonts: Atkinson Hyperlegible, self-hosted (see `web/public/fonts/README.md`).
-- The earlier Mac prototype in the repo adapts parts of **Clicky** by Farza (MIT). Details are in `third_party/clicky/NOTICE.md`.
+- The earlier Mac prototype (not included here) adapted parts of **Clicky** by Farza (MIT).

@@ -16,7 +16,7 @@ I built this the way an engineering lead runs a small team. AI agents wrote the 
 
 **Gemini, through OpenRouter.** Gemini hears each clip after being shown a few recordings of the same person with their correct text, which a published study found cuts errors on impaired speech without any training (arXiv 2509.15516). Speech uses Gemini 3.8 Flash for speed; recordings use Gemini 3.1 Pro plus Gemini 4 Carbon as a second, independent listener, chosen by measuring five audio models.
 
-**The earlier Mac prototype** in the repo also used Jev (TypeSafe's classifier) and code adapted from Clicky, an MIT-licensed Mac app by Farza (`third_party/clicky/NOTICE.md`). Neither is part of the website.
+**The earlier Mac prototype** (removed from this repo for the submission) also used Jev (TypeSafe's classifier) and code adapted from Clicky, an MIT-licensed Mac app by Farza. Neither is part of the website.
 
 ## The decisions that were mine
 
