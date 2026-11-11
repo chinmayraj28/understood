@@ -24,6 +24,16 @@ async function explain(response: Response, what: string): Promise<PlainError> {
   return new PlainError(detail || `The server could not ${what} (status ${response.status}).`);
 }
 
+/** The demo keyword, if the server is locked; kept in this browser once entered. */
+export function accessHeaders(): Record<string, string> {
+  try {
+    const key = localStorage.getItem("understood-access-key");
+    return key ? { "x-access-key": key } : {};
+  } catch {
+    return {};
+  }
+}
+
 /** How long a whole turn may take on the server before the page gives up on it. */
 export const UNDERSTAND_TIMEOUT_MS = 15_000;
 /** A recording being transcribed: the server allows 15 s to hear and 8 s to repair. */
@@ -70,7 +80,7 @@ export async function* understand(
     try {
       response = await fetch("/api/understand", {
         method: "POST",
-        headers: { "content-type": "application/json", accept: "text/event-stream" },
+        headers: { "content-type": "application/json", accept: "text/event-stream", ...accessHeaders() },
         body: JSON.stringify(request),
         signal: limit.signal,
       });
@@ -135,7 +145,7 @@ export async function act(request: ActRequest, timeoutMs = ACT_TIMEOUT_MS): Prom
     try {
       response = await fetch("/api/act", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { ...accessHeaders(),  "content-type": "application/json" },
         body: JSON.stringify(request),
         signal: limit.signal,
       });
@@ -156,7 +166,7 @@ export async function act(request: ActRequest, timeoutMs = ACT_TIMEOUT_MS): Prom
 export async function speakStream(text: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
   const response = await fetch("/api/speak", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { ...accessHeaders(),  "content-type": "application/json" },
     body: JSON.stringify({ text }),
     signal,
   });
@@ -165,7 +175,7 @@ export async function speakStream(text: string, signal?: AbortSignal): Promise<R
 }
 
 export async function realtimeToken(): Promise<string> {
-  const response = await fetch("/api/realtime-token", { method: "POST" });
+  const response = await fetch("/api/realtime-token", { method: "POST", headers: accessHeaders() });
   if (!response.ok) throw await explain(response, "open the live transcript");
   return ((await response.json()) as RealtimeTokenResponse).token;
 }

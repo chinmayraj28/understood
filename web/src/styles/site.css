@@ -709,3 +709,42 @@
 .results-more .ww-chart {
   margin-bottom: 24px;
 }
+
+/* The keyword screen for a public demo link. */
+.gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+}
+.gate-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 28px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+}
+.gate-card h1 {
+  font-size: var(--t-4);
+  letter-spacing: -0.02em;
+}
+.gate-card p {
+  color: var(--ink-2);
+}
+.gate-card label {
+  font-weight: 700;
+  font-size: var(--t-0);
+}
+.gate-card input {
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  border: 2px solid var(--rule);
+  font-size: var(--t-1);
+}
+.gate-error {
+  color: var(--stop) !important;
+  font-weight: 700;
+}

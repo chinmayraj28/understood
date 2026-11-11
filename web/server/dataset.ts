@@ -158,7 +158,16 @@ export function createDatasetApp(options: DatasetOptions) {
   }
 
   app.use("*", async (c, next) => {
-    if (!isLocalRequest(c.env?.REMOTE_ADDRESS, c.req.header("host"), c.req.header("x-understood-peer"))) {
+    // A request through a tunnel or proxy (Cloudflare adds cf-connecting-ip and cf-ray, others
+    // x-forwarded-for) comes from outside even though it reaches us from this machine; and the
+    // host the visitor typed (x-understood-host, set by the Vite proxy) must be this machine too.
+    const forwarded = ["cf-connecting-ip", "cf-ray", "x-forwarded-for", "forwarded"].some((h) => c.req.header(h) !== undefined);
+    const originalHost = c.req.header("x-understood-host");
+    if (
+      forwarded ||
+      (originalHost !== undefined && !isLocalRequest("127.0.0.1", originalHost)) ||
+      !isLocalRequest(c.env?.REMOTE_ADDRESS, c.req.header("host"), c.req.header("x-understood-peer"))
+    ) {
       return c.json({ error: "The dataset is only available on the computer it is stored on." }, 403);
     }
     await next();

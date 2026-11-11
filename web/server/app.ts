@@ -26,6 +26,11 @@ export interface Env {
    * cf-connecting-ip). Without it those headers are ignored, because anyone can send them.
    */
   TRUST_PROXY?: string;
+  /**
+   * Optional: a keyword that unlocks the paid API routes, for a public demo link. When set, every
+   * /api route except /api/health and /api/unlock needs it in the x-access-key header.
+   */
+  ACCESS_KEY?: string;
   /** The socket's address, set per request by dev.ts on Node. */
   REMOTE_ADDRESS?: string;
 }
@@ -116,13 +121,36 @@ async function jsonBody<T>(c: Context, check: (body: unknown) => Checked<T>): Pr
   return check(body);
 }
 
+/** Compares two keys in time that does not depend on where they differ. */
+function sameKey(given: string, expected: string): boolean {
+  if (!expected) return true;
+  const a = new TextEncoder().encode(given);
+  const b = new TextEncoder().encode(expected);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) diff |= (a[i] ?? 0) ^ b[i];
+  return diff === 0;
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env }>();
   const turns = new RateLimiter(options.understandPerMinute ?? 20);
   const others = new RateLimiter(options.otherPerMinute ?? 60);
   const tooBig = (c: Context) => c.json({ error: "That request is too large." }, 413);
 
-  app.get("/api/health", (c) => c.json({ ok: true }));
+  app.get("/api/health", (c) => c.json({ ok: true, locked: Boolean(c.env?.ACCESS_KEY) }));
+
+  // The keyword lock for a public demo: without the keyword, nothing that costs money runs.
+  app.post("/api/unlock", async (c) => {
+    if (!others.allow(visitor(c))) return c.json({ error: "Too many tries. Please wait a moment." }, 429);
+    const body = (await c.req.json().catch(() => ({}))) as { key?: unknown };
+    return sameKey(typeof body.key === "string" ? body.key : "", c.env?.ACCESS_KEY ?? "") ? c.json({ ok: true }) : c.json({ error: "That keyword is not right." }, 401);
+  });
+  app.use("/api/*", async (c, next) => {
+    const key = c.env?.ACCESS_KEY;
+    if (!key || c.req.path === "/api/health" || c.req.path === "/api/unlock") return next();
+    if (!sameKey(c.req.header("x-access-key") ?? "", key)) return c.json({ error: "This demo is locked. Enter the access keyword." }, 401);
+    return next();
+  });
 
   app.post("/api/understand", bodyLimit({ maxSize: 10 * 1024 * 1024, onError: tooBig }), async (c) => {
     if (!turns.allow(visitor(c))) return c.json({ error: "Too many turns in a minute. Please wait a moment." }, 429);

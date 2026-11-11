@@ -39,6 +39,7 @@ function loadEnv(): Env {
     ANTHROPIC_API_KEY: pick("ANTHROPIC_API_KEY"),
     ELEVENLABS_VOICE_ID: pick("ELEVENLABS_VOICE_ID"),
     TRUST_PROXY: pick("TRUST_PROXY"),
+    ACCESS_KEY: pick("ACCESS_KEY"),
   };
 }
 
