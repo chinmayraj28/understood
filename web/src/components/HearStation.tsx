@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import type { HearerName } from "../../shared/pipeline";
-import { HEARER_LABEL, HEARER_NOTE, HEARERS, type Lane, type TurnModel } from "../model/turn";
+import { HEARER_LABEL, HEARER_NOTE, hearersOf, type Lane, type TurnModel } from "../model/turn";
 import { MarkedWords, Stopwatch } from "./bits";
 import { Station, type StationState } from "./Pipeline";
 
@@ -42,7 +42,7 @@ function switchedOff(turn: TurnModel | undefined, hearer: HearerName): boolean {
 }
 
 export function HearStation({ state, turn }: { state: StationState; turn?: TurnModel }) {
-  const lanes = turn ? HEARERS.map((h) => turn.lanes[h]) : [];
+  const lanes = turn ? hearersOf(turn).map((h) => turn.lanes[h]) : [];
   const anyRunning = lanes.some((l) => l.status === "running");
   const now = useRunningNow(anyRunning);
   const longest = Math.max(0, ...lanes.map((l) => l.seconds ?? 0));
@@ -73,7 +73,7 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
             </span>
           ))}
         </div>
-        {HEARERS.map((hearer) => (
+        {hearersOf(turn).map((hearer) => (
           <Track
             key={hearer}
             lane={turn?.lanes[hearer] ?? { hearer, status: "waiting" }}
@@ -140,7 +140,7 @@ function Track({ lane, scale, limit, now, disputed, off }: { lane: Lane; scale: 
 
 function Agreement({ turn }: { turn: TurnModel }) {
   const agreement = turn.agreement!;
-  const heard = HEARERS.filter((h) => turn.lanes[h].status === "done" && turn.lanes[h].text);
+  const heard = hearersOf(turn).filter((h) => turn.lanes[h].status === "done" && turn.lanes[h].text);
   const names = agreement.agreeing.map((h) => HEARER_LABEL[h]);
   let sentence: string;
   if (heard.length === 0) sentence = "No recogniser returned any words.";

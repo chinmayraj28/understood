@@ -5,9 +5,9 @@
 //   - "Nobody in particular": nothing known, so only the recognisers and Claude's repair help.
 //   - A TORGO speaker: set up from that speaker's own enrolment clips, exactly as the evaluation
 //     did (eval/README.md, section 2). Up to 20 clips, prompts said again later first; each is
-//     heard by Scribe and Gemini, and every recogniser that heard something else teaches the
-//     phrasebook "heard -> meant". Their prompts become Scribe's hints and five clips become
-//     Gemini's examples. Test clips are never used, so a test clip is heard fairly.
+//     heard by Scribe, and where Scribe heard something else the phrasebook learns "heard ->
+//     meant". Their prompts become the known phrases Claude is shown, and five clips become the
+//     examples both Gemini listeners hear. Test clips are never used, so a test clip is heard fairly.
 
 import type { DatasetClip, DatasetIndex } from "../../shared/dataset";
 import type { HearerName, PhrasebookEntry, PipelineEvent, SpeechExample, UnderstandRequest } from "../../shared/pipeline";
@@ -115,7 +115,8 @@ async function hearForSetup(deps: SetupDeps, wavBase64: string, keyterms: string
       examples: [],
       keyterms,
       context: { recentTurns: [] },
-      switches: { keyterms: true, gemini: true, examples: false, phrasebook: false, repair: false },
+      // Scribe alone: the phrasebook matches Scribe's mishearings, and setting up 20 clips stays fast.
+      switches: { keyterms: true, gemini: false, examples: false, phrasebook: false, repair: false },
       purpose: "transcribe",
     },
     deps.signal,

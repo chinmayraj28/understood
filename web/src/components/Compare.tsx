@@ -2,13 +2,13 @@
 // say the same thing) again, and see what that stage was adding.
 
 import type { StageSwitches } from "../../shared/pipeline";
-import { bestText, decisionSpeech, HEARER_LABEL, HEARERS, routeOf, type TurnModel } from "../model/turn";
+import { bestText, decisionSpeech, HEARER_LABEL, hearersOf, routeOf, type TurnModel } from "../model/turn";
 import { countErrors, errorRate } from "../../shared/wordErrors";
 import { ConfidenceMeter, MarkedWords, seconds } from "./bits";
 
 const SWITCHES: { key: keyof StageSwitches; name: string; what: string }[] = [
-  { key: "keyterms", name: "Keyterms", what: "Tell Scribe the words this person tends to say." },
-  { key: "gemini", name: "Gemini", what: "A second recogniser, running alongside Scribe." },
+  { key: "keyterms", name: "Known phrases", what: "The phrases this person tends to say: shown to Claude for a recording, and to Scribe when you speak." },
+  { key: "gemini", name: "Gemini", what: "Gemini listening alongside Scribe (two Gemini models for a recording)." },
   { key: "examples", name: "Their clips", what: "Show Gemini a few recordings of the same voice." },
   { key: "phrasebook", name: "Phrasebook", what: "Catch a mishearing you confirmed before." },
   { key: "repair", name: "Claude's repair", what: "Weigh the three texts and the phrasebook into one reading." },
@@ -101,7 +101,7 @@ function TurnSummary({ turn, title }: { turn: TurnModel; title: string }) {
       {turn.recording && <p className="summary-off">{turn.recording.label}</p>}
       <p className="summary-off">{off.length ? `Switched off: ${off.join(", ")}` : "Every stage on"}</p>
       <dl>
-        {HEARERS.map((h) => (
+        {hearersOf(turn).map((h) => (
           <div key={h} className="summary-row">
             <dt>
               <span className={`hearer-dot dot-${h}`} aria-hidden="true" /> {HEARER_LABEL[h]}

@@ -34,7 +34,8 @@ describe("keyterms", () => {
 describe("Scribe request", () => {
   it("is a multipart form with the model, language, keyterms once each and the file", () => {
     const form = scribeForm(hearing({ keyterms: ["Sam", "Mum", "bad <x>"] }));
-    expect(form.get("model_id")).toBe("scribe_v2");
+    expect(form.get("model_id")).toBe("scribe_v3");
+    expect(form.get("no_verbatim")).toBe("true");
     expect(form.get("language_code")).toBe("en");
     expect(form.get("tag_audio_events")).toBe("false");
     expect(form.getAll("keyterms")).toEqual(["Sam", "Mum"]);

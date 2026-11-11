@@ -13,17 +13,24 @@ import type {
   StageSwitches,
 } from "../../shared/pipeline";
 
-export const HEARERS: HearerName[] = ["scribe", "gemini", "realtime"];
+export const HEARERS: HearerName[] = ["scribe", "gemini", "gemini4", "realtime"];
+
+/** The recognisers a turn uses: a recording is heard by a second Gemini as well. */
+export function hearersOf(turn: { origin: TurnModel["origin"] } | undefined): HearerName[] {
+  return turn?.origin === "file" ? HEARERS : HEARERS.filter((h) => h !== "gemini4");
+}
 
 export const HEARER_LABEL: Record<HearerName, string> = {
   scribe: "Scribe",
   gemini: "Gemini",
+  gemini4: "Gemini 4",
   realtime: "Live",
 };
 
 export const HEARER_NOTE: Record<HearerName, string> = {
-  scribe: "ElevenLabs Scribe, given the words this voice tends to say",
-  gemini: "Gemini Flash, shown a few clips of the same voice",
+  scribe: "ElevenLabs Scribe v3 (given your names and phrases as hints when you speak)",
+  gemini: "Gemini (3.1 Pro for a recording, Flash when speaking), shown a few clips of the same voice",
+  gemini4: "Gemini 4 Carbon, a second listener for a recording, shown the same clips",
   realtime: "ElevenLabs realtime: the live transcript, written as it was said",
 };
 

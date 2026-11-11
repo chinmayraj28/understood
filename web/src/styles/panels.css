@@ -407,6 +407,9 @@
 .dot-gemini {
   background: var(--gemini);
 }
+.dot-gemini4 {
+  background: var(--gemini4);
+}
 .dot-realtime {
   background: var(--realtime);
 }

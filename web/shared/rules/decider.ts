@@ -195,6 +195,6 @@ function whyNoAgreement(heard: Hypothesis[], readingWords?: string[]): string {
 const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 
 function hearerLabel(hypothesis: Hypothesis): string {
-  return { scribe: "Scribe", gemini: "Gemini", realtime: "the live recogniser" }[hypothesis.hearer];
+  return { scribe: "Scribe", gemini: "Gemini", gemini4: "Gemini 4", realtime: "the live recogniser" }[hypothesis.hearer];
 }
 

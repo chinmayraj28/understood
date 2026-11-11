@@ -10,7 +10,8 @@ import { chooseAction } from "./act";
 import { askClaude } from "./claude";
 import { hearWithGemini, hearWithScribe } from "./hearers";
 import { plainMessage, send, withTimeLimit } from "./http";
-import { readingFrom, repairData, repairInstructions, repairSchema } from "./repair";
+import { transcribeRepairModel } from "./claude";
+import { readingFrom, repairData, repairInstructions, repairSchema, transcribeInstructions } from "./repair";
 import { understandTurn, type UnderstandDeps } from "./understand";
 import { checkAct, checkSpeak, checkUnderstand, type Checked } from "./validate";
 
@@ -90,7 +91,9 @@ export function realDeps(env: Env): UnderstandDeps {
     hearGemini: (request) => hearWithGemini(env.OPENROUTER_API_KEY ?? "", request),
     repair: async (input, signal, seconds) => {
       const answer = await askClaude(env.ANTHROPIC_API_KEY ?? "", {
-        instructions: repairInstructions, input: repairData(input), schema: repairSchema, signal, seconds,
+        instructions: input.purpose === "transcribe" ? transcribeInstructions : repairInstructions,
+        input: repairData(input), schema: repairSchema, signal, seconds,
+        model: input.purpose === "transcribe" ? transcribeRepairModel : undefined,
       });
       return readingFrom(answer, input);
     },

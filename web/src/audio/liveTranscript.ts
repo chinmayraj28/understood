@@ -20,13 +20,15 @@ export interface LiveTranscriber {
 
 /**
  * Connection details for Scribe realtime, verified by a live run on 9 Nov (web-pipeline).
+ * scribe_v3_live since 11 Nov: on TORGO dev clips it got 32.7% of words wrong against 37.6% for
+ * scribe_v2_realtime, with the same connection settings (scripts/compareRecognisers.ts).
  * commit_strategy is manual because the server's own silence detection commits after 1.5 s,
  * far too impatient for this speech; our detector decides when a turn ends.
  * No keyterms: the live transcript is the decider's hint-free check on the other two.
  */
 export const SCRIBE_REALTIME = {
   url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime",
-  params: { model_id: "scribe_v2_realtime", audio_format: "pcm_16000", commit_strategy: "manual", language_code: "en" },
+  params: { model_id: "scribe_v3_live", audio_format: "pcm_16000", commit_strategy: "manual", language_code: "en" },
   /** Keyterms given to the live transcript. Sent as realtimeKeyterms with each turn too. */
   keyterms: [] as string[],
   /** Audio is sent in 100 ms pieces (five of the worklet's 20 ms chunks). */

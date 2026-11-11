@@ -59,7 +59,7 @@ function wav(value: unknown, field: string, maxBytes: number): string {
   return data;
 }
 
-const hearerNames: HearerName[] = ["scribe", "gemini", "realtime"];
+const hearerNames: HearerName[] = ["scribe", "gemini", "gemini4", "realtime"];
 const sources: PhrasebookEntry["source"][] = ["enrolment", "confirmation", "correction"];
 
 function entry(value: unknown, field: string): PhrasebookEntry {

@@ -15,20 +15,31 @@ export interface HearingRequest {
   signal: AbortSignal;
   /** Seconds, only for wording a time-out. */
   seconds: number;
+  /** "transcribe" for a recording: Gemini gets the transcription prompt and layout (see below). */
+  purpose?: "conversation" | "transcribe";
+  /** The audio model to ask; defaults to geminiModel. */
+  model?: string;
 }
 
 // MARK: ElevenLabs Scribe (batch)
 // POST https://api.elevenlabs.io/v1/speech-to-text, header xi-api-key, multipart form with
-// `file`, `model_id` ("scribe_v2"), `language_code`, and `keyterms` once per term. Keyterms add
-// 20% to the price, and more than 100 makes every request bill at least 20 seconds.
+// `file`, `model_id`, `language_code`, and `keyterms` once per term. Keyterms add 20% to the price,
+// and more than 100 makes every request bill at least 20 seconds.
+//
+// scribe_v3 with no_verbatim (fillers, false starts and non-speech sounds left out) was the most
+// accurate recogniser tried on TORGO dev clips on 11 Nov: 25.2% of words wrong, against 29.7% for
+// scribe_v2 and 27.7% for the best other service (scripts/compareRecognisers.ts, docs/TRANSCRIPTION.md).
+export const scribeModel = "scribe_v3";
 
 export const scribeEndpoint = "https://api.elevenlabs.io/v1/speech-to-text";
 
 /** The multipart form for Scribe. Separate so tests can check its shape. */
 export function scribeForm(request: HearingRequest): FormData {
   const form = new FormData();
-  form.append("model_id", "scribe_v2");
+  form.append("model_id", scribeModel);
   form.append("language_code", "en");
+  // Leave out "uh", "um" and restarts: on impaired speech they are mostly the recogniser filling a gap.
+  form.append("no_verbatim", "true");
   // Sounds such as "(laughs)" are not words the person said; leave them out of the text.
   form.append("tag_audio_events", "false");
   // Word timings are not used, so don't ask for them.
@@ -61,7 +72,17 @@ export async function hearWithScribe(apiKey: string, request: HearingRequest): P
 
 export const geminiEndpoint = "https://openrouter.ai/api/v1/chat/completions";
 export const geminiModel = "google/gemini-3.8-flash";
+/**
+ * For a recording, accuracy over speed. On 66 TORGO dev clips with five of the speaker's own
+ * clips and the transcription layout, Gemini 3.1 Pro got 13.9% of words wrong (median 3.9 s) and
+ * Gemini 4 Carbon 14.9% (median 5.4 s), against 36.6% for Flash with the old layout; together
+ * with Scribe v3 and Claude Opus merging them, 11.4% (docs/TRANSCRIPTION.md).
+ */
+export const transcribeGeminiModel = "google/gemini-3.1-pro-preview";
+export const secondListenerModel = "google/gemini-4-carbon";
 const maxExamples = 5;
+/** A recording may show more of the speaker's clips: accuracy kept rising up to 19 in arXiv 2509.15516. */
+export const maxTranscribeExamples = 10;
 const maxExampleCharacters = 200;
 const maxVocabulary = 100;
 export const noSpeechReply = "(no speech)";
@@ -90,8 +111,45 @@ export function vocabulary(keyterms: string[]): string[] {
 
 const audioPart = (wavBase64: string) => ({ type: "input_audio", input_audio: { data: wavBase64, format: "wav" } });
 
+/**
+ * For a recording: no "talking to a phone" framing, and the speaker's clips go in one message,
+ * each labelled as a reference, with the new clip last and named as the only one to write down.
+ * Example turns as separate chat turns let the model answer with an example's text (a whole
+ * sentence came back as "meat", one of the examples).
+ */
+export const geminiTranscribeInstruction = [
+  "You write down exactly what a person says in an audio recording, word for word. Their speech may be slow, slurred or quiet. The language is English.",
+  "",
+  "You may first hear reference recordings of the same person, each with exactly what they said, so you can learn how this person sounds. The reference recordings are not the recording to transcribe. The recording to transcribe is the last one, and it may say something completely different from every reference.",
+  "Reply with only the words spoken in the last recording, as plain text on one line. No quotes, labels, notes or explanations.",
+  "Keep the person's own words even when they are unusual or unfinished. Do not correct, complete, reword or translate them, and leave out fillers such as uh and um.",
+  "If a word is hard to make out, write your best guess of the word that was said.",
+  `If there is no speech at all, reply with only: ${noSpeechReply}`,
+].join("\n");
+
+function transcribeBody(request: HearingRequest, examples: SpeechExample[]): Record<string, unknown> {
+  const content: unknown[] = [];
+  examples.forEach((example, i) => {
+    content.push({ type: "text", text: `Reference recording ${i + 1} of ${examples.length}. This person said: "${example.text.trim()}"` });
+    content.push(audioPart(example.wavBase64));
+  });
+  content.push({ type: "text", text: examples.length ? "The recording to transcribe (a new recording, not one of the references):" : "The recording to transcribe:" });
+  content.push(audioPart(request.wavBase64));
+  return {
+    model: request.model ?? geminiModel,
+    messages: [{ role: "system", content: geminiTranscribeInstruction }, { role: "user", content }],
+    temperature: 0,
+    max_tokens: 512,
+    reasoning: { effort: "low", exclude: true },
+  };
+}
+
 /** The chat request body. Separate so tests can check its shape. */
 export function geminiBody(request: HearingRequest): Record<string, unknown> {
+  if (request.purpose === "transcribe") {
+    const usable = request.examples.filter((e) => e.text.trim().length > 0 && [...e.text.trim()].length <= maxExampleCharacters);
+    return transcribeBody(request, usable.slice(0, maxTranscribeExamples));
+  }
   const messages: unknown[] = [{ role: "system", content: geminiInstruction }];
   const examples = request.examples.filter((example) => {
     const text = example.text.trim();

@@ -14,11 +14,9 @@ function request(change: Partial<UnderstandRequest> = {}): UnderstandRequest {
 }
 
 describe("purpose: transcribe", () => {
-  it("leaves the demo contacts out of the hints", () => {
-    expect(hintsFor(request(), 0)).toEqual(expect.arrayContaining([...DEMO_CONTACTS]));
-    const hints = hintsFor(request({ purpose: "transcribe" }), 0);
-    expect(hints).toContain("stubble");
-    for (const name of DEMO_CONTACTS) expect(hints).not.toContain(name);
+  it("gives the recognisers no hints for a recording (they hurt on TORGO), but keeps them for speech", () => {
+    expect(hintsFor(request(), 0)).toEqual(expect.arrayContaining([...DEMO_CONTACTS, "stubble"]));
+    expect(hintsFor(request({ purpose: "transcribe" }), 0)).toEqual([]);
   });
 
   it("gives the recognisers and Claude the longer limits", async () => {
@@ -35,12 +33,18 @@ describe("purpose: transcribe", () => {
     };
     const events: PipelineEvent[] = [];
     await understandTurn(request({ purpose: "transcribe" }), deps, (e) => events.push(e));
-    expect(seen.map((r) => r.seconds)).toEqual([TRANSCRIBE_LIMITS.hearerSeconds, TRANSCRIBE_LIMITS.hearerSeconds]);
+    // Scribe, Gemini 3.1 Pro and Gemini 4 Carbon, each with the longer limit and the transcription prompt.
+    expect(seen.map((r) => r.seconds)).toEqual([15, 15, 15].map(() => TRANSCRIBE_LIMITS.hearerSeconds));
+    expect(seen.map((r) => r.model ?? "default")).toEqual(["default", "google/gemini-3.1-pro-preview", "google/gemini-4-carbon"]);
+    expect(seen.every((r) => r.purpose === "transcribe")).toBe(true);
+    expect(events.filter((e) => e.type === "hear.done").map((e) => (e as { hearer: string }).hearer).sort()).toEqual(["gemini", "gemini4", "realtime", "scribe"]);
     expect(repairSeconds).toBe(TRANSCRIBE_LIMITS.repairSeconds);
 
     seen.length = 0;
     await understandTurn(request(), deps, () => {});
+    // A spoken turn is unchanged: Scribe and Gemini Flash, 4 seconds each.
     expect(seen.map((r) => r.seconds)).toEqual([4, 4]);
+    expect(seen.every((r) => r.model === undefined && r.purpose === undefined)).toBe(true);
     expect(repairSeconds).toBe(3);
   });
 

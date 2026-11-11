@@ -3,7 +3,7 @@
 // The rules are code on the server, not a prompt, so they hold even when a model is wrong.
 
 import type { CSSProperties } from "react";
-import { decisionSpeech, HEARER_LABEL, HEARERS, offsetSeconds, routeOf, type TurnModel } from "../model/turn";
+import { decisionSpeech, HEARER_LABEL, hearersOf, offsetSeconds, routeOf, type TurnModel } from "../model/turn";
 import { seconds } from "./bits";
 import { Station, type StationState } from "./Pipeline";
 
@@ -100,7 +100,7 @@ function routeLabel(route: string) {
 function Timing({ turn }: { turn: TurnModel }) {
   const total = turn.totalSeconds ?? offsetSeconds(turn, turn.decision?.at) ?? 0;
   const rows: { label: string; from: number; to: number; tone: string; failed?: boolean }[] = [];
-  for (const hearer of HEARERS) {
+  for (const hearer of hearersOf(turn)) {
     const lane = turn.lanes[hearer];
     const from = offsetSeconds(turn, lane.startedAt);
     const to = offsetSeconds(turn, lane.doneAt);

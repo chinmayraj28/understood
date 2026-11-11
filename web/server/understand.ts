@@ -9,7 +9,7 @@ import { bestMatch, matchesByHearer, phrasebookKeyterms } from "../shared/rules/
 import { words } from "../shared/rules/speechText";
 import { acceptedKeyterms, agreementSummary, keytermLimit } from "../shared/rules/turn";
 import type { DecisionInput, Hypothesis } from "../shared/rules/types";
-import type { HearingRequest } from "./hearers";
+import { secondListenerModel, transcribeGeminiModel, type HearingRequest } from "./hearers";
 import { plainMessage, withTimeLimit } from "./http";
 import type { RepairInput } from "./repair";
 
@@ -35,9 +35,12 @@ export const TRANSCRIBE_LIMITS = { hearerSeconds: 15, repairSeconds: 8 };
  */
 export function hintsFor(request: UnderstandRequest, now: number): string[] {
   if (!request.switches.keyterms) return [];
+  // A recording is heard without hints: on TORGO dev clips the speaker's set-up phrases as Scribe
+  // keyterms raised words wrong from 25.2% to 28.2%, pulling new sentences towards known ones.
+  // Claude still sees them as known phrases (below), where it can weigh them.
+  if (request.purpose === "transcribe") return [];
   const own = request.switches.phrasebook ? phrasebookKeyterms(request.phrasebook, keytermLimit, now) : [];
-  const contacts = request.purpose === "transcribe" ? [] : DEMO_CONTACTS;
-  return acceptedKeyterms([...(request.context.expectedAnswers ?? []), ...own, ...request.keyterms, ...contacts], keytermLimit);
+  return acceptedKeyterms([...(request.context.expectedAnswers ?? []), ...own, ...request.keyterms, ...DEMO_CONTACTS], keytermLimit);
 }
 
 export async function understandTurn(
@@ -49,12 +52,21 @@ export async function understandTurn(
   const hearerSeconds = transcribing ? Math.max(deps.hearerSeconds, TRANSCRIBE_LIMITS.hearerSeconds) : deps.hearerSeconds;
   const repairSeconds = transcribing ? Math.max(deps.repairSeconds, TRANSCRIBE_LIMITS.repairSeconds) : deps.repairSeconds;
   const keyterms = hintsFor(request, start);
-  const examples = request.switches.gemini && request.switches.examples ? request.examples.slice(0, 5) : [];
+  const examples = request.switches.gemini && request.switches.examples ? request.examples.slice(0, transcribing ? 10 : 5) : [];
   emit({ type: "turn.started", turnId: request.turnId, at: start, keyterms, exampleCount: examples.length });
 
   // Stage 2: the hearers, in parallel, each with its own time limit.
   const hearers: { name: HearerName; hear: (r: HearingRequest) => Promise<string> }[] = [{ name: "scribe", hear: deps.hearScribe }];
-  if (request.switches.gemini) hearers.push({ name: "gemini", hear: deps.hearGemini });
+  if (request.switches.gemini) {
+    if (transcribing) {
+      // A recording is heard by two independent Gemini models with the transcription prompt:
+      // listeners that make different mistakes are what lets the merge correct them.
+      hearers.push({ name: "gemini", hear: (r) => deps.hearGemini({ ...r, model: transcribeGeminiModel }) });
+      hearers.push({ name: "gemini4", hear: (r) => deps.hearGemini({ ...r, model: secondListenerModel }) });
+    } else {
+      hearers.push({ name: "gemini", hear: deps.hearGemini });
+    }
+  }
   for (const hearer of hearers) emit({ type: "hear.started", hearer: hearer.name, at: at() });
   emit({ type: "hear.started", hearer: "realtime", at: at() });
 
@@ -72,6 +84,7 @@ export async function understandTurn(
       const text = await hear({
         wavBase64: request.wavBase64, keyterms, examples,
         signal: withTimeLimit(hearerSeconds * 1000, signal), seconds: hearerSeconds,
+        ...(transcribing ? { purpose: "transcribe" as const } : {}),
       });
       hypothesis = { hearer: name, text: text.trim(), seconds: (deps.now() - began) / 1000 };
     } catch (error) {
@@ -115,9 +128,9 @@ export async function understandTurn(
     const began = deps.now();
     try {
       // Contacts first: Claude is shown at most 40 known words, and the contacts must be among them.
-      const knownWords = transcribing ? request.keyterms : [...DEMO_CONTACTS, ...request.keyterms];
+      const knownWords = transcribing ? (request.switches.keyterms ? request.keyterms : []) : [...DEMO_CONTACTS, ...request.keyterms];
       input.reading = await deps.repair(
-        { hypotheses, phrasebookMatch: hint, context: request.context, knownWords },
+        { hypotheses, phrasebookMatch: hint, context: request.context, knownWords, purpose: request.purpose },
         withTimeLimit(repairSeconds * 1000, signal),
         repairSeconds,
       );

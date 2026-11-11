@@ -4,7 +4,7 @@
 
 import type { HearerName } from "../../shared/pipeline";
 import { alignWords, countErrors, errorRate, type AlignedWord } from "../../shared/wordErrors";
-import { bestText, HEARER_LABEL, HEARERS, type TurnModel } from "../model/turn";
+import { bestText, HEARER_LABEL, hearersOf, type TurnModel } from "../model/turn";
 import { seconds } from "./bits";
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
@@ -122,7 +122,7 @@ function Word({ word }: { word: AlignedWord }) {
 function HearerTable({ turn, reference, final }: { turn: TurnModel; reference?: string; final: string }) {
   // A recogniser that heard nothing or ran out of time scores as if it wrote nothing, as in the
   // evaluation; one that was not used for this turn is not scored.
-  const rows: { name: string; text?: string; scored?: string; failure?: string; time?: number; hearer?: HearerName }[] = HEARERS.map((h) => {
+  const rows: { name: string; text?: string; scored?: string; failure?: string; time?: number; hearer?: HearerName }[] = hearersOf(turn).map((h) => {
     const lane = turn.lanes[h];
     const used = lane.status === "done" || lane.status === "failed";
     return {

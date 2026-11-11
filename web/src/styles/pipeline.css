@@ -246,6 +246,9 @@
 .track-gemini {
   --tone: var(--gemini);
 }
+.track-gemini4 {
+  --tone: var(--gemini4);
+}
 .track-realtime {
   --tone: var(--realtime);
 }

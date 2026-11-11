@@ -10,9 +10,10 @@
 
 /** Which recogniser produced a transcript. */
 export type HearerName =
-  | "scribe" // ElevenLabs Scribe batch, with the person's keyterms
-  | "gemini" // Gemini Flash through OpenRouter, shown a few of the person's own clips
-  | "realtime"; // ElevenLabs Scribe realtime: the live transcript shown while speaking (its final text is the third vote)
+  | "scribe" // ElevenLabs Scribe batch (with the person's keyterms when speaking)
+  | "gemini" // Gemini through OpenRouter, shown a few of the person's own clips (Flash when speaking, 3.1 Pro for a recording)
+  | "gemini4" // Gemini 4 Carbon, a second independent listener, only for a recording being transcribed
+  | "realtime"; // ElevenLabs Scribe realtime: the live transcript shown while speaking (its final text is a vote too)
 
 export type Confidence = "low" | "medium" | "high";
 

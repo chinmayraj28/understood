@@ -291,6 +291,9 @@
 .tone-gemini {
   background: var(--gemini);
 }
+.tone-gemini4 {
+  background: var(--gemini4);
+}
 .tone-realtime {
   background: var(--realtime);
 }
