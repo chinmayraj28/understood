@@ -83,7 +83,7 @@ describe("14) One announcement per turn", () => {
   it("the page-level region is polite and only speaks failures", () => {
     const app = source("App.tsx");
     expect(app).not.toMatch(/aria-live="assertive"/);
-    expect(app).toMatch(/turn\.failed \? `The turn failed/);
+    expect(app).toMatch(/pageAnnouncement\(turn\)/);
   });
 });
 

@@ -47,6 +47,7 @@ The recognisers disagreed, so it asked rather than guessing. That is the behavio
 - **Set up your voice.** Read 10 short phrases. Their recordings become Gemini's examples and the first phrasebook entries.
 - **Stage switches.** Turn off the hints, Gemini, the examples, the phrasebook or the repair, say the same thing again, and compare.
 - **Evaluation.** The numbers from real recordings of people with dysarthria (below), with evaluation turns replayed through the same view.
+- **Recordings** (the second tab). Every TORGO clip on your computer, playable, filtered by speaker, severity, word or sentence, and set-up or test. For the 121 clips the evaluation tested, open one to see what each recogniser heard, Claude's reading and the decision, next to what Scribe alone did. It needs the data on disk (`eval/scripts/fetch_torgo.sh`, about 1 GB). Because TORGO may not be redistributed, the audio is served only by the local server, only to this computer, and only for clips listed in the manifest; a hosted copy of the site has no such route.
 - **Clear everything** deletes the phrasebook, the recordings and the conversation from the browser.
 
 ## Run it
@@ -91,11 +92,11 @@ The server keeps the keys. They never reach the browser: the page gets only a sh
 
 ```bash
 cd web
-npm test            # 199 tests in 20 files, no network
+npm test            # 227 tests in 22 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 199 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 11 Nov 2026: all 227 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -165,9 +166,10 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 web/                  the website (submission)
   src/                the page: React; microphone, end of turn, live transcript, pipeline view
   server/             the API: Hono on Node; /api/understand, /api/realtime-token,
-                      /api/speak, /api/act; the three recognisers and the repair
+                      /api/speak, /api/act; the three recognisers and the repair;
+                      dataset.ts, the local-only TORGO route for the Recordings tab
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
-  tests/              Vitest: 199 tests, plus live.smoke.ts
+  tests/              Vitest: 227 tests, plus live.smoke.ts
 Packages/
   HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)

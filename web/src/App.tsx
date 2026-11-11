@@ -1,7 +1,9 @@
 // The page: a short story, the examples, the pipeline line with the phone beside it, the stage
 // switches, and the evaluation.
 
+import { useEffect, useRef, useState } from "react";
 import { Compare, Settings, StageSwitchPanel } from "./components/Compare";
+import { Dataset } from "./components/Dataset";
 import { Enrolment, ENROLMENT_START } from "./components/Enrolment";
 import { Evaluation } from "./components/Evaluation";
 import { Phone } from "./components/Phone";
@@ -9,12 +11,45 @@ import { Pipeline } from "./components/Pipeline";
 import { ConversationLog, PhrasebookPanel } from "./components/SidePanels";
 import { REPLAYS } from "./fixtures";
 import { PHONE_HOME } from "./model/phone";
-import { ALL_ON } from "./model/turn";
+import { ALL_ON, pageAnnouncement } from "./model/turn";
 import { useSession } from "./useSession";
+
+/** Which view the address shows: "#dataset…" is the recordings; anything else is the pipeline. */
+const viewFromHash = () => (window.location.hash.startsWith("#dataset") ? "dataset" : "pipeline");
 
 export function App() {
   const session = useSession();
   const { state, ownState, mode, live } = session;
+  const [view, setView] = useState<"pipeline" | "dataset">(viewFromHash);
+
+  useEffect(() => {
+    const onHash = () => setView(viewFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // A recording playing out of the speakers would be heard as the person's own turn, so the
+  // microphone and any example stop when the recordings open. If the microphone was on, it comes
+  // back on with the pipeline, so a hands-free visitor does not lose their voice control.
+  const { listening, stopListening, startListening, backToOwn } = session;
+  const replaying = mode.kind === "replay";
+  const resumeListening = useRef(false);
+  useEffect(() => {
+    if (view === "dataset") {
+      if (listening) {
+        resumeListening.current = true;
+        stopListening();
+      }
+      if (replaying) backToOwn();
+    } else if (resumeListening.current) {
+      resumeListening.current = false;
+      void startListening();
+    }
+  }, [view, listening, stopListening, startListening, replaying, backToOwn]);
+
+  useEffect(() => {
+    document.title = view === "dataset" ? "Recordings · Understood" : "Understood";
+  }, [view]);
   const turn = state?.turns[state.turns.length - 1];
   const inExample = mode.kind === "replay";
   // Setup works on your own voice: leave any example, and open the microphone if it is off.
@@ -24,30 +59,50 @@ export function App() {
     if (!session.listening) void session.startListening();
   };
 
-  // Screen readers hear each turn once, through the conversation log. This region adds only
-  // a failure, which has no line of its own there.
-  const announcement = turn?.stage === "done" && turn.failed ? `The turn failed. ${turn.failed}` : "";
+  // Screen readers hear each turn once, through the conversation log; this adds only failures.
+  const announcement = pageAnnouncement(turn);
 
   return (
     <>
-      <a className="skip-link" href="#pipeline">
-        Skip to the pipeline
-      </a>
+      {view === "dataset" ? (
+        <a className="skip-link" href="#dataset-title">
+          Skip to the recordings
+        </a>
+      ) : (
+        <a className="skip-link" href="#pipeline">
+          Skip to the pipeline
+        </a>
+      )}
       <header className="masthead">
         <a className="wordmark" href="#top" aria-label="Understood, home">
           <ForkMark />
           Understood
         </a>
-        <div className="masthead-actions">
-          <button className="button quiet small" onClick={openSetup}>
-            Set up your voice
-          </button>
-          <button className={`button small${session.listening ? "" : " primary"}`} onClick={session.listening ? session.stopListening : session.startListening}>
-            {session.listening ? "Stop listening" : "Start listening"}
-          </button>
-        </div>
+        <nav className="views" aria-label="Views">
+          <a className="view-tab" href="#top" aria-current={view === "pipeline" ? "page" : undefined}>
+            Pipeline
+          </a>
+          <a className="view-tab" href="#dataset" aria-current={view === "dataset" ? "page" : undefined}>
+            Recordings
+          </a>
+        </nav>
+        {view === "pipeline" && (
+          <div className="masthead-actions">
+            <button className="button quiet small" onClick={openSetup}>
+              Set up your voice
+            </button>
+            <button className={`button small${session.listening ? "" : " primary"}`} onClick={session.listening ? session.stopListening : session.startListening}>
+              {session.listening ? "Stop listening" : "Start listening"}
+            </button>
+          </div>
+        )}
       </header>
 
+      {view === "dataset" ? (
+        <main className="page" id="top">
+          <Dataset />
+        </main>
+      ) : (
       <main className="page" id="top">
         <section className="intro" aria-labelledby="intro-title">
           <h1 id="intro-title">A voice assistant that understands speech other assistants get wrong.</h1>
@@ -165,6 +220,7 @@ export function App() {
           </p>
         </footer>
       </main>
+      )}
 
       <Enrolment
         state={session.enrol}

@@ -211,3 +211,12 @@ export function decisionSpeech(decision: Decision): string {
       return decision.message;
   }
 }
+
+/**
+ * What the page-level screen-reader region says about a turn. A decided turn is announced once,
+ * by its line in the conversation log, so this says nothing for it; only a failed turn, which
+ * has no line of its own there, is announced here.
+ */
+export function pageAnnouncement(turn: TurnModel | undefined): string {
+  return turn?.stage === "done" && turn.failed ? `The turn failed. ${turn.failed}` : "";
+}

@@ -227,3 +227,13 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **What was chosen.** Documents only: `README.md`, `WRITEUP.md`, `ai.md` and `.env.example` now describe the website alone. The write-up keeps one sentence of history (started as a Mac app, changed course after the Hiya engineer's feedback), because changing course on feedback is part of the story. The old README, including the Mac app's settings template, moved to `docs/MAC_APP.md`.
 
 **Rejected.** Deleting the Mac app's code. Its folders held uncommitted work from other sessions that would have been lost, and `HFCore` and `HFUnderstand` are still needed for the TORGO evaluation. The code stays; the README names those folders in one line as an earlier prototype, and keeps the Clicky credit because Clicky's code is still in the repo.
+
+## 11 Nov 2026: a Recordings tab to browse and play the TORGO clips
+
+**What the user asked.** "Make a tab to see all the dataset audios in the website itself."
+
+**What was chosen.** A second view, "Recordings" (`#dataset`), listing all 3,897 TORGO clips on this computer with filters (speaker, kind, set-up or test, evaluated only, search), a player per clip, and for the 121 evaluated clips what each recogniser heard, Claude's reading and the decision, beside Scribe alone. Opening it stops the microphone and any example, so a playing clip is not heard as the person's own turn.
+
+**How the licence is respected.** TORGO is free for academic, non-profit use and may not be redistributed. The audio is read from the person's own disk by `web/server/dataset.ts`, which only the local Node server mounts (`dev.ts`); the hosted app has no such route. It answers only requests from this machine (loopback socket and a localhost Host header), serves only clips named in the manifest by id, and refuses any file outside the data folder or not a `.wav`. Nothing is bundled into the page or committed.
+
+**Rejected.** Copying clips into `web/public/` (it would ship them in every build and invite a commit). Serving the folder statically (any path could be read). Sending clips through the live pipeline from this tab (it would put another person's speech into the visitor's own phrasebook; possible later with learning switched off).

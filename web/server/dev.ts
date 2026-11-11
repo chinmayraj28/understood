@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import app, { type Env } from "./app";
+import { createDatasetApp } from "./dataset";
 
 /** Reads KEY=value lines; ignores blanks and comments; strips matching quotes. */
 export function parseEnv(text: string): Record<string, string> {
@@ -44,9 +45,26 @@ function loadEnv(): Env {
 const env = loadEnv();
 const port = Number(process.env.PORT) || 8787;
 const missing = (["ELEVENLABS_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"] as const).filter((name) => !env[name]);
-// The socket's address is passed per request for the rate limit; proxy headers are not trusted
-// here unless TRUST_PROXY is set.
-serve({ fetch: (request, node) => app.fetch(request, { ...env, REMOTE_ADDRESS: node.incoming.socket?.remoteAddress }), port }, () => {
+
+// The TORGO dataset browser: local only, so it is mounted here and never in the hosted app.
+// DATASET_DIR and DATASET_RESULTS override where the clips and the evaluation results are read from.
+const repoPath = (relative: string) => fileURLToPath(new URL(`../../${relative}`, import.meta.url));
+const dataset = createDatasetApp({
+  dataDir: process.env.DATASET_DIR || repoPath("eval/data/torgo"),
+  resultsPath: process.env.DATASET_RESULTS || repoPath("eval/results/2026-11-09-second-run/results.json"),
+});
+
+// The socket's address is passed per request for the rate limit and the dataset's local-only
+// check; proxy headers are not trusted here unless TRUST_PROXY is set.
+serve({
+  fetch: (request, node) => {
+    const bindings = { ...env, REMOTE_ADDRESS: node.incoming.socket?.remoteAddress };
+    const pathname = new URL(request.url).pathname;
+    const forDataset = pathname === "/api/dataset" || pathname.startsWith("/api/dataset/");
+    return forDataset ? dataset.fetch(request, bindings) : app.fetch(request, bindings);
+  },
+  port,
+}, () => {
   console.log(`API server on http://localhost:${port}`);
   if (missing.length) console.warn(`Missing keys (those stages will fail): ${missing.join(", ")}`);
 });
