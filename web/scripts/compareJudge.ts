@@ -38,6 +38,7 @@ for (const file of readdirSync(outDir).sort()) {
   const json = JSON.parse(readFileSync(path.join(outDir, file), "utf8")) as { detail?: unknown };
   if (!json.detail || Array.isArray(json.detail) || file.startsWith("recognisers-holdout")) continue;
   for (const [key, rows] of Object.entries(json.detail as Record<string, { id: string; text: string }[]>)) {
+    if (!Array.isArray(rows)) continue; // other result files (repair runs) have a different shape
     const map = answers.get(key) ?? new Map();
     for (const r of rows) if (!r.text.startsWith("(error")) map.set(r.id, r.text);
     answers.set(key, map);

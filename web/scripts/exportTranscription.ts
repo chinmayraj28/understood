@@ -1,8 +1,8 @@
 // Writes public/eval/transcription.json for the landing page: the website pipeline before and
 // after the 11 Nov transcription work, on the same held-out TORGO clips, from the rows
-// evalTranscription.ts saved. Numbers only: no audio, no transcripts, no prompts.
+// evalTranscription.ts saved (both held-out samples pooled: pass the merged row files). Numbers only: no audio, no transcripts, no prompts.
 //
-//   npx tsx scripts/exportTranscription.ts <before-holdout.json> <after-holdout.json>
+//   npx tsx scripts/exportTranscription.ts <before-rows.json> <after-rows.json>
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -42,7 +42,7 @@ const output = {
   date: "2026-11-11",
   clips: after.length,
   speakers: new Set(after.map((r) => r.speaker)).size,
-  note: "Held-out TORGO test clips: a fixed half of the test clips, split by a hash of the clip id before any change was made, and never used to choose anything. Each speaker's voice was set up only from their own earlier clips. Scored with the evaluation's word error rate; fillers are not forgiven. Before: the pipeline as it was on 11 Nov morning (Scribe v2 with hints, Gemini 3.8 Flash, Scribe v2 realtime, a repair prompt written for phone commands). After: Scribe v3, Gemini 3.1 Pro and Gemini 4 Carbon shown five of the speaker's clips, Scribe v3 live, and Claude Opus 5.5 merging them.",
+  note: "Held-out TORGO test clips: two samples of 110 from a fixed half of the test clips, split by a hash of the clip id before any change was made. Nothing in the pipeline was chosen on them (the second sample was also used to try a longer time limit for Gemini 4, which was not adopted). Each speaker's voice was set up only from their own earlier clips. Scored with the evaluation's word error rate; fillers are not forgiven. Before: the pipeline as it was on 11 Nov morning (Scribe v2 with hints, Gemini 3.8 Flash, Scribe v2 realtime, a repair prompt written for phone commands). After: Scribe v3, Gemini 3.1 Pro and Gemini 4 Carbon shown five of the speaker's clips, Scribe v3 live, and Claude Opus 5.5 merging them.",
   before: summary(before),
   after: summary(after),
   alone: {

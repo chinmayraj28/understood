@@ -123,17 +123,17 @@ It prints each stage with its time, then checks the phone action, the spoken rep
 
 ## Does it work? Transcription accuracy
 
-On 11 November the pipeline's transcription was measured end to end, the way the pipeline page hears a recording, on **held-out TORGO test clips**. These are a fixed half of the test clips, set aside before any change was made and never used to choose anything: 110 clips from 11 speakers, 8 with dysarthria.
+On 11 November the pipeline's transcription was measured end to end, the way the pipeline page hears a recording, on **held-out TORGO test clips**: two samples from a fixed half of the test clips, set aside before any change was made and never used to choose anything. 220 clips from 11 speakers, 8 with dysarthria.
 
-| Held-out, 110 clips | Before (11 Nov morning) | Now |
+| Held-out, 220 clips | Before (11 Nov morning) | Now |
 |---|---|---|
-| Words wrong, all | 42.4% | **18.7%** |
-| Single words | 65.2% | 39.4% |
-| Sentences | 37.4% | 14.1% |
-| Speakers with dysarthria | 55.7% | 24.4% |
+| Words wrong, all | 39.9% | **20.6%** |
+| Single words | 65.9% | 36.3% |
+| Sentences | 33.9% | 16.9% |
+| Speakers with dysarthria | 52.9% | 27.6% |
 | Every word right | 43% | 64% |
 
-Each listener alone gets 33% to 41% wrong on the same clips; merging them is what brings it to 19%. On the 95 held-out clips whose phrase the speaker never said during setup, it fell from 45.9% to 19.9%. What changed, the evidence behind each choice (including a comparison of 13 speech recognisers and 5 audio models), how it was measured, and the limits are in [`docs/TRANSCRIPTION.md`](docs/TRANSCRIPTION.md). The scripts are in `web/scripts/` (`evalTranscription.ts` runs the whole pipeline).
+Each listener alone gets 31% to 41% wrong on the same clips; merging them is what brings it to 21%. On the 186 held-out clips whose phrase the speaker never said during setup, it fell from 43.5% to 22.4%. The two samples differ (18.7% and 22.5% after), which is the honest spread. What changed, the evidence behind each choice (including a comparison of 13 speech recognisers and 5 audio models), how it was measured, and the limits are in [`docs/TRANSCRIPTION.md`](docs/TRANSCRIPTION.md). The scripts are in `web/scripts/` (`evalTranscription.ts` runs the whole pipeline).
 
 ## The earlier evaluation: deciding when to act
 
@@ -180,7 +180,7 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 
 - **Not hosted yet.** It runs locally. Cloudflare Workers was planned (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6.
 - **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. A recording, where accuracy matters most, takes about 6 to 15 seconds after it has played, because the stronger listeners are slower.
-- **Hard cases.** Isolated single words stay hard (39% wrong held-out), homophones such as "knew" and "new" cannot be told apart without context, and the most severe speakers (M02, M04) are still misheard about half the time.
+- **Hard cases.** Isolated single words stay hard (36% wrong held-out), homophones such as "knew" and "new" cannot be told apart without context, and the most severe speakers (M02, M04) are still misheard about half the time.
 - **Gemini with example clips is erratic.** On 11 Nov the same request took anywhere from 1.4 to 14 seconds. A spoken turn gives it 4 seconds and goes on with two votes when it is late. A recording, where the transcript is the point, gives it 15 seconds and Claude 8, so a recording can take up to about 25 seconds.
 - **Not tested with a person with dysarthria using it live.** The evaluation used real recordings, played in offline; the live checks used synthetic voices.
 - **English only, and a pretend phone.** Nothing on the page reaches a real person.

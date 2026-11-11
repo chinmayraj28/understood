@@ -1,28 +1,28 @@
 {
   "title": "Transcription accuracy of this website's pipeline",
   "date": "2026-11-11",
-  "clips": 110,
+  "clips": 220,
   "speakers": 11,
-  "note": "Held-out TORGO test clips: a fixed half of the test clips, split by a hash of the clip id before any change was made, and never used to choose anything. Each speaker's voice was set up only from their own earlier clips. Scored with the evaluation's word error rate; fillers are not forgiven. Before: the pipeline as it was on 11 Nov morning (Scribe v2 with hints, Gemini 3.8 Flash, Scribe v2 realtime, a repair prompt written for phone commands). After: Scribe v3, Gemini 3.1 Pro and Gemini 4 Carbon shown five of the speaker's clips, Scribe v3 live, and Claude Opus 5.5 merging them.",
+  "note": "Held-out TORGO test clips: two samples of 110 from a fixed half of the test clips, split by a hash of the clip id before any change was made. Nothing in the pipeline was chosen on them (the second sample was also used to try a longer time limit for Gemini 4, which was not adopted). Each speaker's voice was set up only from their own earlier clips. Scored with the evaluation's word error rate; fillers are not forgiven. Before: the pipeline as it was on 11 Nov morning (Scribe v2 with hints, Gemini 3.8 Flash, Scribe v2 realtime, a repair prompt written for phone commands). After: Scribe v3, Gemini 3.1 Pro and Gemini 4 Carbon shown five of the speaker's clips, Scribe v3 live, and Claude Opus 5.5 merging them.",
   "before": {
-    "wordErrorRate": 0.42424242424242425,
-    "words": 0.6515151515151515,
-    "sentences": 0.37373737373737376,
-    "dysarthric": 0.5572519083969466,
-    "control": 0.07920792079207921,
+    "wordErrorRate": 0.39915966386554624,
+    "words": 0.6592592592592592,
+    "sentences": 0.3385146804835924,
+    "dysarthric": 0.5294117647058824,
+    "control": 0.07352941176470588,
     "exact": 0.42727272727272725
   },
   "after": {
-    "wordErrorRate": 0.18732782369146006,
-    "words": 0.3939393939393939,
-    "sentences": 0.1414141414141414,
-    "dysarthric": 0.24427480916030533,
-    "control": 0.039603960396039604,
-    "exact": 0.6363636363636364
+    "wordErrorRate": 0.20588235294117646,
+    "words": 0.362962962962963,
+    "sentences": 0.1692573402417962,
+    "dysarthric": 0.27647058823529413,
+    "control": 0.029411764705882353,
+    "exact": 0.6409090909090909
   },
   "alone": {
-    "Scribe v3 alone": 0.349862258953168,
-    "Gemini 3.1 Pro alone": 0.3305785123966942,
-    "Live transcript alone": 0.40771349862258954
+    "Scribe v3 alone": 0.3333333333333333,
+    "Gemini 3.1 Pro alone": 0.3081232492997199,
+    "Live transcript alone": 0.40476190476190477
   }
 }

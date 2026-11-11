@@ -65,7 +65,7 @@ I am listing these because they show where the process needs checking, and becau
 
 ## The transcription work on 11 November
 
-I said the transcription quality was poor and asked for it to be improved until it was genuinely useful, measured on real audio rather than with made-up results. The agents built a harness that runs the website's own pipeline on TORGO, split the test clips into a dev half for every choice and a held-out half run once at the end, compared 13 recognisers and 5 audio models, read the failures, and changed the listeners, the Gemini prompt and the repair. One subagent searched the research literature and current API documentation; its sources are listed in `docs/TRANSCRIPTION.md`. On the held-out clips, words wrong fell from 42.4% to 18.7%. The record of what changed, why, and the limits is `docs/TRANSCRIPTION.md`.
+I said the transcription quality was poor and asked for it to be improved until it was genuinely useful, measured on real audio rather than with made-up results. The agents built a harness that runs the website's own pipeline on TORGO, split the test clips into a dev half for every choice and a held-out half run once at the end, compared 13 recognisers and 5 audio models, read the failures, and changed the listeners, the Gemini prompt and the repair. One subagent searched the research literature and current API documentation; its sources are listed in `docs/TRANSCRIPTION.md`. On 220 held-out clips, words wrong fell from 39.9% to 20.6%. The record of what changed, why, and the limits is `docs/TRANSCRIPTION.md`.
 
 ## How the evaluation was kept honest
 

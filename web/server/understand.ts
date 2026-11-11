@@ -25,7 +25,7 @@ export interface UnderstandDeps {
 }
 
 /** Time limits for a recording being transcribed, where accuracy matters more than speed. */
-export const TRANSCRIBE_LIMITS = { hearerSeconds: 15, repairSeconds: 8 };
+export const TRANSCRIBE_LIMITS = { hearerSeconds: 15, repairSeconds: 8, secondListenerSeconds: 15 };
 
 /**
  * What the recognisers are told: the expected answers first (most likely in this turn), then the
@@ -56,13 +56,13 @@ export async function understandTurn(
   emit({ type: "turn.started", turnId: request.turnId, at: start, keyterms, exampleCount: examples.length });
 
   // Stage 2: the hearers, in parallel, each with its own time limit.
-  const hearers: { name: HearerName; hear: (r: HearingRequest) => Promise<string> }[] = [{ name: "scribe", hear: deps.hearScribe }];
+  const hearers: { name: HearerName; hear: (r: HearingRequest) => Promise<string>; seconds?: number }[] = [{ name: "scribe", hear: deps.hearScribe }];
   if (request.switches.gemini) {
     if (transcribing) {
       // A recording is heard by two independent Gemini models with the transcription prompt:
       // listeners that make different mistakes are what lets the merge correct them.
       hearers.push({ name: "gemini", hear: (r) => deps.hearGemini({ ...r, model: transcribeGeminiModel }) });
-      hearers.push({ name: "gemini4", hear: (r) => deps.hearGemini({ ...r, model: secondListenerModel }) });
+      hearers.push({ name: "gemini4", hear: (r) => deps.hearGemini({ ...r, model: secondListenerModel }), seconds: TRANSCRIBE_LIMITS.secondListenerSeconds });
     } else {
       hearers.push({ name: "gemini", hear: deps.hearGemini });
     }
@@ -77,13 +77,14 @@ export async function understandTurn(
     : { hearer: "realtime", text: "", seconds: 0, failure: "The live transcript had no words." };
   emit({ type: "hear.done", hearer: "realtime", at: at(), text: realtime.text, seconds: 0, ...(realtime.failure ? { failure: realtime.failure } : {}) });
 
-  const heard = await Promise.all(hearers.map(async ({ name, hear }): Promise<Hypothesis> => {
+  const heard = await Promise.all(hearers.map(async ({ name, hear, seconds: own }): Promise<Hypothesis> => {
+    const limit = own ?? hearerSeconds;
     const began = deps.now();
     let hypothesis: Hypothesis;
     try {
       const text = await hear({
         wavBase64: request.wavBase64, keyterms, examples,
-        signal: withTimeLimit(hearerSeconds * 1000, signal), seconds: hearerSeconds,
+        signal: withTimeLimit(limit * 1000, signal), seconds: limit,
         ...(transcribing ? { purpose: "transcribe" as const } : {}),
       });
       hypothesis = { hearer: name, text: text.trim(), seconds: (deps.now() - began) / 1000 };

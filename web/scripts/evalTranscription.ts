@@ -22,7 +22,7 @@ import type { PipelineEvent, UnderstandRequest } from "../shared/pipeline";
 import { countErrors, errorRate, sameWords, scoringWords } from "../shared/wordErrors";
 import { realDeps, type Env } from "../server/app";
 import { geminiBody, scribeForm, type HearingRequest } from "../server/hearers";
-import { understandTurn, type UnderstandDeps } from "../server/understand";
+import { TRANSCRIBE_LIMITS, understandTurn, type UnderstandDeps } from "../server/understand";
 import { bestText, HEARERS, newTurn, reduceTurn } from "../src/model/turn";
 import { setUpSpeaker, type Voice } from "../src/model/voices";
 
@@ -41,6 +41,9 @@ const perSpeaker = Number(args.get("per-speaker") ?? 10);
 const onlySpeakers = args.get("speakers")?.split(",");
 const concurrency = Number(args.get("concurrency") ?? 4);
 const noRealtime = args.has("no-realtime");
+/** Skip this many clips per speaker first: a fresh sample of the same split. */
+const skip = Number(args.get("skip") ?? 0);
+if (args.has("gemini4-seconds")) TRANSCRIBE_LIMITS.secondListenerSeconds = Number(args.get("gemini4-seconds"));
 const cacheDir = process.env.EVAL_CACHE || path.join(tmpdir(), "understood-eval-cache");
 mkdirSync(cacheDir, { recursive: true });
 
@@ -77,6 +80,12 @@ const wavBase64 = (id: string) => readFileSync(path.join(dataDir, audioOf.get(id
 const hash = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 24);
 const splitOf = (id: string) => (parseInt(hash(`split:${id}`).slice(0, 8), 16) % 2 === 0 ? "dev" : "holdout");
 
+/** About 40% sentences, the rest single words, in the fixed order. */
+function takeFrom(sentences: DatasetClip[], wordsOnly: DatasetClip[]): DatasetClip[] {
+  const nSent = Math.min(sentences.length, Math.round(perSpeaker * 0.4));
+  return [...sentences.slice(0, nSent), ...wordsOnly.slice(0, perSpeaker - nSent)];
+}
+
 /** Per speaker, up to perSpeaker test clips of this split: sentences and words in proportion, in a fixed order. */
 function chosenClips(): DatasetClip[] {
   const out: DatasetClip[] = [];
@@ -86,8 +95,13 @@ function chosenClips(): DatasetClip[] {
     const ordered = [...tests].sort((a, b) => hash(a.id).localeCompare(hash(b.id)));
     const sentences = ordered.filter((c) => c.kind === "sentence");
     const wordsOnly = ordered.filter((c) => c.kind !== "sentence");
-    const nSent = Math.min(sentences.length, Math.round(perSpeaker * 0.4));
-    out.push(...sentences.slice(0, nSent), ...wordsOnly.slice(0, perSpeaker - nSent));
+    // A fresh sample (--skip) leaves out every clip earlier samples took, round by round.
+    let pool = { sentences, wordsOnly };
+    for (let round = 0; round < Math.floor(skip / perSpeaker); round++) {
+      const taken = new Set(takeFrom(pool.sentences, pool.wordsOnly).map((c) => c.id));
+      pool = { sentences: pool.sentences.filter((c) => !taken.has(c.id)), wordsOnly: pool.wordsOnly.filter((c) => !taken.has(c.id)) };
+    }
+    out.push(...takeFrom(pool.sentences, pool.wordsOnly));
   }
   return out;
 }

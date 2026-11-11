@@ -119,7 +119,7 @@ their own enrolment clips, then each clip heard, merged and decided as the page 
 **Before** is the pipeline at commit cd48785 (11 Nov morning); **after** is this change. Same
 clips, same scoring, 10 clips per speaker (4 sentences, 6 words), 110 clips per half.
 
-**Held-out half (never used for any choice; the number to quote):**
+**Held-out, first sample (never used for any choice):**
 
 | Held-out, 110 clips | Before | After |
 |---|---|---|
@@ -133,10 +133,30 @@ clips, same scoring, 10 clips per speaker (4 sentences, 6 words), 110 clips per 
 Each listener alone on the same held-out clips: Scribe v3 35.0%, Gemini 3.1 Pro 33.1%, Scribe v3
 live 40.8%. The merge is what brings it to 18.7%.
 
+**Held-out, second sample** (another 110 held-out clips, none in the first sample; run after the
+review fixes, and also used to try a 25-second limit for Gemini 4, which was not adopted: 22.2%
+vs 22.5%, within noise):
+
+| Held-out, second 110 | Before | After |
+|---|---|---|
+| Words wrong, all | 37.3% | **22.5%** |
+| Single words | 66.7% | 33.3% |
+| Sentences | 30.1% | 19.9% |
+| Speakers with dysarthria | 50.0% | 31.0% |
+| Every word right | 43% | 65% |
+
+**Both held-out samples together (220 clips; the number to quote):** words wrong **39.9% → 20.6%**;
+single words 65.9% → 36.3%; sentences 33.9% → 16.9%; speakers with dysarthria 52.9% → 27.6%; every
+word right 43% → 64%. Each listener alone on the same 220: Scribe v3 33.3%, Gemini 3.1 Pro 30.8%,
+Scribe v3 live 40.5%.
+
+The second sample is harder than the first, and on it the merge helped sentences less (Scribe v3
+alone 25.5%, the pipeline 19.9%). That is the honest spread of these numbers.
+
 **Seen and unseen.** 15 of the 110 held-out clips say a phrase the speaker also said during setup,
 so it is among Claude's known phrases. On those, words wrong were 6.3% before and after. On the 95
-unseen clips, 45.9% before and **19.9%** after: the gain is on new speech, not on recognising known
-phrases.
+unseen clips, 45.9% before and **19.9%** after. Over both samples (186 unseen clips): 43.5% →
+22.4%; the 34 seen clips 7.0% → 4.2%. The gain is on new speech, not on recognising known phrases.
 
 **Checks on the numbers.** The "before" run used `scribe_v2_realtime` for the live transcript, as
 the page did then. In the held-out "after" run, one clip had no live transcript and one had no
@@ -169,7 +189,7 @@ recording playing.
   context, which is the hardest case and not how people talk to an assistant.
 - A recording now takes about 6 to 15 seconds (Gemini 4 Carbon is the slowest listener, and on
   the held-out run it sometimes ran out its 15 seconds; the merge then works with the others).
-- Isolated single words stay hard (39% wrong held-out), and homophones cannot be told apart
+- Isolated single words stay hard (36% wrong over both held-out samples), and homophones cannot be told apart
   without context ("knew" and "new").
 - Opus 5.5 cannot have thinking switched off, only kept short ("adaptive" at low effort); if it
   runs past 8 seconds the turn falls back to the recognisers.

@@ -275,7 +275,7 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 - Claude Opus 5.5 merging the transcripts with a transcription prompt: it knows Scribe and the live transcript are one engine, and uses the speaker's known phrases only when a transcript nearly matches one.
 - `scribe_v3_live` for the live transcript of a recording playing (the microphone keeps `scribe_v2_realtime`, and spoken turns keep `scribe_v2` with every word).
 
-**Result (held-out, 110 clips):** words wrong 42.4% → 18.7%; speakers with dysarthria 55.7% → 24.4%; every word right 43% → 64%.
+**Result (held-out, two samples, 220 clips):** words wrong 39.9% → 20.6%; speakers with dysarthria 52.9% → 27.6%; every word right 43% → 64%. A 25-second limit for Gemini 4 was tried on the second sample and not adopted (22.2% vs 22.5%).
 
 **Rejected after measuring:** giving Claude the recording's length; snapping Claude's text to the nearest transcript; ten examples instead of five (no gain); an audio "re-listen" stage (within noise, 4 s slower); Gemini 4 Argon (invents long text for single words); Sonnet and Haiku for the merge (more errors than Opus); OpenAI, Deepgram, AssemblyAI and other recognisers as the main voice (Scribe v3 was best alone; they did not add enough to the merge with the Gemini pair).
 
