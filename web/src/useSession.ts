@@ -432,6 +432,15 @@ export function useSession() {
     };
   }, [listener]);
 
+  // The microphone is deaf while the page speaks, so a reply is never heard as the person (no loop).
+  const pageSpeaking = useSyncExternalStore(
+    useCallback((fn: () => void) => (own ? own.subscribe(fn) : () => {}), [own]),
+    () => own?.getState().speaking ?? false,
+  );
+  useEffect(() => {
+    listener.deaf = pageSpeaking;
+  }, [listener, pageSpeaking]);
+
   const ownSubscribe = useCallback((fn: () => void) => (own ? own.subscribe(fn) : () => {}), [own]);
   const ownState = useSyncExternalStore(ownSubscribe, () => own?.getState() ?? EMPTY);
 

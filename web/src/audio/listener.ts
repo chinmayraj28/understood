@@ -30,6 +30,9 @@ const IDLE_KEEP_SECONDS = 1.5;
 /** Audio from just before a sound that goes out with it: the detector's pre-roll, 0.4 s. */
 const PREROLL_CHUNKS = Math.round(0.4 / CHUNK_SECONDS);
 
+/** How long the microphone stays deaf after the page stops speaking. */
+const DEAF_TAIL_MS = 700;
+
 export class Listener {
   onTick: (tick: ListenerTick) => void = () => {};
   onLiveText: (text: string) => void = () => {};
@@ -59,6 +62,18 @@ export class Listener {
   get isOn() {
     return this.status !== "off";
   }
+
+  /**
+   * True while the page itself is speaking. The microphone then hears silence: echo cancellation
+   * does not remove all of a reply played through speakers, and a reply heard as the person
+   * speaking would start a new turn, which starts another reply, in a loop. It stays deaf a
+   * moment after the reply ends, for the room's echo to die away.
+   */
+  set deaf(on: boolean) {
+    if (on) this.deafUntil = Infinity;
+    else if (this.deafUntil === Infinity) this.deafUntil = performance.now() + DEAF_TAIL_MS;
+  }
+  private deafUntil = 0;
 
   /** Bumped by every start and stop, so a start that is overtaken by a stop gives up. */
   private startToken = 0;
@@ -164,6 +179,11 @@ export class Listener {
   }
 
   private chunk(pcm: Int16Array, db: number) {
+    if (performance.now() < this.deafUntil) {
+      // The page is speaking: the detector and the live transcript get silence, not the reply.
+      pcm = new Int16Array(pcm.length);
+      db = -120;
+    }
     this.chunks.push(pcm);
     this.handle(this.detector.audio(db, CHUNK_SECONDS));
     // Only a turn (and the moment before it) goes to the live transcript, never the quiet room.

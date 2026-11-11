@@ -92,3 +92,16 @@ describe("the microphone and a playing recording (useSession)", () => {
     expect(between("const stopListening = useCallback(", "}, [listener]);")).toMatch(/micAfterRecording\.current = false/);
   });
 });
+
+describe("the page's own spoken reply", () => {
+  it("the microphone is deaf while the page speaks, so a reply cannot start a new turn (no loop)", () => {
+    const listener = readFileSync(new URL("../../src/audio/listener.ts", import.meta.url), "utf8");
+    const session = readFileSync(new URL("../../src/useSession.ts", import.meta.url), "utf8");
+    // While deaf, the detector and the live transcript get silence instead of the speakers.
+    expect(listener).toMatch(/if \(performance\.now\(\) < this\.deafUntil\) \{[\s\S]*pcm = new Int16Array\(pcm\.length\);[\s\S]*db = -120;/);
+    // It stays deaf a moment after the reply ends, for the echo.
+    expect(listener).toMatch(/this\.deafUntil = performance\.now\(\) \+ DEAF_TAIL_MS/);
+    // The session ties it to the conversation's speaking state.
+    expect(session).toMatch(/listener\.deaf = pageSpeaking;/);
+  });
+});
