@@ -30,6 +30,13 @@ function useRunningNow(running: boolean) {
   return now;
 }
 
+/** Second marks along the scale: every second on a short one, every five on a long one; always the limit. */
+function ticks(scale: number, limit: number): number[] {
+  const step = scale > 8 ? 5 : 1;
+  const marks = Array.from({ length: Math.floor(scale / step) + 1 }, (_, i) => i * step);
+  return limit <= scale && !marks.includes(limit) ? [...marks.filter((m) => limit - m >= step * 0.6), limit] : marks;
+}
+
 function switchedOff(turn: TurnModel | undefined, hearer: HearerName): boolean {
   return hearer === "gemini" && turn !== undefined && !turn.switches.gemini;
 }
@@ -60,7 +67,7 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
     >
       <div className="race" role="list">
         <div className="race-scale" aria-hidden="true">
-          {Array.from({ length: Math.floor(scale) + 1 }, (_, i) => (
+          {ticks(scale, limit).map((i) => (
             <span key={i} style={{ left: `${(i / scale) * 100}%` }}>
               {i === limit ? `${i} s limit` : `${i}`}
             </span>
@@ -99,7 +106,12 @@ function Track({ lane, scale, limit, now, disputed, off }: { lane: Lane; scale: 
         {off ? (
           <span className="track-time">Switched off</span>
         ) : (
-          <Stopwatch label={`${label} time`} runningSince={lane.status === "running" ? lane.localStartedAt : undefined} final={lane.seconds} />
+          lane.hearer === "realtime" ? (
+            // The live transcript is written while the sentence is said, so it has no time of its own.
+            <span className="track-time">as it was said</span>
+          ) : (
+            <Stopwatch label={`${label} time`} runningSince={lane.status === "running" ? lane.localStartedAt : undefined} final={lane.seconds} />
+          )
         )}
       </div>
       <div className="track-rail" aria-hidden="true">

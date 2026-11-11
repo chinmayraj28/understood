@@ -2,7 +2,7 @@
 // file. Either one plays aloud and goes through the whole pipeline, heard as the voice it
 // belongs to, and the transcript is scored against what was really said.
 
-import { useEffect, useId, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useId, useMemo, useState, type DragEvent, type ReactNode } from "react";
 import type { DatasetClip, DatasetIndex } from "../../shared/dataset";
 import { MAX_FILE_SECONDS } from "../audio/decode";
 import { loadDataset, type DatasetLoad } from "../model/datasetLoader";
@@ -10,7 +10,7 @@ import { orderSpeakers, secondsLabel, speakerDescription } from "../model/datase
 import type { HearingStatus, RecordingChoice, VoiceId } from "../useSession";
 import { SETUP_CLIP_LIMIT } from "../model/voices";
 
-type Source = "torgo" | "file";
+type Source = "torgo" | "file" | "mic";
 type Which = "test" | "all" | "enrolment";
 const SHOWN = 12;
 /** Larger files are refused before decoding; a minute of WAV at 48 kHz stereo is about 11 MB. */
@@ -19,6 +19,9 @@ const MAX_FILE_BYTES = 40 * 1024 * 1024;
 export function HearRecording(props: {
   hearing: HearingStatus;
   busy: boolean;
+  /** What the "Microphone" source shows: start listening, set up your voice, settings. */
+  micPanel: ReactNode;
+  listening: boolean;
   onHear: (choice: RecordingChoice) => void;
   onStop: () => void;
   onDismiss: () => void;
@@ -37,25 +40,34 @@ export function HearRecording(props: {
     };
   }, []);
   const index = load?.status === "ready" ? load.index : undefined;
+  // A visitor who is speaking sees the microphone controls.
+  useEffect(() => {
+    if (props.listening) setSource("mic");
+  }, [props.listening]);
   const working = props.hearing.step !== "idle" && props.hearing.step !== "error";
 
   return (
     <section className="hear" aria-labelledby="hear-title">
       <div className="hear-head">
         <h2 id="hear-title" tabIndex={-1}>
-          Hear a recording
+          Input
         </h2>
         <div className="segmented" role="group" aria-label="Where the recording comes from">
           <button aria-pressed={source === "torgo"} className={source === "torgo" ? "on" : ""} onClick={() => setSource("torgo")}>
-            TORGO recordings
+            TORGO
           </button>
           <button aria-pressed={source === "file"} className={source === "file" ? "on" : ""} onClick={() => setSource("file")}>
-            Your own file
+            Your file
+          </button>
+          <button aria-pressed={source === "mic"} className={source === "mic" ? "on" : ""} onClick={() => setSource("mic")}>
+            Microphone
           </button>
         </div>
       </div>
 
-      {source === "torgo" ? (
+      {source === "mic" ? (
+        props.micPanel
+      ) : source === "torgo" ? (
         index ? (
           <TorgoPicker index={index} disabled={working || props.busy} onHear={props.onHear} />
         ) : (
@@ -122,8 +134,8 @@ function TorgoPicker({ index, disabled, onHear }: { index: DatasetIndex; disable
         </button>
       </div>
       <p className="muted hear-note">
-        {speaker} has {description || "no description"}. The first time you hear one of {speaker}&rsquo;s clips, the pipeline sets up their voice from up
-        to {SETUP_CLIP_LIMIT} of their set-up clips, exactly as the evaluation did. Test clips were never used for that.
+        {speaker}: {description || "no description"}. Their first clip sets up their voice from {SETUP_CLIP_LIMIT} of their set-up clips, as in
+        the evaluation; test clips are never used for that.
       </p>
       {clips.length === 0 ? (
         <p className="muted">No clips match.</p>

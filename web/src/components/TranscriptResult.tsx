@@ -9,7 +9,19 @@ import { seconds } from "./bits";
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
-export function TranscriptResult({ turn }: { turn?: TurnModel }) {
+export function TranscriptResult({ turn, pending }: { turn?: TurnModel; pending?: string }) {
+  // A new recording has been chosen but has not reached the pipeline yet: show that, not the last result.
+  if (pending) {
+    return (
+      <section className="transcript-result" aria-labelledby="result-title" aria-busy="true">
+        <header className="result-head">
+          <h2 id="result-title">What it heard</h2>
+          <p className="muted">{pending}</p>
+        </header>
+        <p className="result-text placeholder">Listening…</p>
+      </section>
+    );
+  }
   if (!turn || turn.origin !== "file" || !turn.recording) return null;
   const { recording } = turn;
   const done = turn.stage === "done";
@@ -139,16 +151,26 @@ function HearerTable({ turn, reference, final }: { turn: TurnModel; reference?: 
               <th scope="row">
                 {r.hearer && <span className={`hearer-dot dot-${r.hearer}`} aria-hidden="true" />} {r.name}
               </th>
-              <td>{r.text ? <>&ldquo;{r.text}&rdquo;</> : <span className="muted">{r.failure ?? "nothing"}</span>}</td>
-              {reference && <td className="num">{r.scored !== undefined ? pct(errorRate(countErrors(reference, r.scored))) : "–"}</td>}
-              <td className="num">{r.hearer === "realtime" ? "while playing" : seconds(r.time)}</td>
+              <td className="cell-text">{r.text ? <>&ldquo;{r.text}&rdquo;</> : <span className="muted">{r.failure ?? "nothing"}</span>}</td>
+              {reference && (
+                <td className="num cell-wer">
+                  {r.scored !== undefined ? pct(errorRate(countErrors(reference, r.scored))) : "–"}
+                  <span className="cell-unit"> wrong</span>
+                </td>
+              )}
+              <td className="num cell-time">{r.hearer === "realtime" ? "while playing" : seconds(r.time)}</td>
             </tr>
           ))}
           <tr className="final-row">
             <th scope="row">The pipeline</th>
-            <td>{final ? <>&ldquo;{final}&rdquo;</> : <span className="muted">nothing</span>}</td>
-            {reference && <td className="num">{pct(errorRate(countErrors(reference, final)))}</td>}
-            <td className="num">{seconds(turn.totalSeconds)}</td>
+            <td className="cell-text">{final ? <>&ldquo;{final}&rdquo;</> : <span className="muted">nothing</span>}</td>
+            {reference && (
+              <td className="num cell-wer">
+                {pct(errorRate(countErrors(reference, final)))}
+                <span className="cell-unit"> wrong</span>
+              </td>
+            )}
+            <td className="num cell-time">{seconds(turn.totalSeconds)}</td>
           </tr>
         </tbody>
       </table>

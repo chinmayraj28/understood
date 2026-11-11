@@ -41,7 +41,15 @@ A turn that was confirmed or corrected is added to the phrasebook, so it gets be
 
 The recognisers disagreed, so it asked rather than guessing. That is the behaviour the whole design is built around: **a wrong action is worse than a slow one**, because the person cannot undo it by hand.
 
-## What else is on the page
+## The site
+
+Three pages under one header:
+
+- **Home** (`#/`): what it is, how a sentence travels through the five stages, the TORGO results, and how your voice is handled. The opening diagram is a real run: TORGO speaker M05 saying "up", heard as "Uh" by two recognisers and "up" by Gemini.
+- **Pipeline** (`#/pipeline`): the workspace. Input on the left (a TORGO recording, your own file, or the microphone) with the stage switches under it; the scored transcript and the pipeline line in the middle; an inspector on the right for the phrasebook, the conversation and the pretend phone.
+- **Recordings** (`#/recordings`): every TORGO clip on your computer.
+
+What you can do there:
 
 - **Hear a recording.** The main way in. Pick a real TORGO recording of a person with dysarthria (by speaker, test or set-up clip, or search), or choose your own audio file (WAV, MP3, M4A, OGG or WebM, up to 60 seconds, decoded in the browser). It plays out loud while the live recogniser writes it down, then goes through every stage. The answer is shown as a transcript in large type and, when what was said is known (the TORGO prompt, or text you type), every word is marked right or wrong, with the share of words wrong for each recogniser on its own and for the whole pipeline, scored exactly as the evaluation scored it. A recording is only transcribed: nothing is acted on, asked, spoken or learned.
 - **Heard as the right voice.** The first time you hear one of a TORGO speaker's clips, the page sets up that speaker's voice from up to 20 of their own set-up clips, as the evaluation did: their phrases become Scribe's hints, five clips become Gemini's examples, and every mishearing becomes a phrasebook entry (about 20 seconds, once per visit). Test clips are never used for this, so a test clip is a fair test; hearing a set-up clip says so. Your own file can be heard as nobody in particular, as your own voice, or as a TORGO speaker.
@@ -49,7 +57,7 @@ The recognisers disagreed, so it asked rather than guessing. That is the behavio
 - **Stage switches.** Turn off the hints, Gemini, the examples, the phrasebook or the repair, hear the same recording again, and compare the two results side by side.
 - **Evaluation.** The numbers from real recordings of people with dysarthria (below), led by how many words the transcript got wrong.
 - **Speak live.** **Start listening** still runs your own speech through the same pipeline, with the pretend phone acting or asking first.
-- **Recordings** (the second tab). Every TORGO clip on your computer, playable, filtered by speaker, severity, word or sentence, and set-up or test. For the 121 clips the evaluation tested, open one to see what each recogniser heard, Claude's reading and the decision, next to what Scribe alone did. It needs the data on disk (`eval/scripts/fetch_torgo.sh`, about 1 GB). Because TORGO may not be redistributed, the audio is served only by the local server, only to this computer, and only for clips listed in the manifest; a hosted copy of the site has no such route.
+- **Recordings.** Every TORGO clip on your computer, playable, filtered by speaker, severity, word or sentence, and set-up or test. For the 121 clips the evaluation tested, open one to see what each recogniser heard, Claude's reading and the decision, next to what Scribe alone did. It needs the data on disk (`eval/scripts/fetch_torgo.sh`, about 1 GB). Because TORGO may not be redistributed, the audio is served only by the local server, only to this computer, and only for clips listed in the manifest; a hosted copy of the site has no such route.
 - **Clear everything** deletes the phrasebook, the recordings and the conversation from the browser.
 
 ## Run it
@@ -86,7 +94,7 @@ npm install
 npm run dev
 ```
 
-4. Open http://localhost:5173. Under **Hear a recording**, pick a TORGO clip (this needs the data: `eval/scripts/fetch_torgo.sh`) or choose your own audio file, and watch it go through the pipeline. To speak instead, click **Start listening**, allow the microphone and say "message Sam running late"; the turn ends after 2.5 seconds of silence, or when you say "done".
+4. Open http://localhost:5173 and click **Open the pipeline**. Under **Input**, pick a TORGO clip (this needs the data: `eval/scripts/fetch_torgo.sh`) or choose your own audio file, and watch it go through the pipeline. To speak instead, choose **Microphone**, click **Start listening**, allow the microphone and say "message Sam running late"; the turn ends after 2.5 seconds of silence, or when you say "done".
 
 The server keeps the keys. They never reach the browser: the page gets only a short-lived token for the live transcript. Each visitor is limited to 20 sentences a minute (90 on the local server, because setting up a TORGO speaker's voice hears 20 clips at once). If a key is missing, the server says so when it starts, and that stage shows as failed on the page.
 
@@ -94,11 +102,11 @@ The server keeps the keys. They never reach the browser: the page gets only a sh
 
 ```bash
 cd web
-npm test            # 249 tests in 26 files, no network
+npm test            # 259 tests in 28 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 249 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 11 Nov 2026: all 259 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -166,12 +174,13 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 
 ```
 web/                  the website (submission)
-  src/                the page: React; microphone, end of turn, live transcript, pipeline view
+  src/                the pages: React; pages/ (home, pipeline), router.ts, microphone,
+                      recordings, live transcript, pipeline view
   server/             the API: Hono on Node; /api/understand, /api/realtime-token,
                       /api/speak, /api/act; the three recognisers and the repair;
                       dataset.ts, the local-only TORGO route for the Recordings tab
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
-  tests/              Vitest: 249 tests, plus live.smoke.ts
+  tests/              Vitest: 259 tests, plus live.smoke.ts
 Packages/
   HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)

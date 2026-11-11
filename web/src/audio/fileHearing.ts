@@ -9,6 +9,8 @@ import { SAMPLE_RATE } from "./wav";
 
 /** 20 ms, the microphone's piece size; the transcriber sends five at a time (100 ms). */
 const PIECE = SAMPLE_RATE / 50;
+/** How often the page wakes to send what has played. */
+const STEP_MS = 100;
 /** After the last piece, how long to wait for the live recogniser's final words. */
 const FINAL_WAIT_MS = 2500;
 /** How long to wait for the browser to allow sound before saying so. */
@@ -73,14 +75,23 @@ export async function playAndTranscribe(pcm: Int16Array, hooks: PlayHooks, trans
     const startAt = context.currentTime + 0.05;
     source.start(startAt);
 
-    // Each piece is sent as it plays, at the pace a person would say it.
-    for (let offset = 0, index = 0; offset < pcm.length; offset += PIECE, index++) {
+    // The audio is sent as it plays, at the pace a person would say it. Each time the page wakes
+    // it sends everything played so far, in 20 ms pieces, so a background tab (where the browser
+    // slows timers to once a second) still keeps up with the sound.
+    let sent = 0;
+    // If the audio clock ever stalls, the rest is sent anyway once the clip should have ended.
+    const deadline = performance.now() + (pcm.length / SAMPLE_RATE) * 1000 + 5000;
+    while (sent < pcm.length) {
       if (signal.aborted) throw stopped();
-      const piece = pcm.subarray(offset, Math.min(pcm.length, offset + PIECE));
-      if (connected) transcriber.send(piece);
-      if (index % 5 === 0) hooks.onLevel(level(piece));
-      const due = startAt + ((index + 1) * PIECE) / SAMPLE_RATE;
-      await wait(Math.max(0, (due - context.currentTime) * 1000), signal);
+      const clock = performance.now() > deadline ? Infinity : context.currentTime - startAt;
+      const played = Math.min(pcm.length, Math.max(0, Math.floor(clock * SAMPLE_RATE)));
+      const upTo = played >= pcm.length ? pcm.length : played - (played % PIECE);
+      for (; sent < upTo; sent += PIECE) {
+        const piece = pcm.subarray(sent, Math.min(upTo, sent + PIECE));
+        if (connected) transcriber.send(piece);
+      }
+      if (upTo > 0) hooks.onLevel(level(pcm.subarray(Math.max(0, upTo - SAMPLE_RATE / 10), upTo)));
+      if (sent < pcm.length) await wait(STEP_MS, signal);
     }
     hooks.onLevel(0);
     if (!connected) return { realtimeFailure: failure };

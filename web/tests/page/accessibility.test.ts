@@ -81,7 +81,7 @@ describe("14) One announcement per turn", () => {
   });
 
   it("the page-level region is polite and only speaks failures", () => {
-    const app = source("App.tsx");
+    const app = source("pages/PipelinePage.tsx");
     expect(app).not.toMatch(/aria-live="assertive"/);
     expect(app).toMatch(/pageAnnouncement\(turn\)/);
   });
@@ -89,10 +89,12 @@ describe("14) One announcement per turn", () => {
 
 describe("15) Smooth scrolling respects reduced motion", () => {
   it("every smooth scroll in the code checks the setting first", () => {
-    const app = source("App.tsx");
-    for (const line of app.split("\n").filter((l) => /behavior:/.test(l))) {
-      expect(line).toMatch(/still \? "auto" : "smooth"/);
+    for (const file of ["App.tsx", "pages/Landing.tsx"]) {
+      const app = source(file);
+      for (const line of app.split("\n").filter((l) => /behavior:/.test(l))) {
+        expect(line).toMatch(/still \? "auto" : "smooth"/);
+      }
+      expect(app).toMatch(/prefers-reduced-motion: reduce/);
     }
-    expect(app).toMatch(/prefers-reduced-motion: reduce/);
   });
 });

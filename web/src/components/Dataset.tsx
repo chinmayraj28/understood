@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react
 import type { DatasetClip, DatasetIndex, DatasetResult } from "../../shared/dataset";
 import { clipAudioUrl } from "../../shared/dataset";
 import { loadDataset, type DatasetLoad } from "../model/datasetLoader";
+import { href } from "../router";
 import {
   decisionWords,
   filterClips,
@@ -190,7 +191,7 @@ function ClipRow({ clip, speaker, results }: { clip: DatasetClip; speaker: strin
         onPlay={pauseOthers}
         aria-label={`${clip.speaker} saying “${clip.prompt}”`}
       />
-      <a className="button small quiet clip-hear" href={`#hear=${encodeURIComponent(clip.id)}`}>
+      <a className="button small quiet clip-hear" href={href.hear(clip.id)}>
         Hear it in the pipeline<span className="visually-hidden">: {clip.speaker} saying &ldquo;{clip.prompt}&rdquo;</span>
       </a>
       {full && (

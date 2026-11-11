@@ -9,6 +9,8 @@ import "./styles/panels.css";
 import "./styles/sections.css";
 import "./styles/dataset.css";
 import "./styles/hear.css";
+import "./styles/site.css";
+import "./styles/workspace.css";
 import "./styles/motion.css";
 
 createRoot(document.getElementById("root")!).render(

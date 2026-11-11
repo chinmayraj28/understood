@@ -1,32 +1,5 @@
-/* The view tabs in the masthead, and the recordings view. */
+/* The recordings page. */
 
-.views {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 999px;
-  background: var(--sunk);
-  margin-right: auto;
-}
-.view-tab {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: var(--t-0);
-  color: var(--ink-2);
-  text-decoration: none;
-}
-.view-tab:hover {
-  color: var(--ink);
-}
-.view-tab[aria-current="page"] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgb(20 32 54 / 0.12);
-}
 
 .dataset-head {
   padding: 24px 0 8px;
@@ -234,4 +207,47 @@
 .clip-result > .muted {
   margin-top: 6px;
   font-size: var(--t-0);
+}
+
+/* Phones: the speakers become one swipeable row, so the clips start near the top. */
+@media (max-width: 600px) {
+  .dataset-head {
+    padding-top: 16px;
+  }
+  .dataset-head h1 {
+    font-size: var(--t-4);
+  }
+  .dataset-head p {
+    font-size: var(--t-0);
+  }
+  .dataset-speakers {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+    margin-left: calc(-1 * var(--gutter));
+    margin-right: calc(-1 * var(--gutter));
+    padding: 2px var(--gutter) 8px;
+    scrollbar-width: thin;
+  }
+  .dataset-speakers .speaker-chip {
+    flex: 0 0 auto;
+    min-width: 112px;
+    scroll-snap-align: start;
+  }
+  .dataset-filters label,
+  .dataset-filters input[type="search"],
+  .dataset-filters select {
+    width: 100%;
+  }
+  .dataset-filters label {
+    flex: 1 1 100%;
+  }
+  .clip {
+    padding: 12px 14px;
+  }
+  .clip-audio {
+    width: 100%;
+  }
 }

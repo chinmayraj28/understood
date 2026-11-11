@@ -304,3 +304,64 @@
 .clip-hear {
   justify-self: start;
 }
+
+.result-table .cell-unit {
+  display: none;
+}
+/* Phones: each recogniser becomes a short block (name and score, then what it heard). */
+@media (max-width: 600px) {
+  .transcript-result .table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .result-table thead {
+    display: none;
+  }
+  .result-table tbody {
+    display: grid;
+    gap: 8px;
+  }
+  .result-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name wer" "text text" "time time";
+    gap: 2px 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--paper);
+  }
+  .result-table th,
+  .result-table td {
+    padding: 0;
+    border: 0;
+  }
+  .result-table th[scope="row"] {
+    grid-area: name;
+  }
+  .result-table .cell-wer {
+    grid-area: wer;
+    font-weight: 800;
+  }
+  .result-table .cell-unit {
+    display: inline;
+    font-weight: 400;
+    color: var(--ink-2);
+  }
+  .result-table .cell-text {
+    grid-area: text;
+    font-size: var(--t-1);
+  }
+  .result-table .cell-time {
+    grid-area: time;
+    color: var(--ink-3);
+  }
+  .result-table .final-row {
+    background: var(--ink);
+    color: var(--surface);
+  }
+  .result-table .final-row .cell-unit,
+  .result-table .final-row .cell-time {
+    color: #c9d2e3;
+  }
+}

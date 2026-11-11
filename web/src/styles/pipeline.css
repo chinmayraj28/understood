@@ -99,10 +99,13 @@
 }
 .stop-aside {
   flex-shrink: 0;
+  max-width: 100%;
 }
 
 .chip {
   display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 3px 12px;
   border-radius: 999px;
   background: var(--sunk);
@@ -341,13 +344,18 @@ mark.disputed {
 
 .agreement {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   align-items: center;
   margin-top: 8px;
   padding: 14px 18px;
   border-radius: var(--radius-m);
   background: var(--surface);
   border: 2px solid var(--rule);
+}
+.agreement > :not(.agree-count) {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 .agree-count {
   font-family: var(--mono);

@@ -61,7 +61,7 @@ export function SpeakStation(props: {
         ) : turn?.origin === "file" ? (
           <>The live recogniser heard nothing it could write down.</>
         ) : (
-          <>Hear a recording above, or start listening and speak.</>
+          <>Pick a recording, or start listening.</>
         )}
       </p>
       {recording && <p className="example-label">{recording.label}, heard as {recording.voiceLabel}.</p>}

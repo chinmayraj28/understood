@@ -251,3 +251,14 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 - The evaluation table on the page now shows the real TORGO numbers (`web/scripts/exportEval.ts`); it had been showing placeholder numbers marked as fake. Words wrong leads the table.
 
 **Rejected.** Running Scribe realtime faster than real time to save waiting (the realtime API is built for live audio, and hearing the clip play is part of seeing what the pipeline hears). A separate "transcription" server route (the same pipeline with one flag keeps one code path, so the evaluation's numbers still describe it). Learning from recordings into the visitor's own phrasebook (it would teach them someone else's speech).
+
+## 11 Nov 2026: a landing page, and the pipeline as its own workspace page
+
+**What the user asked.** "Work on a better UI for pipeline. Make it a separate page, let the main page be the landing page. Industrial level design and structure, influenced by current modern websites, so it's more organised and not everywhere."
+
+**What was chosen.** Three hash-routed pages under one header (`web/src/router.ts`), so the site is still static files: a landing page (`#/`), the pipeline workspace (`#/pipeline`) and the recordings (`#/recordings`). Old links (`#dataset`, `#hear=<clip>`) still work.
+- The landing page tells the story once: what it is, the five stages as a numbered line (they are a sequence), "it asks before it acts", the TORGO results as a words-wrong chart with the full table one click away, privacy, and a way in. Its opening diagram is a real run (M05 saying "up": two recognisers heard "Uh", Gemini heard "up"), drawn as three coloured tracks merging into one line, the transit-line idea the pipeline view already used. That diagram is the one moment of motion, and it is still under reduced motion.
+- The pipeline page is a workspace: input on the left (TORGO, your file, or the microphone, with the stage switches folded under it), the scored transcript and the pipeline line in the middle, and an inspector on the right (phrasebook, conversation, phone). On narrow screens the columns stack in that order.
+- One typeface (Atkinson Hyperlegible Next, made for low-vision readers) and the existing palette: cool paper, navy ink, the three recogniser colours and signal yellow.
+
+**Rejected.** A router library (three pages do not need one, and hash routes keep hosting static). A dark marketing-style hero (the product's identity is the transit map, which reads best on light paper). Keeping everything on one long page (what the user asked to change).
