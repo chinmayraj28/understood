@@ -38,7 +38,7 @@ function ticks(scale: number, limit: number): number[] {
 }
 
 function switchedOff(turn: TurnModel | undefined, hearer: HearerName): boolean {
-  return hearer === "gemini" && turn !== undefined && !turn.switches.gemini;
+  return (hearer === "gemini" || hearer === "gemini4") && turn !== undefined && !turn.switches.gemini;
 }
 
 export function HearStation({ state, turn }: { state: StationState; turn?: TurnModel }) {

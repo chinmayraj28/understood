@@ -35,7 +35,8 @@ export interface StructuredRequest {
 
 /**
  * How each model is told not to think first (checked against the API on 11 Nov 2026): Haiku takes
- * "disabled", Sonnet 5.5 "between_tools", and Opus 5.5 only "adaptive" with a low effort.
+ * "disabled" and Sonnet 5.5 "between_tools". Opus 5.5 accepts only "adaptive", which keeps thinking
+ * short at low effort but does not switch it off.
  */
 export function thinkingOff(model: string): Record<string, string> {
   if (model.startsWith("claude-sonnet-5")) return { type: "between_tools" };
@@ -47,7 +48,8 @@ export function thinkingOff(model: string): Record<string, string> {
 export function claudeBody(request: Pick<StructuredRequest, "instructions" | "input" | "schema" | "model">): Record<string, unknown> {
   return {
     model: request.model ?? claudeModel,
-    max_tokens: 1024,
+    // Opus may think a little (it cannot be turned off); leave it room to finish the answer.
+    max_tokens: (request.model ?? claudeModel).startsWith("claude-opus") ? 4096 : 1024,
     system: request.instructions,
     messages: [{ role: "user", content: request.input }],
     output_config: { format: { type: "json_schema", schema: request.schema }, effort: "low" },

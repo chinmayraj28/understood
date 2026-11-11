@@ -148,10 +148,11 @@ async function realtimeText(id: string): Promise<string> {
     const committed: string[] = [];
     let partial = "";
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => resolve(), 20000);
+      // No final text in 20 s is a failure, not an empty answer: it must not be cached as one.
+      const timer = setTimeout(() => reject(new Error("realtime timed out")), 20000);
       socket.onerror = () => reject(new Error("realtime socket error"));
       socket.onmessage = (event) => {
-        const m = JSON.parse(String(event.data)) as { message_type?: string; text?: string };
+        const m = JSON.parse(String(event.data)) as { message_type?: string; text?: string; error?: string };
         const type = m.message_type ?? "";
         if (type === "partial_transcript") partial = m.text ?? "";
         else if (type.startsWith("committed_transcript") || type.startsWith("final_transcript")) {
@@ -159,6 +160,10 @@ async function realtimeText(id: string): Promise<string> {
           partial = "";
           clearTimeout(timer);
           resolve();
+        } else if (!["session_started", "edited_transcript"].includes(type)) {
+          // auth, quota, rate limits: an error, never cached as an answer
+          clearTimeout(timer);
+          reject(new Error(`realtime ${type} ${m.error ?? ""}`));
         }
       };
       socket.onopen = async () => {

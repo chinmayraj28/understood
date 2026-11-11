@@ -11,7 +11,7 @@ const SWITCHES: { key: keyof StageSwitches; name: string; what: string }[] = [
   { key: "gemini", name: "Gemini", what: "Gemini listening alongside Scribe (two Gemini models for a recording)." },
   { key: "examples", name: "Their clips", what: "Show Gemini a few recordings of the same voice." },
   { key: "phrasebook", name: "Phrasebook", what: "Catch a mishearing you confirmed before." },
-  { key: "repair", name: "Claude's repair", what: "Weigh the three texts and the phrasebook into one reading." },
+  { key: "repair", name: "Claude's repair", what: "Weigh the transcripts and the phrasebook into one reading." },
 ];
 
 export function StageSwitchPanel(props: {

@@ -273,7 +273,7 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 - Scribe `scribe_v3` with `no_verbatim`, and no hints (hints hurt new sentences).
 - Two Gemini listeners shown five of the speaker's clips, in one labelled message with the new clip last: Gemini 3.1 Pro (the Gemini lane) and Gemini 4 Carbon (a new fourth lane). The old chat-turn layout let Gemini answer with an example's text.
 - Claude Opus 5.5 merging the transcripts with a transcription prompt: it knows Scribe and the live transcript are one engine, and uses the speaker's known phrases only when a transcript nearly matches one.
-- `scribe_v3_live` for the live transcript.
+- `scribe_v3_live` for the live transcript of a recording playing (the microphone keeps `scribe_v2_realtime`, and spoken turns keep `scribe_v2` with every word).
 
 **Result (held-out, 110 clips):** words wrong 42.4% → 18.7%; speakers with dysarthria 55.7% → 24.4%; every word right 43% → 64%.
 

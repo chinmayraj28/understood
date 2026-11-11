@@ -188,7 +188,8 @@ export class Conversation {
       realtimeKeyterms: SCRIBE_REALTIME.keyterms,
       phrasebook: voice ? voice.phrasebook : this.state.entries,
       examples: voice ? voice.examples : chooseExamples(this.clips),
-      keyterms: voice ? voice.keyterms : keytermsFor(this.state.entries),
+      // Your own voice: the phrases you have confirmed, as known phrases (not the demo phone's contacts).
+      keyterms: voice ? voice.keyterms : [...new Set(this.state.entries.map((e) => e.meant))].slice(0, 40),
       context: { recentTurns: [] },
       switches,
       purpose: "transcribe",

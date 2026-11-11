@@ -4,7 +4,7 @@
 //
 // The microphone must be off while this runs, or it would hear the speakers.
 
-import { ScribeLiveTranscriber, type LiveTranscriber } from "./liveTranscript";
+import { RECORDING_REALTIME_MODEL, ScribeLiveTranscriber, type LiveTranscriber } from "./liveTranscript";
 import { SAMPLE_RATE } from "./wav";
 
 /** 20 ms, the microphone's piece size; the transcriber sends five at a time (100 ms). */
@@ -36,7 +36,7 @@ export interface PlayResult {
 
 const stopped = () => new DOMException("Stopped", "AbortError");
 
-export async function playAndTranscribe(pcm: Int16Array, hooks: PlayHooks, transcriber: LiveTranscriber = new ScribeLiveTranscriber()): Promise<PlayResult> {
+export async function playAndTranscribe(pcm: Int16Array, hooks: PlayHooks, transcriber: LiveTranscriber = new ScribeLiveTranscriber(RECORDING_REALTIME_MODEL)): Promise<PlayResult> {
   const { signal, context } = hooks;
   if (signal.aborted) throw stopped();
   let source: AudioBufferSourceNode | null = null;

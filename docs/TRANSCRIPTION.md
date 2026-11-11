@@ -59,6 +59,11 @@ Single recognisers, no hints (66 clips):
 | Scribe v3 live (realtime) | 32.7% | 65.9% | 23.4% |
 | Scribe v2 realtime (before) | 37.6% | 75.0% | 27.2% |
 | Whisper large v3 | 39.6% | 63.6% | 32.9% |
+| Google Chirp 3 | 38.1% | 70.5% | 29.1% |
+| GPT Transcribe | 34.7% | 54.5% | 29.1% |
+| Meta Muse Voice Transcribe 1.0 | 40.6% | 56.8% | 36.1% |
+| xAI Grok STT 2.0 | 41.1% | 70.5% | 32.9% |
+| NVIDIA Nemotron 3.5 Transcribe | 44.1% | 113.6% | 24.7% |
 
 Audio language models, shown the speaker's own set-up clips (66 clips):
 
@@ -88,18 +93,18 @@ Merging (66 clips, the same cached transcripts):
 
 | Change | Why (evidence) |
 |---|---|
-| Scribe `scribe_v3` with `no_verbatim` | best single recogniser; fillers and restarts left out (25.2% vs 29.7%) |
+| Scribe `scribe_v3` with `no_verbatim`, for a recording | best single recogniser; fillers and restarts left out (25.2% vs 29.7%) |
 | No recogniser hints for a recording | hints raised words wrong 25.2% → 28.2% |
 | Gemini lane: Gemini 3.1 Pro for a recording | 13.9% vs 36.6% for Flash |
 | Examples in one labelled message, new clip last and named | fixed copying; Pro 19.8% → 13.9% |
 | A fourth lane, Gemini 4 Carbon | an independent second listener; the merge drops to 11.4% |
 | Repair for a recording: a transcription prompt, Claude Opus 5.5, the speaker's set-up phrases as known phrases | merging, not guessing a command; Opus beat Sonnet and Haiku |
 | The prompt says which recognisers are related, and uses a known phrase only when a transcript nearly matches it | the first end-to-end run showed Claude replacing correctly heard words with words from the speaker's list ("horn" became "warm") and the two Scribe voices outvoting Gemini; on the same 110 dev transcripts, 13.4% → 9.6% |
-| Live transcript: `scribe_v3_live` | 32.7% vs 37.6% |
+| Live transcript of a recording playing: `scribe_v3_live` | 32.7% vs 37.6% |
 | Voice setup hears its clips with Scribe only | the phrasebook matches Scribe; setup is fast |
 | Longer limits for a recording (15 s to hear, 8 s to repair) | Gemini with examples sometimes needs 5–14 s |
 
-Spoken turns to the pretend phone are unchanged: Scribe with hints, Gemini Flash, Haiku, 4 s.
+Spoken turns to the pretend phone are unchanged: `scribe_v2` with hints and every word kept (`no_verbatim` could drop the "no" in "Mum, no, Sam"), `scribe_v2_realtime` for the microphone, Gemini Flash with the chat-turn layout, Haiku, 4 s. A review on 11 Nov caught that the first version had switched speech to v3 and `no_verbatim` as well; that was undone.
 
 **Tried and not adopted:**
 - the recording's length as a hint to Claude (slightly worse);
@@ -128,6 +133,17 @@ clips, same scoring, 10 clips per speaker (4 sentences, 6 words), 110 clips per 
 Each listener alone on the same held-out clips: Scribe v3 35.0%, Gemini 3.1 Pro 33.1%, Scribe v3
 live 40.8%. The merge is what brings it to 18.7%.
 
+**Seen and unseen.** 15 of the 110 held-out clips say a phrase the speaker also said during setup,
+so it is among Claude's known phrases. On those, words wrong were 6.3% before and after. On the 95
+unseen clips, 45.9% before and **19.9%** after: the gain is on new speech, not on recognising known
+phrases.
+
+**Checks on the numbers.** The "before" run used `scribe_v2_realtime` for the live transcript, as
+the page did then. In the held-out "after" run, one clip had no live transcript and one had no
+repair (Claude did not answer in time), so it fell back to the recognisers; both count as they
+came out. The harness was fixed afterwards so a failed live transcript can never be cached as an
+empty answer.
+
 **Dev half (used for the choices, so it flatters):** before 34.8%, after 9.9% (single words 31.8%,
 sentences 5.2%, every word right 77%). The gap between dev and held-out is partly tuning and partly
 that the held-out half is harder (Scribe alone: 23.3% on dev, 35.0% held-out).
@@ -155,6 +171,8 @@ recording playing.
   the held-out run it sometimes ran out its 15 seconds; the merge then works with the others).
 - Isolated single words stay hard (39% wrong held-out), and homophones cannot be told apart
   without context ("knew" and "new").
+- Opus 5.5 cannot have thinking switched off, only kept short ("adaptive" at low effort); if it
+  runs past 8 seconds the turn falls back to the recognisers.
 - The prompt was tuned on dev transcripts; its examples of Scribe's habits ("Got it", "Yep")
   came from reading dev failures.
 - The cost per recording is higher: two Gemini Pro-class calls with five example clips each, and

@@ -59,7 +59,8 @@ export function Landing({ section }: { section?: string }) {
     else window.scrollTo({ top: 0 });
   }, [section]);
   const results = useEvalResults();
-  const transcription = useTranscriptionResults();
+  const loaded = useTranscriptionResults();
+  const transcription = loaded === "failed" ? null : loaded;
   const scribe = results.data?.setups.find((s) => s.id === "scribe");
   const full = results.data?.setups.find((s) => s.id === "phrasebook");
   const pct = (v?: number | null) => (v === undefined || v === null ? "…" : `${Math.round(v * 100)}%`);
@@ -160,7 +161,11 @@ export function Landing({ section }: { section?: string }) {
               most severe speakers are still often misheard.
             </p>
           </div>
-          {transcription ? <BeforeAfterChart data={transcription} /> : <p className="muted">Loading the results…</p>}
+          {transcription ? (
+            <BeforeAfterChart data={transcription} />
+          ) : (
+            <p className="muted">{loaded === "failed" ? "The results could not be loaded." : "Loading the results…"}</p>
+          )}
         </div>
         {results.data && (
           <details className="results-more">
@@ -223,13 +228,13 @@ interface TranscriptionResults {
 }
 
 /** The held-out before-and-after measurement, written by scripts/exportTranscription.ts. */
-function useTranscriptionResults(): TranscriptionResults | null {
-  const [data, setData] = useState<TranscriptionResults | null>(null);
+function useTranscriptionResults(): TranscriptionResults | null | "failed" {
+  const [data, setData] = useState<TranscriptionResults | null | "failed">(null);
   useEffect(() => {
     fetch("/eval/transcription.json")
-      .then((r) => (r.ok ? (r.json() as Promise<TranscriptionResults>) : null))
+      .then((r) => (r.ok ? (r.json() as Promise<TranscriptionResults>) : Promise.reject(new Error(String(r.status)))))
       .then(setData)
-      .catch(() => setData(null));
+      .catch(() => setData("failed"));
   }, []);
   return data;
 }

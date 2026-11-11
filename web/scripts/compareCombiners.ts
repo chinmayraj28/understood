@@ -56,6 +56,14 @@ function knownPhrases(speaker: string): string[] {
   return keytermsFrom([...enrol.filter((c) => c.repeatedLater), ...enrol.filter((c) => !c.repeatedLater)].slice(0, 20).map((c) => c.prompt)).slice(0, 40);
 }
 
+/** The pipeline lane an input corresponds to. */
+function hearerOf(input: string): Hypothesis["hearer"] {
+  if (input.startsWith("realtime:")) return "realtime";
+  if (input.startsWith("scribe:")) return "scribe";
+  if (input.includes("gemini-4")) return "gemini4";
+  return "gemini";
+}
+
 const distance = (a: string, b: string) => alignWords(a, b).filter((w) => w.op !== "ok").length;
 /** The transcript with the smallest total word distance to the others. */
 function medoid(texts: string[]): string {
@@ -74,8 +82,8 @@ function snap(reading: string, texts: string[]): string {
 
 async function claudeMerge(model: string, clipId: string, texts: string[], withPhrases: boolean): Promise<string> {
   const clip = clipById.get(clipId)!;
-  const hypotheses: Hypothesis[] = texts.map((text, i) => ({ hearer: (["scribe", "gemini", "realtime"] as const)[i % 3], text, seconds: 0 }));
-  // Inputs beyond three are labelled by position; the prompt does not depend on the names.
+  // Each input is named by the recogniser it really is: the prompt says Scribe and realtime are one engine.
+  const hypotheses: Hypothesis[] = texts.map((text, i) => ({ hearer: hearerOf(inputs[i]), text, seconds: 0 }));
   const input = { hypotheses, phrasebookMatch: null, context: {}, knownWords: withPhrases ? knownPhrases(clip.speaker) : [], purpose: "transcribe" as const };
   try {
     const answer = await askClaude(env.ANTHROPIC_API_KEY, {

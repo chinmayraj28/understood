@@ -104,7 +104,7 @@ export async function setUpSpeaker(index: DatasetIndex, speaker: string, label: 
   };
 }
 
-/** Hears one set-up clip with Scribe (with the hints) and Gemini (no examples yet). */
+/** Hears one set-up clip with Scribe alone, as a recording (no hints), so the phrasebook matches what Scribe hears later. */
 async function hearForSetup(deps: SetupDeps, wavBase64: string, keyterms: string[], clipId: string): Promise<Partial<Record<HearerName, string>>> {
   const heard: Partial<Record<HearerName, string>> = {};
   const events = deps.understand(

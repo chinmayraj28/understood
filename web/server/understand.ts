@@ -52,7 +52,7 @@ export async function understandTurn(
   const hearerSeconds = transcribing ? Math.max(deps.hearerSeconds, TRANSCRIBE_LIMITS.hearerSeconds) : deps.hearerSeconds;
   const repairSeconds = transcribing ? Math.max(deps.repairSeconds, TRANSCRIBE_LIMITS.repairSeconds) : deps.repairSeconds;
   const keyterms = hintsFor(request, start);
-  const examples = request.switches.gemini && request.switches.examples ? request.examples.slice(0, transcribing ? 10 : 5) : [];
+  const examples = request.switches.gemini && request.switches.examples ? request.examples.slice(0, 5) : [];
   emit({ type: "turn.started", turnId: request.turnId, at: start, keyterms, exampleCount: examples.length });
 
   // Stage 2: the hearers, in parallel, each with its own time limit.

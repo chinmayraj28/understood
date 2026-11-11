@@ -30,16 +30,20 @@ export interface HearingRequest {
 // accurate recogniser tried on TORGO dev clips on 11 Nov: 25.2% of words wrong, against 29.7% for
 // scribe_v2 and 27.7% for the best other service (scripts/compareRecognisers.ts, docs/TRANSCRIPTION.md).
 export const scribeModel = "scribe_v3";
+/** A spoken turn keeps scribe_v2 and every word: no_verbatim could drop the "no" in "Mum, no, Sam". */
+export const conversationScribeModel = "scribe_v2";
 
 export const scribeEndpoint = "https://api.elevenlabs.io/v1/speech-to-text";
 
 /** The multipart form for Scribe. Separate so tests can check its shape. */
 export function scribeForm(request: HearingRequest): FormData {
   const form = new FormData();
-  form.append("model_id", scribeModel);
+  const transcribing = request.purpose === "transcribe";
+  form.append("model_id", transcribing ? scribeModel : conversationScribeModel);
   form.append("language_code", "en");
-  // Leave out "uh", "um" and restarts: on impaired speech they are mostly the recogniser filling a gap.
-  form.append("no_verbatim", "true");
+  // For a recording, leave out "uh", "um" and restarts: on impaired speech they are mostly the
+  // recogniser filling a gap. Never for a spoken turn, where a false start can carry a "no".
+  if (transcribing) form.append("no_verbatim", "true");
   // Sounds such as "(laughs)" are not words the person said; leave them out of the text.
   form.append("tag_audio_events", "false");
   // Word timings are not used, so don't ask for them.
@@ -81,8 +85,8 @@ export const geminiModel = "google/gemini-3.8-flash";
 export const transcribeGeminiModel = "google/gemini-3.1-pro-preview";
 export const secondListenerModel = "google/gemini-4-carbon";
 const maxExamples = 5;
-/** A recording may show more of the speaker's clips: accuracy kept rising up to 19 in arXiv 2509.15516. */
-export const maxTranscribeExamples = 10;
+/** Five of the speaker's clips: ten were no better on TORGO dev clips (docs/TRANSCRIPTION.md). */
+export const maxTranscribeExamples = 5;
 const maxExampleCharacters = 200;
 const maxVocabulary = 100;
 export const noSpeechReply = "(no speech)";
@@ -130,7 +134,9 @@ export const geminiTranscribeInstruction = [
 function transcribeBody(request: HearingRequest, examples: SpeechExample[]): Record<string, unknown> {
   const content: unknown[] = [];
   examples.forEach((example, i) => {
-    content.push({ type: "text", text: `Reference recording ${i + 1} of ${examples.length}. This person said: "${example.text.trim()}"` });
+    // The text is untrusted (it can come from the page): one line, as a JSON string, so it cannot close the quote.
+    const said = JSON.stringify(example.text.replace(/[\r\n]+/g, " ").trim());
+    content.push({ type: "text", text: `Reference recording ${i + 1} of ${examples.length}. This person said: ${said}` });
     content.push(audioPart(example.wavBase64));
   });
   content.push({ type: "text", text: examples.length ? "The recording to transcribe (a new recording, not one of the references):" : "The recording to transcribe:" });

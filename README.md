@@ -17,10 +17,10 @@ Two things from the research shaped the design. First, the **meaning often survi
 Say "message Sam running late". The page draws the sentence moving along a line of five stations:
 
 1. **Hear it several ways, at the same time.**
-   - **ElevenLabs Scribe v3** is the main recogniser. For a spoken turn it gets hints: the person's contacts and usual phrases.
+   - **ElevenLabs Scribe** is the main recogniser: v2 with hints (the person's contacts and usual phrases) for a spoken turn, v3 without fillers for a recording.
    - **Gemini** (through OpenRouter) hears the clip after being shown a few recordings of this same person with their correct text: Gemini 3.8 Flash for a spoken turn, Gemini 3.1 Pro for a recording.
    - **Gemini 4 Carbon**, for a recording only, listens the same way as a second, independent ear.
-   - **Scribe v3 live** writes the live transcript you see while you speak or a recording plays, and is a vote too.
+   - **Scribe realtime** writes the live transcript you see while you speak (v2) or a recording plays (v3 live), and is a vote too.
 
    ElevenLabs gives no "how sure am I" score, so **agreement between the recognisers is the confidence signal**. Words they disagree on light up.
 2. **Phrasebook.** It keeps the mishearings this person has corrected before ("heard *call some*, meant *call Sam*, confirmed 3 times"). If a recogniser makes the same mistake again, the phrasebook catches it.
@@ -103,11 +103,11 @@ The server keeps the keys. They never reach the browser: the page gets only a sh
 
 ```bash
 cd web
-npm test            # 281 tests in 30 files, no network
+npm test            # 283 tests in 30 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 281 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 11 Nov 2026: all 283 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift package the evaluation ran against (`Packages/HFUnderstand`). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -133,7 +133,7 @@ On 11 November the pipeline's transcription was measured end to end, the way the
 | Speakers with dysarthria | 55.7% | 24.4% |
 | Every word right | 43% | 64% |
 
-Each listener alone gets 33% to 41% wrong on the same clips; merging them is what brings it to 19%. What changed, the evidence behind each choice (including a comparison of 13 speech recognisers and 5 audio models), how it was measured, and the limits are in [`docs/TRANSCRIPTION.md`](docs/TRANSCRIPTION.md). The scripts are in `web/scripts/` (`evalTranscription.ts` runs the whole pipeline).
+Each listener alone gets 33% to 41% wrong on the same clips; merging them is what brings it to 19%. On the 95 held-out clips whose phrase the speaker never said during setup, it fell from 45.9% to 19.9%. What changed, the evidence behind each choice (including a comparison of 13 speech recognisers and 5 audio models), how it was measured, and the limits are in [`docs/TRANSCRIPTION.md`](docs/TRANSCRIPTION.md). The scripts are in `web/scripts/` (`evalTranscription.ts` runs the whole pipeline).
 
 ## The earlier evaluation: deciding when to act
 
@@ -196,7 +196,7 @@ web/                  the website (submission)
                       /api/speak, /api/act; the three recognisers and the repair;
                       dataset.ts, the local-only TORGO route for the Recordings tab
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
-  tests/              Vitest: 281 tests, plus live.smoke.ts
+  tests/              Vitest: 283 tests, plus live.smoke.ts
 Packages/
   HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)
@@ -210,7 +210,7 @@ Where to read first: [`docs/SPEECH_PLAN.md`](docs/SPEECH_PLAN.md) (why each stag
 
 ## Credits
 
-- **ElevenLabs** (Scribe v3 and Scribe v3 live speech-to-text, and text-to-speech), **Google Gemini** (3.8 Flash, 3.1 Pro, 4 Carbon) through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5 and Opus 5.5).
+- **ElevenLabs** (Scribe v2, v3 and realtime speech-to-text, and text-to-speech), **Google Gemini** (3.8 Flash, 3.1 Pro, 4 Carbon) through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5 and Opus 5.5).
 - **TORGO**: Rudzicz, Namasivayam and Wolff (2012), *The TORGO database of acoustic and articulatory speech from speakers with dysarthria*, Language Resources and Evaluation 46(4):523–541.
 - Fonts: Atkinson Hyperlegible, self-hosted (see `web/public/fonts/README.md`).
 - The earlier Mac prototype in the repo adapts parts of **Clicky** by Farza (MIT). Details are in `third_party/clicky/NOTICE.md`.
