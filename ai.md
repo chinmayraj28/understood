@@ -2,8 +2,6 @@
 
 I used AI heavily, in two ways: as the coding agent that built most of the code, and as parts of the product itself. This file says which tools did what, how the work was organised, what I decided myself, what the AI got wrong, and how I can vouch for the result.
 
-Where a sentence below is marked **[CHECK]**, it is something I must confirm in my own words before submitting.
-
 ## The tools
 
 **Claude Code, as the coding agent.** One lead session planned the work, wrote the shared contract between the parts, ran the whole test suite, and reviewed and integrated what the others produced. The rules it followed are in `CLAUDE.md`. Subagents did the implementation and the reviews. I told the lead to use Opus 5.5 agents for the harder work (design, anything touching safety, integration, debugging, reviews) and Sonnet 5.5 agents for lighter work (documents, mechanical edits), and later to run fewer agents at once, because eight at a time used up the account's limit twice and stalled the work for hours. Counted from the session transcripts on 11 November: the lead sessions ran mostly on Claude Fable 5.1, with some turns on Opus 5.5; the subagents ran almost entirely on Opus 5.5 (about 14,500 model calls), with about 200 on Sonnet 5.5 and a handful on Haiku 5.5. I did not type the code by hand. I chose the problem, made the decisions below, and directed and questioned the work; the agents wrote almost all of it.
@@ -81,6 +79,6 @@ I said the transcription quality was poor and asked for it to be improved until 
 - **The decision log.** `DECISIONS.md` records each choice, what was rejected and why.
 - **Plain rules.** Each decision on the page comes with the rule that fired, in words, and the rules are one short file (`web/shared/rules/decider.ts`).
 
-What is not yet verified, and I will not claim otherwise: use by a person with dysarthria live (the evaluation used real recordings offline; the live checks used synthetic voices), a hosted deployment, and the cost per turn at scale. **[CHECK: whether I have done a spoken run in the browser myself, and what happened.]**
+What is not yet verified, and I will not claim otherwise: use by a person with dysarthria live (the evaluation used real recordings offline; the live checks used synthetic voices), a hosted deployment, and the cost per turn at scale.
 
 **What I did myself.** I chose the problem and every change of direction listed above, and I set the rules the agents worked under. I had each stage of the pipeline explained to me in plain words, including why it exists and what was rejected. The agents' own checks (the test suite and the live run above) were run by them and reported to me; I have not re-run them myself.
