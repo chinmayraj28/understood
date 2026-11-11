@@ -274,3 +274,59 @@ Where to read first: `docs/ARCHITECTURE.md` (the contracts between packages), `D
 - **Clicky** by Farza (https://github.com/farzaa/clicky, MIT licence, copyright 2026 Farza), cloned on 5 November 2026 at commit `e71105ce091d71dff4d89cf5d8d37ea1df460961`. Taken and adapted: the menu bar app entry point; the full-screen transparent click-through overlay window; the companion that follows the pointer with a spring; the waveform and spinner; pointer polling; the coordinate conversions; the design-token structure; the menu bar status item and panel; and the permission checks. Each adapted file starts with a comment naming the Clicky file it came from. The full list is in `third_party/clicky/NOTICE.md` and the licence is in `third_party/clicky/LICENSE`. **Not taken:** Clicky's voice pipeline, its Claude and OpenAI clients, its element detector, the Cloudflare proxy, analytics, the updater, the login item, its name, icon, branding, music and copy. The colours, icon, wording, behaviour and everything under `Packages/` are ours. Clicky shows you where to click and needs a key held down; this app does the clicking and has no key to press.
 - **ElevenLabs** (voice and conversation, Swift SDK 3.4.0), **Anthropic** (Claude and its computer-use toolset), and **TypeSafe's Jev** through **OpenRouter** (fast decisions).
 - `legacy_python/` holds an early Python prototype kept only as read-only reference. It is not part of the product and is not run.
+
+## The Mac app's settings file
+
+Until 11 Nov 2026 this was `.env.example`. The website needs only the keys now listed there; the Mac app also reads these:
+
+```bash
+# Copy this file to .env and fill in the three keys. .env is ignored by git. Never commit real keys.
+# The app and the command-line tools read it through Settings.load() in Packages/HFCore.
+
+# ElevenLabs: the voice (speech-to-text, the conversation agent, text-to-speech).
+# The key needs access to ElevenAgents (write), Text to Speech, Speech to Text and Voices (read).
+ELEVENLABS_API_KEY=
+# Written for you by `cd Packages/HFVoice && swift run hf-voice setup`, which creates the agent.
+ELEVENLABS_AGENT_ID=
+
+# Anthropic: Claude looks at the screen and chooses each click and key press during a task.
+ANTHROPIC_API_KEY=
+
+# OpenRouter: access to Jev, the fast classifier behind the safety check and the stop watcher.
+# Optional. Without it the app still runs and uses keyword rules, which ask for confirmation more often.
+OPENROUTER_API_KEY=
+
+# --- Waking and sleeping (all optional) ---
+# What you say to start a conversation. It is listened for on the Mac itself.
+# WAKE_PHRASE=Hey Handsfree
+# "phrase" sleeps until the wake phrase is heard. "always" keeps a conversation open (demos and testing).
+# WAKE_MODE=phrase
+# Seconds of silence, with no task running, before it goes back to sleep.
+# SLEEP_AFTER_IDLE_S=15
+# The shorter wait when nothing at all was said after waking (probably woken by mistake).
+# SLEEP_AFTER_UNUSED_WAKE_S=8
+# If the phrase is not being heard, try these in this order:
+# 1. The language it is listened for in. Empty means the Mac's own. Accent matters a lot.
+#    Supported for English: en_AU en_CA en_GB en_IE en_IN en_NZ en_SG en_US en_ZA
+# WAKE_LANGUAGE=en_GB
+# 2. Other phrases that also wake it, separated by commas.
+# WAKE_ALTERNATIVES=Okay computer, Hello laptop
+# 3. How sure it must be: strict, balanced or lenient. Lenient misses less and wakes by mistake more.
+# WAKE_STRICTNESS=balanced
+
+# --- Other optional settings; the defaults are in Packages/HFCore/Sources/HFCore/Settings.swift ---
+# TASK_MODEL=claude-sonnet-5-5
+# SMALL_MODEL=claude-haiku-5-5
+# MAX_TASK_STEPS=25
+# MAX_TASK_SECONDS=180
+# JEV_MODEL=jev-latest
+
+# --- Only for the project's own live tests ---
+# Safe targets for real end-to-end tests. The tests never message or invite anyone else.
+TEST_WHATSAPP_CONTACT=
+TEST_INVITE_EMAIL=
+# Separate ElevenLabs agents, created by the tests and the evaluation themselves, so that
+# neither can ever change the agent the app talks to. Safe to leave empty.
+ELEVENLABS_TEST_AGENT_ID=
+ELEVENLABS_EVAL_AGENT_ID=
+```

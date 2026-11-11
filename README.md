@@ -169,24 +169,19 @@ web/                  the website (submission)
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
   tests/              Vitest: 199 tests, plus live.smoke.ts
 Packages/
-  HFUnderstand/       the same pipeline in Swift, and the hf-understand evaluation tool
-  HF*/                the parked Mac app's packages (see docs/MAC_APP.md)
+  HFCore/, HFUnderstand/   the same pipeline in Swift, and the hf-understand evaluation tool
 eval/                 the TORGO evaluation: method, scripts, results (no audio)
-docs/                 SPEECH_PLAN.md (the design), WEB_PLAN.md (the website),
-                      MAC_APP.md (the parked app), and one document per part
-Handsfree/            the parked Mac app
+docs/                 SPEECH_PLAN.md (the design), WEB_PLAN.md (the website)
 DECISIONS.md          every significant choice, what was rejected, and why
 ```
 
+The other folders (`Handsfree/`, the other `Packages/`, `scripts/`, `third_party/`) hold an earlier Mac prototype that is not part of this submission.
+
 Where to read first: [`docs/SPEECH_PLAN.md`](docs/SPEECH_PLAN.md) (why each stage exists), then [`DECISIONS.md`](DECISIONS.md).
-
-## How it got here
-
-I first built **Handsfree**, a native Mac app that lets someone who cannot use their hands run their Mac by speaking goals. It moves the real pointer, wakes on "Hey Handsfree", and has a spoken safety check before anything is sent. On 7 November, feedback from a Hiya engineer pointed me at understanding impaired speech, and that turned out to be the biggest gap for the same users: an assistant that acts for you is useless if it mishears you. I built the understanding pipeline as its own package, measured it, and on 9 November moved the demo to this website so every stage can be seen. The Mac app is parked, not deleted; [`docs/MAC_APP.md`](docs/MAC_APP.md) explains how to build and run it.
 
 ## Credits
 
 - **ElevenLabs** (Scribe speech-to-text and text-to-speech), **Google Gemini** through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5).
 - **TORGO**: Rudzicz, Namasivayam and Wolff (2012), *The TORGO database of acoustic and articulatory speech from speakers with dysarthria*, Language Resources and Evaluation 46(4):523–541.
 - Fonts: Atkinson Hyperlegible, self-hosted (see `web/public/fonts/README.md`).
-- The parked Mac app adapts parts of **Clicky** by Farza (MIT). Details are in `third_party/clicky/NOTICE.md` and [`docs/MAC_APP.md`](docs/MAC_APP.md#credits).
+- The earlier Mac prototype in the repo adapts parts of **Clicky** by Farza (MIT). Details are in `third_party/clicky/NOTICE.md`.

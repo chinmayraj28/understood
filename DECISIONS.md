@@ -219,3 +219,11 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **Rejected.** A Swift web server around the existing package (it depends on Apple's recogniser, so it could only run on a Mac). Vercel hosting (it runs on AWS).
 
 **Parked, not deleted.** The Mac app, the own-listening mode in `HFVoice` (its consent gap was closed before parking: a question counts as said only once its audio has played; see `docs/spikes/own_listening.md`) and `TurnRecorder` (a noise-floor bug found on 9 Nov).
+
+## 11 Nov 2026: the website is the whole submission
+
+**What the user asked.** "Scratch the Mac app, the website is our main."
+
+**What was chosen.** Documents only: `README.md`, `WRITEUP.md`, `ai.md` and `.env.example` now describe the website alone. The write-up keeps one sentence of history (started as a Mac app, changed course after the Hiya engineer's feedback), because changing course on feedback is part of the story. The old README, including the Mac app's settings template, moved to `docs/MAC_APP.md`.
+
+**Rejected.** Deleting the Mac app's code. Its folders held uncommitted work from other sessions that would have been lost, and `HFCore` and `HFUnderstand` are still needed for the TORGO evaluation. The code stays; the README names those folders in one line as an earlier prototype, and keeps the Clicky credit because Clicky's code is still in the repo.
