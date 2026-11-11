@@ -280,3 +280,15 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **Rejected after measuring:** giving Claude the recording's length; snapping Claude's text to the nearest transcript; ten examples instead of five (no gain); an audio "re-listen" stage (within noise, 4 s slower); Gemini 4 Argon (invents long text for single words); Sonnet and Haiku for the merge (more errors than Opus); OpenAI, Deepgram, AssemblyAI and other recognisers as the main voice (Scribe v3 was best alone; they did not add enough to the merge with the Gemini pair).
 
 **The cost.** A recording takes about 6 to 15 seconds after it plays and costs more (two large audio models with example clips, and Opus). Accepted because the transcript is the point; spoken turns keep the fast path.
+
+## 11 Nov 2026: a keyword-locked demo link from this laptop
+
+**What the user asked.** Let the reviewers try it without their own API keys, unlocked with a keyword sent with the submission. Vercel was suggested.
+
+**What was chosen.** A Cloudflare quick tunnel to the running site, with an `ACCESS_KEY` lock on every paid API route (the page asks for the keyword once). No deploy and no code split were needed with half an hour to the deadline.
+
+**Rejected.** Vercel (it runs on AWS, which this project does not use). A Cloudflare Workers deploy that night (it needs the user's account and moving the TORGO route out; too risky in 30 minutes; it is the next step).
+
+**What went wrong, and the fix.** Tested from outside before sharing: the TORGO recordings were reachable through the tunnel, because tunnelled requests arrive from this machine and passed the local-only check. The link was shut at once; the route now also refuses requests with proxy or Cloudflare forwarding headers and checks the host the visitor typed. Re-tested: 403 from outside, 200 locally.
+
+**Limits.** The link lives only while the laptop is on, and changes if the tunnel restarts.

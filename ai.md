@@ -43,6 +43,8 @@ For a recording (the pipeline page's main use since 11 Nov), Claude Opus 5.5 doe
 
 I am listing these because they show where the process needs checking, and because I can explain each one.
 
+**Recordings that would have left the computer.** To share a demo link, the agent put the site behind a Cloudflare tunnel with a keyword lock, then tested the link from outside before sending it to me. That test showed the TORGO recordings were reachable: through the tunnel every request arrives from this machine, so the local-only check passed. The link was shut within about 20 seconds, the check was extended (requests carrying proxy headers are refused, and the host the visitor typed must be this machine), and the link was only shared after the same test returned 403. TORGO may not be redistributed, so this is the kind of mistake that has to be tested for, not assumed away.
+
 **A yes that was not a yes.** A review found that any sentence starting with "okay" or "yes" counted as agreement. So "Okay, message Sam instead", said in reply to "Message Mum?", would have sent the message to Mum. Now a yes counts only if it is just a yes, said after the question finished playing, and questions expire after 60 seconds. The same review found that the page could hear its own spoken question as the person's answer; it now ignores its own voice.
 
 **The model could choose who a message went to.** In an early version, Claude filled in the recipient, so "tell her I'm late" could go to whoever it guessed. Now code accepts a name only if it is a known contact and the person actually said it, and otherwise the phone asks who. Message and call always ask before acting, and the question is written by code, so it always names who and what.

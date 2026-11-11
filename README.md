@@ -2,7 +2,11 @@
 
 **A voice assistant that understands speech other assistants get wrong.**
 
-Understood is a website that listens to one spoken sentence and works out what the person meant, even when their speech is slow, slurred or quiet. It shows every step on screen as it happens, with real timings, and then either acts or asks a short question first.
+Understood is a website that takes one sentence of speech, slow, slurred or quiet, and works out what the person said and meant. Play it a real recording of a person with dysarthria, upload your own, or speak. It shows every step on screen as it happens, with real timings, marks the transcript word by word against what was really said, and for spoken sentences acts on a pretend phone or asks a short question first.
+
+**Results:** on 220 held-out recordings of people with and without dysarthria, the pipeline gets 20.6% of words wrong, down from 39.9% before the transcription work, and 27.6% for speakers with dysarthria (from 52.9%). See [Does it work?](#does-it-work-transcription-accuracy).
+
+**Try it:** a temporary, keyword-locked demo link was sent with the submission (it runs from my laptop). To run it yourself, see [Run it](#run-it).
 
 It is my submission for the Hiya Voice AI Challenge (Accessibility track). The one-page write-up is in [WRITEUP.md](WRITEUP.md), and the AI tools I used are described in [ai.md](ai.md).
 
@@ -97,6 +101,8 @@ npm run dev
 
 4. Open http://localhost:5173 and click **Open the pipeline**. Under **Input**, pick a TORGO clip (this needs the data: `eval/scripts/fetch_torgo.sh`) or choose your own audio file, and watch it go through the pipeline. To speak instead, choose **Microphone**, click **Start listening**, allow the microphone and say "message Sam running late"; the turn ends after 2.5 seconds of silence, or when you say "done".
 
+To share it with someone without giving them API keys, set `ACCESS_KEY` in `.env` and expose port 5173 (for example `cloudflared tunnel --url http://localhost:5173`). Every paid route then needs the keyword, which the page asks for once. The TORGO recordings stay local: requests that come through a tunnel or proxy are refused.
+
 The server keeps the keys. They never reach the browser: the page gets only a short-lived token for the live transcript. Each visitor is limited to 20 sentences a minute (90 on the local server, because setting up a TORGO speaker's voice hears 20 clips at once). If a key is missing, the server says so when it starts, and that stage shows as failed on the page.
 
 ## Run the tests
@@ -178,7 +184,8 @@ swift run -c release hf-understand eval ../../eval/data/torgo/manifest.json --li
 
 ## Known limits
 
-- **Not hosted yet.** It runs locally. Cloudflare Workers was planned (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6.
+- **Not permanently hosted.** For the submission it was shared temporarily from the author's laptop through a Cloudflare quick tunnel, locked with a keyword (`ACCESS_KEY`), so it is only up while that laptop is on. A permanent deployment to Cloudflare Workers is the plan (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6. The TORGO recordings are never served to other machines, tunnel or not.
+- **The microphone listens continuously.** It is built for people who cannot click, so every pause of about 2.5 seconds ends a turn and it starts listening again. A long pause, background noise or (rarely) the assistant's own spoken reply can start a new turn. Turning off "Speak replies aloud" and pressing **Stop listening** after a sentence avoids this when demonstrating. Recordings and uploads do not have this problem and are the measured path.
 - **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. A recording, where accuracy matters most, takes about 6 to 15 seconds after it has played, because the stronger listeners are slower.
 - **Hard cases.** Isolated single words stay hard (36% wrong held-out), homophones such as "knew" and "new" cannot be told apart without context, and the most severe speakers (M02, M04) are still misheard about half the time.
 - **Gemini with example clips is erratic.** On 11 Nov the same request took anywhere from 1.4 to 14 seconds. A spoken turn gives it 4 seconds and goes on with two votes when it is late. A recording, where the transcript is the point, gives it 15 seconds and Claude 8, so a recording can take up to about 25 seconds.
