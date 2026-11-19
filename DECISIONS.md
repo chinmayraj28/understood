@@ -346,3 +346,10 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 - **Chosen:** on the Pipeline page the right column shows the phrasebook only. The pretend phone and the conversation log sit in a closed "Advanced" card below it, described as optional. Nothing was deleted: the decider, the yes/no questions and the phone all still run.
 - **Why:** the product is a speech pipeline: what was said, heard right. Acting on it is an optional extra, and the page should lead with the part that is measured.
 - **Rejected:** deleting the action code (the yes/no question is how the phrasebook learns), and hiding the decision station (it shows why the pipeline asked).
+
+## 19 Nov 2026: Speaking gives a transcript; acting is a switch under "Advanced"
+
+- **Chosen:** what is said into the microphone is now heard exactly like a recording: the strong listeners (Scribe v3, two Gemini models, Opus to merge) and a transcript as the result. The Decide station is gone from the line. A switch in the "Advanced" card, "Act on what I say", brings back the pretend phone, the yes/no questions and the Decide station. It is off by default and remembered in the browser.
+- **Why:** the project is about recognising what a person with cerebral palsy said. Speaking used to take the faster, weaker route built for phone commands, so the microphone showed the part of the project that is not measured.
+- **Cost:** with the switch off, nothing is learned from live speech: the phrasebook learned from the yes/no answers. It still fills from "Set up your voice". A spoken turn is also slower, a few seconds, because the stronger models are slower.
+- **Rejected:** deleting the action code.

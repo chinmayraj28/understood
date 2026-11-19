@@ -99,6 +99,11 @@ export function useSession() {
   const [endSilence, setEndSilence] = useState(() => readSetting("endSilence", 2.5));
   const [speakReplies, setSpeakReplies] = useState(() => readSetting("speakReplies", true));
   const [autoListen, setAutoListen] = useState(() => readSetting("autoListen", false));
+  // Off (the default): what you say is written down, like any recording. On (under "Advanced"):
+  // it is treated as a request to the pretend phone, which acts or asks first.
+  const [actOnSpeech, setActOnSpeech] = useState(() => readSetting("actOnSpeech", false));
+  const actOnSpeechRef = useRef(actOnSpeech);
+  actOnSpeechRef.current = actOnSpeech;
   const [live, setLive] = useState<LiveInput>({ text: "", level: 0, quietSeconds: 0, status: "off", endSilenceSeconds: endSilence, playing: false });
   const [hearing, setHearing] = useState<HearingStatus>({ step: "idle" });
   /** The voice the latest recording was heard as, when it is not your own. */
@@ -150,6 +155,7 @@ export function useSession() {
   }, [listener, endSilence]);
 
   useEffect(() => writeSetting("autoListen", autoListen), [autoListen]);
+  useEffect(() => writeSetting("actOnSpeech", actOnSpeech), [actOnSpeech]);
 
   const handleEnrolTurn = useCallback(
     async (turn: FinishedTurn) => {
@@ -212,6 +218,17 @@ export function useSession() {
       if (recordingAloud.current) return;
       if (enrolRef.current.open) return void handleEnrolTurn(turn);
       if (!own) return;
+      if (!actOnSpeechRef.current) {
+        // Transcript only: heard by the same strong listeners as a recording. Nothing is acted on or asked.
+        if (pageCommand(turn.realtimeText) === "stop") return stopListening();
+        setVoiceInUse(null);
+        return void own.transcribe({
+          wavBase64: turn.wavBase64,
+          realtimeText: turn.realtimeText,
+          speechSeconds: turn.speechSeconds,
+          recording: { label: "What you said", voiceLabel: "your voice (set up in this browser)" },
+        });
+      }
       const command = own.getState().pending ? null : pageCommand(turn.realtimeText);
       if (command === "setup") return setEnrol({ ...ENROLMENT_START, open: true });
       if (command === "stop") return stopListening();
@@ -466,6 +483,6 @@ export function useSession() {
     stopHearing,
     leavePipeline,
     dismissHearing: () => setHearing({ step: "idle" }),
-    settings: { endSilence, setEndSilence, speakReplies, setSpeakReplies, autoListen, setAutoListen },
+    settings: { endSilence, setEndSilence, speakReplies, setSpeakReplies, autoListen, setAutoListen, actOnSpeech, setActOnSpeech },
   };
 }

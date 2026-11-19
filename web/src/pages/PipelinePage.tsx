@@ -41,8 +41,15 @@ export function PipelinePage({ session }: { session: Session }) {
   const micPanel = (
     <div className="mic-panel">
       <p className="muted">
-        Speak a sentence to the pretend phone, such as &ldquo;Message Mum, I&rsquo;m running late&rdquo;. It acts, or asks one short question
-        first. End a turn by pausing, by saying &ldquo;done&rdquo;, or with the space bar.
+        {session.settings.actOnSpeech ? (
+          <>
+            Speak a sentence to the pretend phone, such as &ldquo;Message Mum, I&rsquo;m running late&rdquo;. It acts, or asks one short question
+            first.
+          </>
+        ) : (
+          <>Say anything. Every listener hears it and the transcript appears on the right.</>
+        )}{" "}
+        End a turn by pausing, by saying &ldquo;done&rdquo;, or with the space bar.
       </p>
       <div className="mic-actions">
         <button
@@ -127,6 +134,7 @@ export function PipelinePage({ session }: { session: Session }) {
               onStart={session.startListening}
               micBlocked={session.recordingBusy}
               onEndTurn={session.endTurn}
+              acting={session.settings.actOnSpeech}
             />
           </div>
           <section className="ws-section" aria-labelledby="compare-title">
@@ -159,6 +167,13 @@ export function PipelinePage({ session }: { session: Session }) {
                 <span>Advanced</span>
                 <span className="muted">Optional: acting on what was heard, on a pretend phone</span>
               </summary>
+              <label className="advanced-switch">
+                <input type="checkbox" checked={session.settings.actOnSpeech} onChange={(e) => session.settings.setActOnSpeech(e.target.checked)} />
+                <span>
+                  <strong>Act on what I say</strong>
+                  <span className="muted">Off: speech is only written down. On: it goes to the pretend phone, which acts or asks first.</span>
+                </span>
+              </label>
               <div className="segmented full" role="group" aria-label="Show">
                 {(["phone", "conversation"] as Advanced[]).map((tab) => (
                   <button key={tab} aria-pressed={advanced === tab} className={advanced === tab ? "on" : ""} onClick={() => setAdvanced(tab)}>

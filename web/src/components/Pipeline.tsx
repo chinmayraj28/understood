@@ -67,6 +67,8 @@ export function Pipeline(props: {
   onEndTurn: () => void;
   /** True while a recording is loading or playing: the microphone cannot be opened. */
   micBlocked?: boolean;
+  /** True when speech is acted on (the optional phone part): only then is there a Decide station. */
+  acting?: boolean;
 }) {
   const { turn, live } = props;
   // While a new turn is being spoken, the previous turn's stations fade back.
@@ -75,7 +77,8 @@ export function Pipeline(props: {
   const speakState: StationState = speakingNow || (!turn && props.listening) ? "current" : turn ? "passed" : "ahead";
   const line = useRef<HTMLOListElement>(null);
   // Where the train stands: at "You speak" while someone talks, else at the turn's station.
-  const stationIndex = speakingNow || (!turn && props.listening) ? 0 : turn ? TRAIN_STOP[turn.stage] : -1;
+  const lastStation = props.acting ? 4 : 3; // without Decide, the line ends at Claude's reading
+  const stationIndex = speakingNow || (!turn && props.listening) ? 0 : turn ? Math.min(TRAIN_STOP[turn.stage], lastStation) : -1;
   return (
     <section aria-labelledby="pipeline-title" className="pipeline">
       <h2 id="pipeline-title" className="visually-hidden">
@@ -95,7 +98,7 @@ export function Pipeline(props: {
           <HearStation state={stateOf(turn, "hear")} turn={turn} />
           <PhrasebookStation state={stateOf(turn, "phrasebook")} turn={turn} entryCount={props.entryCount} />
           <ReadingStation state={stateOf(turn, "repair")} turn={turn} />
-          <DecisionStation state={stateOf(turn, "decide")} turn={turn} />
+          {props.acting && <DecisionStation state={stateOf(turn, "decide")} turn={turn} />}
         </ol>
         <Train line={line} station={stationIndex} turnKey={turn?.turnId ?? ""} />
       </div>
