@@ -33,8 +33,9 @@ export function decide(input: DecisionInput): Decided {
     return { decision: { kind: "cannotHear", message: cannotHearMessage }, rule: "No recogniser heard any words, so it says it can't hear." };
   }
 
-  // 2. "Stop" from any recogniser, or from the reading, acts immediately.
-  for (const text of [...heard.map((hypothesis) => hypothesis.text), input.reading?.text ?? ""]) {
+  // 2. "Stop" from any recogniser, or from the reading, acts immediately. Not in a recording:
+  //    there it is only a word, and one recogniser mishearing it must not replace the transcript.
+  for (const text of input.transcribing ? [] : [...heard.map((hypothesis) => hypothesis.text), input.reading?.text ?? ""]) {
     const stop = stopCommand(text);
     if (stop) return { decision: { kind: "act", text: stop }, rule: `"${capitalise(stop)}" on its own always acts at once, because stopping is always safe.` };
   }

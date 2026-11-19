@@ -300,3 +300,11 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **What was chosen.** One claim, the real M05 example, the five stops as a single line, the measured result, and one line each on asking first and on privacy. The measurement notes and the older evaluation stay one click away under "How this was measured", so the caveats are not lost. The footer became one line and keeps the TORGO credit.
 
 **Rejected.** A new visual style. The transit line and the readable typeface already suit the product; the generic feel came from cards, numbered columns, repeated calls to action and long paragraphs.
+
+## 19 Nov 2026: what "stop" means
+
+**What was chosen.** A lone "stop" or "cancel" while a question waits drops the question and cancels any waiting message or call, on the page alone, with no server call, so it still works when the network fails. In a recording being transcribed, "stop" is only a word: one listener hearing it no longer replaces the transcript.
+
+**Limit, kept on purpose.** The microphone is silent while the page speaks and for 0.7 seconds after, which stops a reply triggering itself. So "stop" said over a spoken question is not heard; it has to come after the question.
+
+**Rejected.** Streaming the microphone to the live transcript during replies, to catch "stop" over speech. It would send more room audio out and bring back the echo problem the silence fixed.

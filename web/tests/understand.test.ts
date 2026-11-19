@@ -106,6 +106,13 @@ describe("understandTurn", () => {
     }
   });
 
+  it("keeps Claude's transcript when one recogniser hears only stop in a recording", async () => {
+    const claude = fakeClaude({ text: "up", confidence: "medium", alternatives: [], reason: "" });
+    const result = await run(request({ purpose: "transcribe" }), says("stop"), says("up"), claude);
+    expect(claude.calls).toHaveLength(1);
+    expect(result.decision).toEqual({ kind: "confirm", question: "Up?", reading: "up" });
+  });
+
   it("never delays stop for repair", async () => {
     const claude = fakeClaude(null, 5000);
     const result = await run(request({ context: { pendingQuestion: "Send it?", expectedAnswers: ["yes", "no"] } }), says("stop"), says("top hmm"), claude);

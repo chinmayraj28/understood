@@ -21,6 +21,18 @@ function turn(heard: Partial<Record<HearerName, string>>, decision: Decision): T
 const message: ActResponse = { action: { kind: "message", to: "Mum", text: "I'm running late" }, reply: "Send \"I'm running late\" to Mum?", needsConfirmation: true };
 const waitingToSend = (): Pending => afterAct(message, PHONE_HOME, "Message Mum I'm running late").pending!;
 
+describe("Stop while a question waits", () => {
+  it("also cancels a message waiting underneath a clarifying question", () => {
+    const below = waitingToSend();
+    const nested: Pending = { kind: "understand", question: "Did you say yes?", reading: "yes", expectedAnswers: ["yes", "no"], parent: below };
+    const outcome = resolveDecision(turn({ scribe: "stop" }, { kind: "act", text: "stop" }), nested, []);
+    expect(outcome.pending).toBeUndefined();
+    expect(outcome.actOn).toBeUndefined();
+    expect(outcome.learned).toBeUndefined();
+    expect(outcome.phone!(phoneAsk(PHONE_HOME, message.action, "Send it?")).screen).toBe("home");
+  });
+});
+
 describe("A yes is only a yes (finding 1)", () => {
   it.each(["yes", "Yes please.", "yeah", "okay", "go ahead", "send it", "do it", "that's right", "yes, thank you"])("%s is a yes", (text) => {
     expect(classifyAnswer(text).kind).toBe("yes");

@@ -14,11 +14,17 @@ class FakeServer implements Transport {
   understood: UnderstandRequest[] = [];
   acted: string[] = [];
   spoken: string[] = [];
+  /** Set to make every turn fail, as when the network is down. */
+  down = false;
+  /** Set to replace the next decision. */
+  nextDecision?: Decision;
 
   async *understand(request: UnderstandRequest): AsyncGenerator<PipelineEvent> {
     this.understood.push(request);
+    if (this.down) throw new Error("The network is down.");
     const text = request.realtimeText ?? "";
-    const decision: Decision = { kind: "act", text };
+    const decision: Decision = this.nextDecision ?? { kind: "act", text };
+    this.nextDecision = undefined;
     yield { type: "turn.started", turnId: request.turnId, at: 0, keyterms: [], exampleCount: 0 };
     yield { type: "hear.started", hearer: "scribe", at: 1 };
     yield { type: "hear.done", hearer: "scribe", at: 2, text, seconds: 0.4 };
@@ -89,6 +95,65 @@ describe("Questions expire (finding 4)", () => {
     expect(conversation.getState().phone.screen).toBe("home");
     expect(conversation.getState().chat.some((l) => /went unanswered for a minute/.test(l.text))).toBe(true);
     expect(server.understood.at(-1)?.context.pendingQuestion).toBeUndefined();
+  });
+
+  it.each(["stop", "Stop.", "cancel"])("%s drops the question and cancels the waiting message", async (word) => {
+    const { conversation, server, say } = await setUp();
+    const acted = server.acted.length;
+    await say(word);
+    const state = conversation.getState();
+    expect(state.pending).toBeUndefined();
+    expect(state.phone.screen).toBe("home");
+    expect(state.phone.messages).toHaveLength(0);
+    expect(server.acted).toHaveLength(acted);
+    expect(state.chat.at(-1)?.text).toBe("Okay, stopped.");
+  });
+
+  it("stop counts even when its speech began before the question finished", async () => {
+    const { conversation, say } = await setUp();
+    await say("stop", 0);
+    expect(conversation.getState().pending).toBeUndefined();
+    expect(conversation.getState().phone.screen).toBe("home");
+  });
+
+  it("stop works with the network down, and is not counted as a failed try", async () => {
+    const { conversation, server, say } = await setUp();
+    server.down = true;
+    await say("stop");
+    const state = conversation.getState();
+    expect(state.pending).toBeUndefined();
+    expect(state.phone.screen).toBe("home");
+    expect(state.failedTries).toBe(0);
+    expect(state.busy).toBe(false);
+    expect(server.spoken.at(-1)).toBe("Okay, stopped.");
+  });
+
+  it("stop after a nested question expired still clears the waiting message", async () => {
+    const { conversation, server, say } = await setUp();
+    server.nextDecision = { kind: "confirm", question: "Did you say yes?", reading: "yes" };
+    await say("hmm");
+    const acted = server.acted.length;
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 61_000);
+    await say("stop");
+    expect(conversation.getState().pending).toBeUndefined();
+    expect(conversation.getState().phone.screen).toBe("home");
+    expect(server.acted).toHaveLength(acted);
+  });
+
+  it("an expired nested question also clears the waiting message", async () => {
+    const { conversation, server, say } = await setUp();
+    server.nextDecision = { kind: "confirm", question: "Did you say yes?", reading: "yes" };
+    await say("hmm");
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 61_000);
+    await say("play some music");
+    expect(conversation.getState().phone.screen).toBe("home");
+  });
+
+  it("a yes said over the question still does not count", async () => {
+    const { conversation, say } = await setUp();
+    await say("yes", 0);
+    expect(conversation.getState().pending).toBeDefined();
+    expect(conversation.getState().phone.messages).toHaveLength(0);
   });
 
   it("an unrelated request clears the question and cancels the waiting message", async () => {

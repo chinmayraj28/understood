@@ -6,6 +6,7 @@
 
 import type { ActResponse, PhrasebookEntry } from "../../shared/pipeline";
 import { DEMO_CONTACTS } from "../../shared/pipeline";
+import { stopCommand } from "../../shared/rules";
 import { classifyAnswer, confirmQuestion, learnFromTurn, matchOption, optionLabels, wordMiss, words } from "./learning";
 import { phoneAsk, phoneCancel, phonePerform, type PhoneState } from "./phone";
 import { HEARERS, type TurnModel } from "./turn";
@@ -93,8 +94,23 @@ export function resolveDecision(turn: TurnModel, pending: Pending | undefined, e
     case "act":
       // Nothing was waiting: the reading simply goes ahead, and nothing is learned from it.
       if (!pending) return { actOn: decision.text, actSubject: turn, resetTries: true };
+      if (stopCommand(decision.text)) return stopped(pending);
       return answer(pending, decision.text, turn, entries);
   }
+}
+
+/**
+ * "Stop" or "cancel" while a question waits: drop it and every question underneath it, and cancel
+ * a waiting message or call. Nothing is sent, nothing is learned, and nothing more is asked.
+ */
+export function stopped(pending: Pending): Outcome {
+  return { phone: hasWaitingAction(pending) ? phoneCancel : undefined, say: "Okay, stopped.", tone: "done", resetTries: true };
+}
+
+/** True when this question, or one underneath it, is a message or call waiting for a yes. */
+export function hasWaitingAction(pending: Pending): boolean {
+  for (let p: Pending | undefined = pending; p; p = p.parent) if (p.kind === "action") return true;
+  return false;
 }
 
 function answer(p: Pending, text: string, turn: TurnModel, entries: PhrasebookEntry[]): Outcome {

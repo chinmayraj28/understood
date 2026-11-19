@@ -83,6 +83,14 @@ describe("Decider: stop, answers and failures", () => {
     expect(decide(heard("cancel cancel", null, null), { failedTries: 5 })).toEqual({ kind: "act", text: "cancel" });
   });
 
+  it("does not treat stop as a command in a recording being transcribed", () => {
+    const input = { hypotheses: [
+      { hearer: "scribe" as const, text: "up", seconds: 0.1 },
+      { hearer: "gemini" as const, text: "stop", seconds: 0.1 },
+    ], transcribing: true };
+    expect(decideFull(input).decision.kind).not.toBe("act");
+  });
+
   it("treats stop inside a sentence as an ordinary turn", () => {
     expect(decide(heard("stop the music", "stop the music", null), { reading: reading("stop the music", "medium") }))
       .toEqual({ kind: "confirm", question: "Stop the music?", reading: "stop the music" });

@@ -113,6 +113,7 @@ export async function understandTurn(
   const input: DecisionInput = {
     hypotheses, matchesByHearer: byHearer, hintedTerms: keyterms, realtimeKeyterms: request.realtimeKeyterms ?? [], context: request.context,
     failedTries: request.context.failedTries ?? 0,
+    transcribing,
   };
 
   // Fast path: when the evidence alone already lets the decider act (agreement, a strong

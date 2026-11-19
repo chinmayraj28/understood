@@ -16,8 +16,8 @@ import { SCRIBE_REALTIME } from "../audio/liveTranscript";
 import type { VoiceStore } from "../storage/store";
 import { chooseExamples, keytermsFor, words, type Clip } from "./learning";
 import { PHONE_HOME, phoneCancel, type PhoneState } from "./phone";
-import { similarity } from "../../shared/rules";
-import { afterAct, isExpired, resolveDecision, type Pending } from "./answers";
+import { similarity, stopCommand } from "../../shared/rules";
+import { afterAct, hasWaitingAction, isExpired, resolveDecision, stopped, type Outcome, type Pending } from "./answers";
 import type { Transport } from "./transport";
 import type { Voice } from "./voices";
 import { ALL_ON, bestText, heardText, newTurn, reduceTurn, type TurnModel } from "./turn";
@@ -209,6 +209,14 @@ export class Conversation {
     const { switches } = this.state;
     let pending = this.state.pending;
 
+    // "Stop" while a question waits needs no server: it can only cancel, so it still works when
+    // the network does not, and however long the question has waited or however early it began.
+    if (pending && stopCommand(input.realtimeText ?? "")) {
+      this.say("you", input.realtimeText!.trim());
+      await this.applyOutcome(stopped(pending));
+      return;
+    }
+
     // A question waits a minute at most; after that, whatever is said is a new request.
     if (pending && isExpired(pending, Date.now())) {
       this.dropPending(`The question "${pending.question}" went unanswered for a minute, so it was dropped.`);
@@ -284,7 +292,10 @@ export class Conversation {
 
   /** Follows the decision: act, ask, or say it cannot hear. */
   private async follow(turn: TurnModel) {
-    const outcome = resolveDecision(turn, this.state.pending, this.state.entries);
+    await this.applyOutcome(resolveDecision(turn, this.state.pending, this.state.entries));
+  }
+
+  private async applyOutcome(outcome: Outcome) {
     if (outcome.learned) await this.learn(outcome.learned.entries, outcome.learned.changed, outcome.learned.clip);
     this.set({ failedTries: outcome.resetTries ? 0 : this.state.failedTries + (outcome.failed ? 1 : 0) });
     if (outcome.phone) this.set({ phone: outcome.phone(this.state.phone) });
@@ -326,7 +337,7 @@ export class Conversation {
 
   private dropPending(why: string) {
     const pending = this.state.pending;
-    this.set({ pending: undefined, phone: pending?.kind === "action" ? phoneCancel(this.state.phone) : this.state.phone });
+    this.set({ pending: undefined, phone: pending && hasWaitingAction(pending) ? phoneCancel(this.state.phone) : this.state.phone });
     this.note(why, "error");
   }
 

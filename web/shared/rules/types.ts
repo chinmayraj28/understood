@@ -34,6 +34,8 @@ export interface DecisionInput {
   context?: TurnContext;
   /** How many turns in a row ended without the person being understood. */
   failedTries?: number;
+  /** A recording being written down, not someone talking: "stop" in it is just a word. */
+  transcribing?: boolean;
 }
 
 /** How a turn ended, for learning. Only a spoken yes, a chosen option or a correction teaches. */
