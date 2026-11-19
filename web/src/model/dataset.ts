@@ -9,11 +9,13 @@ export interface DatasetFilter {
   split: "all" | "enrolment" | "test";
   /** Only clips the evaluation tested (so the page can show what the pipeline heard). */
   evaluatedOnly: boolean;
+  /** Only test clips whose prompt that speaker never said in their set-up clips. */
+  newPromptsOnly: boolean;
   /** Matched against the prompt and the clip id, ignoring case and punctuation. */
   query: string;
 }
 
-export const NO_FILTER: DatasetFilter = { speaker: "all", kind: "all", split: "all", evaluatedOnly: false, query: "" };
+export const NO_FILTER: DatasetFilter = { speaker: "all", kind: "all", split: "all", evaluatedOnly: false, newPromptsOnly: false, query: "" };
 
 /** How many clips are shown at first, and added by "Show more". */
 export const PAGE_SIZE = 40;
@@ -26,16 +28,35 @@ const plain = (text: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/** "F01|stick" for every prompt a speaker said in their set-up clips. */
+function setUpPrompts(clips: DatasetClip[]): Set<string> {
+  return new Set(clips.filter((c) => c.split === "enrolment").map((c) => `${c.speaker}|${plain(c.prompt)}`));
+}
+
 export function filterClips(index: Pick<DatasetIndex, "clips" | "results">, filter: DatasetFilter): DatasetClip[] {
   const query = plain(filter.query);
+  const taught = filter.newPromptsOnly ? setUpPrompts(index.clips) : undefined;
   return index.clips.filter(
     (clip) =>
+      (!taught || (clip.split === "test" && !taught.has(`${clip.speaker}|${plain(clip.prompt)}`))) &&
       (filter.speaker === "all" || clip.speaker === filter.speaker) &&
       (filter.kind === "all" || clip.kind === filter.kind) &&
       (filter.split === "all" || clip.split === filter.split) &&
       (!filter.evaluatedOnly || Boolean(index.results[clip.id]?.length)) &&
       (query === "" || plain(clip.prompt).includes(query) || clip.id.toLowerCase().includes(query)),
   );
+}
+
+/** How many clips each tab holds under the other filters (speaker, kind, search). */
+export function splitCounts(index: Pick<DatasetIndex, "clips" | "results">, filter: DatasetFilter): { test: number; enrolment: number } {
+  const rest = filterClips(index, { ...filter, split: "all", newPromptsOnly: false });
+  const test = rest.filter((c) => c.split === "test").length;
+  return { test, enrolment: rest.length - test };
+}
+
+/** One clip at random, or nothing when the list is empty. */
+export function pickRandomClip(clips: DatasetClip[], random: () => number = Math.random): DatasetClip | undefined {
+  return clips[Math.min(clips.length - 1, Math.floor(random() * clips.length))];
 }
 
 /** Speakers with dysarthria first, most severe first; then the control speakers. */

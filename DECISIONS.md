@@ -328,3 +328,9 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **Checked.** Ten random never-trained clips heard live on the laptop matched the Colab answers word for word, at about 1.4 seconds each.
 
 **Rejected.** Hosting the model (the weights were trained on TORGO and should stay private; a laptop demo needs no host). Publishing per-clip transcripts in the public file (they contain TORGO prompts).
+
+## 19 Nov 2026: Recordings page split into test data and training data
+
+- **Chosen:** the "Used for" drop-down became three tabs (Test data, Training data, All) with clip counts, opening on Test data. The test tab has a button that hears a random test clip in the pipeline, and a tick box for "only prompts this speaker never said in set-up". Speaker, kind and search filters work as before and apply to the random pick.
+- **Why:** in a demo the first question is "has it seen this clip before?". The answer is now on screen before a clip is played.
+- **Rejected:** two separate pages (the filters would be duplicated), and hiding training clips altogether (being able to show them is part of the proof).

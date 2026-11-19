@@ -15,9 +15,11 @@ import {
   NO_FILTER,
   orderSpeakers,
   PAGE_SIZE,
+  pickRandomClip,
   secondsLabel,
   setupName,
   speakerDescription,
+  splitCounts,
   type DatasetFilter,
 } from "../model/dataset";
 
@@ -25,7 +27,7 @@ type Load = { status: "loading" } | DatasetLoad;
 
 export function Dataset() {
   const [load, setLoad] = useState<Load>({ status: "loading" });
-  const [filter, setFilter] = useState<DatasetFilter>(NO_FILTER);
+  const [filter, setFilter] = useState<DatasetFilter>({ ...NO_FILTER, split: "test" });
   const [shown, setShown] = useState(PAGE_SIZE);
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -81,7 +83,17 @@ function Browser(props: { index: DatasetIndex; filter: DatasetFilter; onFilter: 
   const speakers = useMemo(() => orderSpeakers(index.speakers), [index.speakers]);
   const byId = useMemo(() => new Map(index.speakers.map((s) => [s.id, s])), [index.speakers]);
   const clips = useMemo(() => filterClips(index, filter), [index, filter]);
+  const counts = useMemo(() => splitCounts(index, filter), [index, filter]);
   const evaluated = Object.keys(index.results).length;
+  const tabs: { split: DatasetFilter["split"]; name: string; count: number }[] = [
+    { split: "test", name: "Test data", count: counts.test },
+    { split: "enrolment", name: "Training data", count: counts.enrolment },
+    { split: "all", name: "All", count: counts.test + counts.enrolment },
+  ];
+  const hearRandom = () => {
+    const clip = pickRandomClip(clips);
+    if (clip) window.location.hash = href.hear(clip.id);
+  };
   const countText =
     clips.length === 0 ? "No clips match." : `Showing ${Math.min(shown, clips.length).toLocaleString()} of ${clips.length.toLocaleString()} clips.`;
 
@@ -113,6 +125,34 @@ function Browser(props: { index: DatasetIndex; filter: DatasetFilter; onFilter: 
         ))}
       </div>
 
+      <div className="dataset-split">
+        <div className="split-tabs" role="group" aria-label="Test data or training data">
+          {tabs.map((tab) => (
+            <button
+              key={tab.split}
+              className="split-tab"
+              aria-pressed={filter.split === tab.split}
+              onClick={() => onFilter({ split: tab.split, newPromptsOnly: tab.split === "test" && filter.newPromptsOnly })}
+            >
+              <strong>{tab.name}</strong>
+              <span>{tab.count.toLocaleString()} clips</span>
+            </button>
+          ))}
+        </div>
+        <p className="split-note">
+          {filter.split === "test" && <>Clips the pipeline was never shown. These are the ones used to measure it.</>}
+          {filter.split === "enrolment" && (
+            <>Clips used to set each speaker up: the examples the listeners are shown, and what the tuned model trained on. Not a fair test.</>
+          )}
+          {filter.split === "all" && <>Every clip. Each one is labelled test or set-up.</>}
+        </p>
+        {filter.split === "test" && (
+          <button className="button" onClick={hearRandom} disabled={clips.length === 0}>
+            Hear a random test clip in the pipeline
+          </button>
+        )}
+      </div>
+
       <div className="dataset-filters">
         <label>
           <span>Search</span>
@@ -126,14 +166,12 @@ function Browser(props: { index: DatasetIndex; filter: DatasetFilter; onFilter: 
             <option value="sentence">Sentences</option>
           </select>
         </label>
-        <label>
-          <span>Used for</span>
-          <select value={filter.split} onChange={(e) => onFilter({ split: e.target.value as DatasetFilter["split"] })}>
-            <option value="all">Set-up and test</option>
-            <option value="enrolment">Setting the speaker up</option>
-            <option value="test">Testing</option>
-          </select>
-        </label>
+        {filter.split === "test" && (
+          <label className="check">
+            <input type="checkbox" checked={filter.newPromptsOnly} onChange={(e) => onFilter({ newPromptsOnly: e.target.checked })} />
+            <span>Only prompts this speaker never said in set-up</span>
+          </label>
+        )}
         <label className="check">
           <input type="checkbox" checked={filter.evaluatedOnly} onChange={(e) => onFilter({ evaluatedOnly: e.target.checked })} />
           <span>Only the {evaluated} clips the evaluation tested</span>
