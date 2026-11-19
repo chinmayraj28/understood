@@ -1,4 +1,4 @@
-// The site: a landing page, the pipeline workspace, and the TORGO recordings, each its own page
+// The site: a landing page, the pipeline workspace, the TORGO recordings and the research, each its own page
 // under one header. The session (microphone, your conversation, recordings being heard) lives
 // here, so it survives moving between pages.
 
@@ -8,6 +8,7 @@ import { SiteFooter, SiteHeader } from "./components/SiteChrome";
 import { loadDataset } from "./model/datasetLoader";
 import { Landing } from "./pages/Landing";
 import { PipelinePage } from "./pages/PipelinePage";
+import { Research } from "./pages/Research";
 import { useRoute, type Page } from "./router";
 import { microphoneAllowed, useSession } from "./useSession";
 
@@ -15,6 +16,7 @@ const TITLES: Record<Page, string> = {
   landing: "Understood: speech other assistants get wrong",
   pipeline: "Pipeline · Understood",
   recordings: "Recordings · Understood",
+  research: "Research · Understood",
 };
 
 export function App() {
@@ -98,7 +100,7 @@ export function App() {
     const pageChanged = shownRoute.current.page !== route.page;
     shownRoute.current = route;
     if (!pageChanged || route.section || route.hearClip || route.page === "recordings") return;
-    const heading = route.page === "landing" ? "hero-title" : "pipeline-title";
+    const heading = route.page === "research" ? "research-title" : route.page === "landing" ? "hero-title" : "pipeline-title";
     document.getElementById(heading)?.focus({ preventScroll: true }); // the new page is already in place when effects run
   }, [route]);
 
@@ -111,6 +113,7 @@ export function App() {
       <SiteHeader page={page} />
       {page === "landing" && <Landing section={route.section} />}
       {page === "pipeline" && <PipelinePage session={session} />}
+      {page === "research" && <Research />}
       {page === "recordings" && (
         <main id="main" className="page-shell">
           <Dataset />

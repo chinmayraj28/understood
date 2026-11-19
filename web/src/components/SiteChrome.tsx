@@ -24,6 +24,9 @@ export function SiteHeader({ page }: { page: Page }) {
           <a href={href.recordings} aria-current={page === "recordings" ? "page" : undefined}>
             Recordings
           </a>
+          <a href={href.research} aria-current={page === "research" ? "page" : undefined}>
+            Research
+          </a>
         </nav>
         <div className="site-actions">
           {page !== "pipeline" && (

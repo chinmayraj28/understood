@@ -31,6 +31,18 @@ describe("routes", () => {
     expect(parseRoute("#/privacy")).toEqual({ page: "landing", section: "privacy" });
   });
 
+  it("opens the research page", () => {
+    expect(href.research).toBe("#/research");
+    expect(parseRoute(href.research)).toEqual({ page: "research" });
+    expect(parseRoute("#/research")).toEqual({ page: "research" });
+    expect(parseRoute("#/research/")).toEqual({ page: "research" });
+  });
+
+  it("does not open the research page for a look-alike address", () => {
+    expect(parseRoute("#/researcher")).toEqual({ page: "landing" });
+    expect(parseRoute("#research")).toEqual({ page: "landing" });
+  });
+
   it("keeps the old recordings address", () => {
     expect(parseRoute("#dataset")).toEqual({ page: "recordings" });
     expect(parseRoute("#dataset-title")).toEqual({ page: "recordings" });

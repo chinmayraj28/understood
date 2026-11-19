@@ -11,6 +11,7 @@ import "./styles/sections.css";
 import "./styles/dataset.css";
 import "./styles/hear.css";
 import "./styles/site.css";
+import "./styles/research.css";
 import "./styles/workspace.css";
 import "./styles/motion.css";
 

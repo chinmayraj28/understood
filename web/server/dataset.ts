@@ -63,6 +63,26 @@ export function safeAudioPath(dataDir: string, relative: string): string | null 
   return full;
 }
 
+/**
+ * One clip's WAV bytes, found by id in the manifest, with the same checks as the audio route (the
+ * file must resolve, symlinks followed, inside the data folder and be a .wav). Null when the id is
+ * unknown or the file is missing or unsafe. For other local-only routes that need a clip's audio.
+ */
+export async function readClipAudio(dataDir: string, id: string): Promise<Buffer | null> {
+  if (!clipId.test(id)) return null;
+  try {
+    const manifest = JSON.parse(await readFile(path.join(dataDir, "manifest.json"), "utf8")) as { clips?: ManifestClip[] };
+    const entry = (manifest.clips ?? []).find((c) => c?.id === id);
+    const file = typeof entry?.audio === "string" ? safeAudioPath(dataDir, entry.audio) : null;
+    if (!file) return null;
+    const [real, realRoot] = await Promise.all([realpath(file), realpath(dataDir)]);
+    if (!real.startsWith(realRoot + path.sep) || !(await stat(real)).isFile()) return null;
+    return await readFile(real);
+  } catch {
+    return null;
+  }
+}
+
 /** Builds the index from the manifest and the evaluation results. Exported for tests. */
 export function buildIndex(manifest: unknown, results: unknown): Loaded {
   const m = manifest as { name?: string; clips?: ManifestClip[]; speakers?: Omit<DatasetSpeaker, "clipCount">[] };

@@ -1,0 +1,15 @@
+[project]
+name = "understood-train"
+version = "0.1.0"
+description = "Research tooling: fine-tunes a speech model as an extra listener. Not part of the product."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "torch>=2.8",
+  "transformers>=4.56",
+  "peft>=0.17",
+  "accelerate>=1.10",
+  "soundfile>=0.13",
+  "numpy>=2",
+  "jiwer>=4",
+  "torchaudio>=2.11.1",
+]

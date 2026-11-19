@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createApp, type Env } from "./app";
-import { createDatasetApp } from "./dataset";
+import { createDatasetApp, readClipAudio } from "./dataset";
+import { createResearchApp } from "./research";
 
 /** Reads KEY=value lines; ignores blanks and comments; strips matching quotes. */
 export function parseEnv(text: string): Record<string, string> {
@@ -53,19 +54,30 @@ const missing = (["ELEVENLABS_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY
 // The TORGO dataset browser: local only, so it is mounted here and never in the hosted app.
 // DATASET_DIR and DATASET_RESULTS override where the clips and the evaluation results are read from.
 const repoPath = (relative: string) => fileURLToPath(new URL(`../../${relative}`, import.meta.url));
+const datasetDir = process.env.DATASET_DIR || repoPath("eval/data/torgo");
 const dataset = createDatasetApp({
-  dataDir: process.env.DATASET_DIR || repoPath("eval/data/torgo"),
+  dataDir: datasetDir,
   resultsPath: process.env.DATASET_RESULTS || repoPath("eval/results/2026-11-09-second-run/results.json"),
 });
 
-// The socket's address is passed per request for the rate limit and the dataset's local-only
-// check; proxy headers are not trusted here unless TRUST_PROXY is set.
+// The fine-tuning results and the live tuned model: local only too. A clip sent to the model is
+// read from the same TORGO folder, by id, with the dataset route's checks. RESEARCH_CLIPS and
+// RESEARCH_RUNS override where the clip list and the training runs are read from.
+const research = createResearchApp({
+  clipsPath: process.env.RESEARCH_CLIPS || repoPath("train/data/clips.jsonl"),
+  runsDir: process.env.RESEARCH_RUNS || repoPath("train/runs"),
+  audioFor: (id) => readClipAudio(datasetDir, id),
+});
+
+// The socket's address is passed per request for the rate limit and the dataset's and
+// research routes' local-only check; proxy headers are not trusted here unless TRUST_PROXY is set.
 serve({
   fetch: (request, node) => {
     const bindings = { ...env, REMOTE_ADDRESS: node.incoming.socket?.remoteAddress };
     const pathname = new URL(request.url).pathname;
-    const forDataset = pathname === "/api/dataset" || pathname.startsWith("/api/dataset/");
-    return forDataset ? dataset.fetch(request, bindings) : app.fetch(request, bindings);
+    if (pathname === "/api/dataset" || pathname.startsWith("/api/dataset/")) return dataset.fetch(request, bindings);
+    if (pathname === "/api/research" || pathname.startsWith("/api/research/")) return research.fetch(request, bindings);
+    return app.fetch(request, bindings);
   },
   port,
   // Only this computer: the keys behind this server, and the TORGO route, are not for the network.

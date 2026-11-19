@@ -308,3 +308,23 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **Limit, kept on purpose.** The microphone is silent while the page speaks and for 0.7 seconds after, which stops a reply triggering itself. So "stop" said over a spoken question is not heard; it has to come after the question.
 
 **Rejected.** Streaming the microphone to the live transcript during replies, to catch "stop" over speech. It would send more room audio out and bring back the echo problem the silence fixed.
+
+## 19 Nov 2026: test fine-tuning a speech model as an extra listener
+
+**What the user asked.** Try training a speech model instead of relying only on flagship models, on Google Colab, using TORGO under its free academic terms (confirmed to the user by TORGO support).
+
+**What was chosen.** A three-model comparison (Parakeet TDT 0.6B v3, Whisper large-v3-turbo, Granite Speech 5.0 TurboCTC), encoder-only tuning, a split fixed before training, and the score on prompts never trained on as the headline. The plan and its sources are in `docs/FINETUNE_PLAN.md`. This replaces the earlier "never train on TORGO" rule; the audio and trained weights still never leave the private Drive.
+
+**Rejected.** Training on the laptop (16 GB, it lagged on a smoke test). Picking Whisper without a comparison (research showed Parakeet won the 2025 dysarthric speech challenge). A random clip split (it lets the model learn the prompts; most published TORGO numbers are inflated this way).
+
+**Python.** Training needs it, so it lives only in `train/` as research tooling with its own environment. The product stays TypeScript.
+
+## 19 Nov 2026: a Research page, with the tuned model running locally
+
+**What the user asked.** A new tab that shows what the tuned model contributes, makes the split between training and test data clear, and lets them try random clips the model never trained on, live, during a presentation. Hosting was explicitly set aside.
+
+**What was chosen.** The findings come from a numbers-only file, so they also show on the hosted site. The clip tester is local only: per-clip text and audio go through the same this-computer-only checks as the Recordings page, and a small Python service in `train/serve.py` keeps the tuned Whisper model in memory with all eleven speaker add-ons attached. Saved Colab answers always show, so the page still works if the live model is off.
+
+**Checked.** Ten random never-trained clips heard live on the laptop matched the Colab answers word for word, at about 1.4 seconds each.
+
+**Rejected.** Hosting the model (the weights were trained on TORGO and should stay private; a laptop demo needs no host). Publishing per-clip transcripts in the public file (they contain TORGO prompts).

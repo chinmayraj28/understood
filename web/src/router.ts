@@ -2,12 +2,13 @@
 //   #/            the landing page (and #/how, #/results: the same page, scrolled to a section)
 //   #/pipeline    the pipeline workspace
 //   #/recordings  the TORGO recordings
+//   #/research    what fine-tuning a speech model on the speakers' own recordings did
 // Older links still work: #dataset opens the recordings, and #hear=<clip> opens the pipeline
 // and hears that clip.
 
 import { useEffect, useState } from "react";
 
-export type Page = "landing" | "pipeline" | "recordings";
+export type Page = "landing" | "pipeline" | "recordings" | "research";
 
 export interface Route {
   page: Page;
@@ -28,6 +29,7 @@ export function parseRoute(hash: string): Route {
     }
   }
   if (h === "dataset" || h.startsWith("dataset") || h.startsWith("/recordings")) return { page: "recordings" };
+  if (h === "/research" || h.startsWith("/research/") || h.startsWith("/research?")) return { page: "research" };
   if (h.startsWith("/pipeline")) {
     const clip = new URLSearchParams(h.split("?")[1] ?? "").get("hear");
     return clip ? { page: "pipeline", hearClip: clip } : { page: "pipeline" };
@@ -42,6 +44,7 @@ export const href = {
   results: "#/results",
   pipeline: "#/pipeline",
   recordings: "#/recordings",
+  research: "#/research",
   hear: (clipId: string) => `#/pipeline?hear=${encodeURIComponent(clipId)}`,
 };
 

@@ -1,0 +1,479 @@
+/* The research page. Same quiet bands as the landing page: a hairline, a heading, the evidence.
+   Untuned is drawn in the muted ink, tuned in full ink; held-out wears the mark colour, as the
+   end of the line does on the landing page. */
+
+.research {
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* ── The finding ── */
+.research-hero {
+  padding: 56px 0 64px;
+  display: grid;
+  gap: 40px;
+  align-items: start;
+}
+@media (min-width: 1040px) {
+  .research-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 64px;
+    padding: 80px 0 88px;
+  }
+}
+.research-hero h1 {
+  font-size: clamp(2.1rem, 4.4vw, 3.6rem);
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  max-width: 15ch;
+  text-wrap: balance;
+}
+.research-lede {
+  margin-top: 20px;
+  font-size: var(--t-2);
+  line-height: 1.45;
+  color: var(--ink-2);
+  max-width: 42ch;
+}
+
+/* Paired bars: untuned above, tuned below, the number at the end of each. */
+.pair-chart {
+  margin: 0;
+  display: grid;
+  gap: 20px;
+}
+.pair-chart figcaption {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.pair-chart ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 22px;
+}
+.pair-name {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.pair-clips {
+  font-weight: 400;
+  font-size: var(--t-0);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.pair-line {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(0, 1fr) 3.4rem 4.8rem;
+  gap: 2px 10px;
+  align-items: center;
+}
+.pair-tag {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.pair-bar {
+  display: block;
+  height: 10px;
+  background: var(--sunk);
+}
+.pair-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.pair-line.before .pair-bar span {
+  background: var(--ink-3);
+}
+.pair-value {
+  text-align: right;
+}
+.pair-line.before .pair-value {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.pair-line.after .pair-value {
+  font-weight: 800;
+}
+.pair-ci {
+  font-size: var(--t-0);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .pair-line {
+    grid-template-columns: 3.4rem minmax(0, 1fr) 3.4rem;
+  }
+  .pair-ci {
+    grid-column: 2 / -1;
+    justify-self: end;
+  }
+}
+
+/* ── The split: one track cut in proportion to the clips ── */
+.split-bar {
+  margin-top: 32px;
+  display: flex;
+  gap: 3px;
+  height: 18px;
+}
+.split-part {
+  min-width: 6px;
+  flex-basis: 0;
+}
+.split-part:first-child {
+  border-radius: 9px 0 0 9px;
+}
+.split-part:last-child {
+  border-radius: 0 9px 9px 0;
+}
+.role-train {
+  background: var(--ink);
+}
+.role-val {
+  background: var(--ink-3);
+}
+.role-dev {
+  background: var(--rail-off);
+}
+.role-holdout {
+  background: var(--mark);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.split-legend {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 16px 28px;
+}
+.split-legend li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.split-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 5px;
+  border-radius: 3px;
+}
+.split-use {
+  display: block;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.split-note {
+  margin-top: 28px;
+  max-width: 60ch;
+}
+
+/* ── Models on the dev clips ── */
+.dev-wrap {
+  margin-top: 28px;
+}
+.dev-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+.dev-table th,
+.dev-table td {
+  padding: 10px 14px;
+  text-align: right;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.dev-table thead th {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+  vertical-align: bottom;
+}
+.dev-table thead th:nth-child(-n + 2),
+.dev-table .dev-model,
+.dev-table .dev-stage {
+  text-align: left;
+}
+.dev-table tbody + tbody tr:first-child > * {
+  border-top: 2px solid var(--rule);
+}
+.dev-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.dev-model {
+  font-weight: 800;
+}
+.dev-stage {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.dev-best {
+  background: var(--mark);
+  color: var(--ink);
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* ── Per speaker ── */
+.speaker-key {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.speaker-key .key {
+  display: inline-block;
+  width: 18px;
+  height: 8px;
+  background: var(--ink);
+}
+.speaker-key .key.before {
+  background: var(--ink-3);
+}
+.speaker-key .key.after {
+  margin-left: 12px;
+}
+.speaker-grid {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 12px;
+}
+.speaker-grid li {
+  padding: 12px 14px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.speaker-grid li.control {
+  background: var(--paper);
+}
+.speaker-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.speaker-name span {
+  font-size: var(--t-0);
+  color: var(--ink-3);
+}
+.speaker-bars {
+  display: grid;
+  gap: 4px;
+}
+.speaker-bars .pair-line {
+  display: block;
+}
+.speaker-bars .pair-bar {
+  height: 8px;
+}
+.speaker-values {
+  font-size: var(--t-0);
+  white-space: nowrap;
+}
+
+/* ── Limits ── */
+.limits {
+  margin: 20px 0 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 8px;
+  max-width: 52ch;
+  color: var(--ink-2);
+}
+
+/* ── The clip tester ── */
+.tester-quiet {
+  margin-top: 16px;
+  max-width: 60ch;
+}
+.tester-controls {
+  margin-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: end;
+}
+.tester-field {
+  display: grid;
+  gap: 4px;
+  font-size: var(--t-0);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.tester-field select {
+  min-height: 48px;
+  min-width: 9rem;
+  padding: 6px 12px;
+  border-radius: var(--radius-s);
+  border: 2px solid var(--rule);
+  background: var(--surface);
+  font-size: var(--t-1);
+  color: var(--ink);
+}
+.tester-field .segmented {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.tester-count {
+  margin-top: 12px;
+  font-size: var(--t-0);
+  color: var(--ink-2);
+}
+.tester-contrast {
+  margin-top: 28px;
+}
+
+.clip-card {
+  margin-top: 24px;
+  max-width: 780px;
+  padding: 20px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  display: grid;
+  gap: 20px;
+}
+.clip-card.unfair {
+  border-left: 4px solid var(--ask);
+}
+.clip-card-head {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.clip-role {
+  font-size: var(--t-0);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.clip-unfair {
+  font-size: var(--t-0);
+  padding: 8px 12px;
+  border-left: 4px solid var(--ask);
+  background: var(--ask-wash);
+  border-radius: var(--radius-s);
+}
+.clip-card-head .button {
+  margin-top: 6px;
+}
+
+.clip-lines {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.clip-line {
+  display: grid;
+  gap: 2px 20px;
+  min-width: 0;
+}
+@media (min-width: 640px) {
+  .clip-line {
+    grid-template-columns: 10rem minmax(0, 1fr);
+  }
+}
+.clip-line dt {
+  font-size: var(--t-0);
+  font-weight: 700;
+  color: var(--ink-2);
+  padding-top: 4px;
+}
+.clip-line dd {
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.clip-said {
+  font-size: var(--t-2);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+/* Each word (with its correction) stays whole, so the line wraps between words, not inside one. */
+.clip-card .aligned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.3em;
+  font-size: var(--t-2);
+  line-height: 1.5;
+}
+.clip-card .aligned .w {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.clip-score {
+  font-size: var(--t-0);
+}
+
+.clip-live {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+.clip-start {
+  font-size: var(--t-0);
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.clip-start code {
+  font-family: var(--mono);
+  font-size: 0.95em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--sunk);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.link-button {
+  border: 0;
+  padding: 2px 0;
+  background: none;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+/* Kept on the page while empty (a live region must exist before it speaks); it just takes no room. */
+.clip-live-result:empty {
+  margin-top: -20px;
+}
+.clip-error {
+  color: var(--stop);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .research-hero {
+    padding: 32px 0 44px;
+    gap: 32px;
+  }
+  .clip-card {
+    padding: 16px;
+  }
+  .tester-controls > .button {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -123,6 +123,19 @@ To share it with someone without giving them API keys, set `ACCESS_KEY` in `.env
 
 The server keeps the keys. They never reach the browser: the page gets only a short-lived token for the live transcript. Each visitor is limited to 20 sentences a minute (90 on the local server, because setting up a TORGO speaker's voice hears 20 clips at once). If a key is missing, the server says so when it starts, and that stage shows as failed on the page.
 
+## The Research page (a tuned model)
+
+`#/research` shows what fine-tuning a speech model on the speakers' own recordings did: on held-out prompts the model never trained on, words wrong fell from 35.6% to 24.6% (`docs/FINETUNE_RESULTS.md`, method in `docs/FINETUNE_PLAN.md`). The numbers are in `web/public/research/results.json`, so they show on the hosted site too.
+
+On your own computer the page can also try a random never-trained clip and hear it live with the tuned model. That needs the TORGO data, the saved runs in `train/runs/` (not in this repository: the weights were trained on TORGO), and the model service:
+
+```bash
+cd train
+uv run python serve.py
+```
+
+It keeps the model in memory and answers only this computer, on port 8791. A clip takes about 1.5 seconds on an M4. The training code is Python and lives only in `train/`; the product stays TypeScript.
+
 ## Run the tests
 
 ```bash

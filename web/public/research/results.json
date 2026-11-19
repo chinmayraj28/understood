@@ -1,0 +1,304 @@
+{
+  "date": "2026-11-19",
+  "model": "openai/whisper-large-v3-turbo",
+  "personalised": true,
+  "speakers": 11,
+  "secondsPerClip": 0.309,
+  "trainingMinutes": 78.0,
+  "split": [
+    {
+      "role": "train",
+      "clips": 1393,
+      "minutes": 78.0,
+      "neverTrained": 0
+    },
+    {
+      "role": "val",
+      "clips": 118,
+      "minutes": 6.0,
+      "neverTrained": 103
+    },
+    {
+      "role": "dev",
+      "clips": 1199,
+      "minutes": 74.1,
+      "neverTrained": 432
+    },
+    {
+      "role": "holdout",
+      "clips": 1155,
+      "minutes": 69.7,
+      "neverTrained": 425
+    }
+  ],
+  "heldOut": [
+    {
+      "key": "unseen",
+      "label": "Prompts never trained on",
+      "clips": 425,
+      "untuned": {
+        "wer": 0.3561,
+        "low": 0.302,
+        "high": 0.4156
+      },
+      "tuned": {
+        "wer": 0.2465,
+        "low": 0.2089,
+        "high": 0.2893
+      }
+    },
+    {
+      "key": "dysarthric-unseen",
+      "label": "Never trained on, speakers with dysarthria",
+      "clips": 356,
+      "untuned": {
+        "wer": 0.4082,
+        "low": 0.3396,
+        "high": 0.4826
+      },
+      "tuned": {
+        "wer": 0.285,
+        "low": 0.2382,
+        "high": 0.3345
+      }
+    },
+    {
+      "key": "unseen-word",
+      "label": "Single words, never trained on",
+      "clips": 260,
+      "untuned": {
+        "wer": 0.7808,
+        "low": 0.6769,
+        "high": 0.9077
+      },
+      "tuned": {
+        "wer": 0.4538,
+        "low": 0.3769,
+        "high": 0.5346
+      }
+    },
+    {
+      "key": "unseen-sentence",
+      "label": "Sentences, never trained on",
+      "clips": 165,
+      "untuned": {
+        "wer": 0.2557,
+        "low": 0.193,
+        "high": 0.3218
+      },
+      "tuned": {
+        "wer": 0.1975,
+        "low": 0.1545,
+        "high": 0.2436
+      }
+    },
+    {
+      "key": "unseen-strict",
+      "label": "Never trained on, and not a validation prompt",
+      "clips": 379,
+      "untuned": {
+        "wer": 0.3423,
+        "low": 0.2839,
+        "high": 0.409
+      },
+      "tuned": {
+        "wer": 0.2462,
+        "low": 0.2048,
+        "high": 0.291
+      }
+    },
+    {
+      "key": "all",
+      "label": "All held-out clips",
+      "clips": 1155,
+      "untuned": {
+        "wer": 0.4003,
+        "low": 0.3626,
+        "high": 0.4378
+      },
+      "tuned": {
+        "wer": 0.2274,
+        "low": 0.2032,
+        "high": 0.2515
+      }
+    },
+    {
+      "key": "seen",
+      "label": "Prompts also in training",
+      "clips": 730,
+      "untuned": {
+        "wer": 0.4392,
+        "low": 0.3939,
+        "high": 0.4888
+      },
+      "tuned": {
+        "wer": 0.2105,
+        "low": 0.1824,
+        "high": 0.2422
+      }
+    },
+    {
+      "key": "dysarthric",
+      "label": "Speakers with dysarthria",
+      "clips": 940,
+      "untuned": {
+        "wer": 0.4627,
+        "low": 0.4197,
+        "high": 0.5081
+      },
+      "tuned": {
+        "wer": 0.2685,
+        "low": 0.2404,
+        "high": 0.2979
+      }
+    },
+    {
+      "key": "control",
+      "label": "Speakers without dysarthria",
+      "clips": 215,
+      "untuned": {
+        "wer": 0.1109,
+        "low": 0.0796,
+        "high": 0.1473
+      },
+      "tuned": {
+        "wer": 0.037,
+        "low": 0.021,
+        "high": 0.0551
+      }
+    }
+  ],
+  "dev": [
+    {
+      "model": "whisper",
+      "name": "Whisper large-v3-turbo",
+      "stage": "untuned",
+      "unseen": 0.2924,
+      "all": 0.3758,
+      "words": 0.6584,
+      "sentences": 0.2577
+    },
+    {
+      "model": "whisper",
+      "name": "Whisper large-v3-turbo",
+      "stage": "tuned",
+      "unseen": 0.2316,
+      "all": 0.2765,
+      "words": 0.4247,
+      "sentences": 0.2146
+    },
+    {
+      "model": "whisper",
+      "name": "Whisper large-v3-turbo",
+      "stage": "personalised",
+      "unseen": 0.2116,
+      "all": 0.2215,
+      "words": 0.3022,
+      "sentences": 0.1878
+    },
+    {
+      "model": "granite",
+      "name": "Granite Speech 5.0 TurboCTC",
+      "stage": "untuned",
+      "unseen": 0.2917,
+      "all": 0.3735,
+      "words": 0.6854,
+      "sentences": 0.2432
+    },
+    {
+      "model": "granite",
+      "name": "Granite Speech 5.0 TurboCTC",
+      "stage": "tuned",
+      "unseen": 0.2417,
+      "all": 0.2695,
+      "words": 0.4,
+      "sentences": 0.215
+    },
+    {
+      "model": "parakeet",
+      "name": "Parakeet TDT 0.6B v3",
+      "stage": "untuned",
+      "unseen": 0.3558,
+      "all": 0.4646,
+      "words": 0.8416,
+      "sentences": 0.307
+    },
+    {
+      "model": "parakeet",
+      "name": "Parakeet TDT 0.6B v3",
+      "stage": "tuned",
+      "unseen": 0.2717,
+      "all": 0.3172,
+      "words": 0.4427,
+      "sentences": 0.2648
+    }
+  ],
+  "perSpeaker": [
+    {
+      "speaker": "F01",
+      "dysarthric": true,
+      "untuned": 0.8101,
+      "tuned": 0.4684
+    },
+    {
+      "speaker": "F03",
+      "dysarthric": true,
+      "untuned": 0.355,
+      "tuned": 0.2367
+    },
+    {
+      "speaker": "F04",
+      "dysarthric": true,
+      "untuned": 0.1441,
+      "tuned": 0.0836
+    },
+    {
+      "speaker": "M01",
+      "dysarthric": true,
+      "untuned": 0.6265,
+      "tuned": 0.3882
+    },
+    {
+      "speaker": "M02",
+      "dysarthric": true,
+      "untuned": 0.8571,
+      "tuned": 0.5524
+    },
+    {
+      "speaker": "M03",
+      "dysarthric": true,
+      "untuned": 0.049,
+      "tuned": 0.021
+    },
+    {
+      "speaker": "M04",
+      "dysarthric": true,
+      "untuned": 0.8933,
+      "tuned": 0.4567
+    },
+    {
+      "speaker": "M05",
+      "dysarthric": true,
+      "untuned": 0.4118,
+      "tuned": 0.2072
+    },
+    {
+      "speaker": "FC01",
+      "dysarthric": false,
+      "untuned": 0.0556,
+      "tuned": 0.0222
+    },
+    {
+      "speaker": "FC02",
+      "dysarthric": false,
+      "untuned": 0.1166,
+      "tuned": 0.0491
+    },
+    {
+      "speaker": "MC01",
+      "dysarthric": false,
+      "untuned": 0.1264,
+      "tuned": 0.0345
+    }
+  ]
+}
