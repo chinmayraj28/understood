@@ -104,7 +104,7 @@ Merging (66 clips, the same cached transcripts):
 | Voice setup hears its clips with Scribe only | the phrasebook matches Scribe; setup is fast |
 | Longer limits for a recording (15 s to hear, 8 s to repair) | Gemini with examples sometimes needs 5–14 s |
 
-Spoken turns to the pretend phone are unchanged: `scribe_v2` with hints and every word kept (`no_verbatim` could drop the "no" in "Mum, no, Sam"), `scribe_v2_realtime` for the microphone, Gemini Flash with the chat-turn layout, Haiku, 4 s. A review on 11 Nov caught that the first version had switched speech to v3 and `no_verbatim` as well; that was undone.
+Spoken turns to the pretend phone are otherwise unchanged: `scribe_v2` with every word kept (`no_verbatim` could drop the "no" in "Mum, no, Sam"), `scribe_v2_realtime` for the microphone, Gemini Flash with the chat-turn layout, Haiku, 4 s. A review on 11 Nov caught that the first version had switched speech to v3 and `no_verbatim` as well; that was undone. Since 19 Nov spoken turns get no recogniser hints either (no Scribe keyterms, no Gemini vocabulary); the effect of that on live speech has not been measured (`DECISIONS.md`).
 
 **Tried and not adopted:**
 - the recording's length as a hint to Claude (slightly worse);

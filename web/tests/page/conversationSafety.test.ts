@@ -25,7 +25,7 @@ class FakeServer implements Transport {
     const text = request.realtimeText ?? "";
     const decision: Decision = this.nextDecision ?? { kind: "act", text };
     this.nextDecision = undefined;
-    yield { type: "turn.started", turnId: request.turnId, at: 0, keyterms: [], exampleCount: 0 };
+    yield { type: "turn.started", turnId: request.turnId, at: 0, exampleCount: 0 };
     yield { type: "hear.started", hearer: "scribe", at: 1 };
     yield { type: "hear.done", hearer: "scribe", at: 2, text, seconds: 0.4 };
     yield { type: "decision", at: 3, decision, rule: "test" };

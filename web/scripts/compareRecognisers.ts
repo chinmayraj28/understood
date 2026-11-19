@@ -11,8 +11,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { countErrors, errorRate, sameWords } from "../shared/wordErrors";
-import { acceptedKeyterms } from "../shared/rules/turn";
-import { keytermsFrom } from "../src/model/voices";
 
 const repo = (relative: string) => fileURLToPath(new URL(`../../${relative}`, import.meta.url));
 const dataDir = repo("eval/data/torgo");
@@ -65,13 +63,6 @@ function clipsFor(speaker: string): Clip[] {
   const w = tests.filter((c) => c.kind !== "sentence");
   const nS = Math.min(s.length, Math.round(perSpeaker * 0.4));
   return [...s.slice(0, nS), ...w.slice(0, perSpeaker - nS)];
-}
-
-/** The speaker's set-up prompts, as the page's voice setup gives them to Scribe. */
-function hintsFor(speaker: string): string[] {
-  const enrol = manifest.clips.filter((c) => c.speaker === speaker && c.split === "enrolment");
-  const chosen = [...enrol.filter((c) => c.repeatedLater), ...enrol.filter((c) => !c.repeatedLater)].slice(0, 20);
-  return keytermsFrom(chosen.map((c) => c.prompt));
 }
 
 /** Scribe realtime, fed the clip at twice real time, as the page streams a recording. */
@@ -129,8 +120,8 @@ async function transcribe(model: string, clip: Clip): Promise<{ text: string; ms
       form.append("tag_audio_events", "false");
       form.append("timestamps_granularity", "none");
       if (model.includes("no_verbatim")) form.append("no_verbatim", "true");
-      // "keyterms": the speaker's set-up prompts as hints, as the page sends them.
-      if (model.endsWith(":keyterms")) for (const t of acceptedKeyterms(hintsFor(clip.speaker))) form.append("keyterms", t);
+      // A ":keyterms" variant (the speaker's set-up prompts as hints) was measured on 11 Nov and
+      // made Scribe worse (25.2% to 28.2% of words wrong); the pipeline no longer sends hints.
       form.append("file", new Blob([bytes]), "clip.wav");
       const r = await fetch("https://api.elevenlabs.io/v1/speech-to-text", { method: "POST", headers: { "xi-api-key": env.ELEVENLABS_API_KEY }, body: form, signal: AbortSignal.timeout(60000) });
       const j = (await r.json()) as { text?: string; detail?: unknown };

@@ -143,24 +143,26 @@ describe("understandTurn", () => {
     expect(third.events.find((event) => event.type === "phrasebook")).toMatchObject({ match: { meant: "call Sam", strong: true } });
   });
 
-  it("needs the realtime transcript for agreement on a hinted name (review finding 5)", async () => {
-    const result = await run(request({ keyterms: ["Priya"] }), says("message Priya"), says("message Priya"));
+  it("asks when the live recogniser heard a different name from Scribe and Gemini", async () => {
+    const result = await run(request({ keyterms: ["Priya"], realtimeText: "message pria" }), says("message Priya"), says("message Priya"));
     expect(result.decision).toEqual({ kind: "confirm", question: "Message Priya?", reading: "message Priya" });
     const withLive = await run(request({ keyterms: ["Priya"], realtimeText: "message priya" }), says("message Priya"), says("message Priya"));
     expect(withLive.decision).toEqual({ kind: "act", text: "message Priya" });
   });
 });
 
-describe("understandTurn: hints and stage switches", () => {
+describe("understandTurn: known words and stage switches", () => {
   const entry = { id: "e1", heard: "call some", meant: "call Sam", hearer: "scribe" as const, timesConfirmed: 1, lastConfirmedAt: Date.now(), source: "enrolment" as const };
 
-  it("combines expected answers, the phrasebook, the page's words and the contacts", async () => {
+  it("gives the recognisers no word list, and shows Claude the contacts and the page's words", async () => {
     const seen: HearingRequest[] = [];
-    const result = await run(request({ phrasebook: [entry], keyterms: ["Send", "", "sam"], context: { expectedAnswers: ["yes", "no"] } }),
-      says("hi"), says("hi"), fakeClaude(null), seen);
-    const expected = ["yes", "no", "call Sam", "call", "Sam", "Send", "Mum", "Priya", "Dad", "Amma"];
-    expect(seen[0].keyterms).toEqual(expected);
-    expect(result.events[0]).toMatchObject({ type: "turn.started", keyterms: expected });
+    const claude = fakeClaude(null);
+    const result = await run(request({ phrasebook: [entry], keyterms: ["Send", "sam"], context: { expectedAnswers: ["yes", "no"] } }),
+      says("hi"), says("high"), claude, seen);
+    expect(seen).toHaveLength(2);
+    expect(seen.every((r) => !("keyterms" in r))).toBe(true);
+    expect(result.events[0]).toEqual({ type: "turn.started", turnId: "t1", at: expect.any(Number), exampleCount: 0 });
+    expect(JSON.parse(claude.calls[0]).knownWords).toEqual(["Mum", "Sam", "Priya", "Dad", "Amma", "Send", "sam"]);
   });
 
   it("turns each stage off with its switch", async () => {
@@ -170,7 +172,6 @@ describe("understandTurn: hints and stage switches", () => {
     const example = { wavBase64: "AAAA", text: "call Sam" };
     const result = await run(request({ phrasebook: [entry], examples: [example], switches: off }), says("call some"), says("cool sum"), claude, seen);
     expect(seen).toHaveLength(1); // Gemini not called
-    expect(seen[0].keyterms).toEqual([]);
     expect(seen[0].examples).toEqual([]);
     expect(result.events.find((event) => event.type === "phrasebook")).toMatchObject({ match: null });
     expect(result.events.find((event) => event.type === "repair.skipped")).toMatchObject({ why: "Repair is switched off." });
@@ -179,7 +180,6 @@ describe("understandTurn: hints and stage switches", () => {
     const noPhrasebook: HearingRequest[] = [];
     await run(request({ phrasebook: [entry], examples: [example], keyterms: ["Priya"], switches: { ...off, keyterms: true, gemini: true, examples: true } }),
       says("hi"), says("hi"), fakeClaude(null), noPhrasebook);
-    expect(noPhrasebook[0].keyterms).toEqual(["Priya", "Mum", "Sam", "Dad", "Amma"]);
     expect(noPhrasebook[1].examples).toHaveLength(1);
   });
 });

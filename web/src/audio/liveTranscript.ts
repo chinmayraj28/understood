@@ -25,13 +25,11 @@ export interface LiveTranscriber {
  * (scripts/compareRecognisers.ts). The microphone keeps scribe_v2_realtime, as measured for speech.
  * commit_strategy is manual because the server's own silence detection commits after 1.5 s,
  * far too impatient for this speech; our detector decides when a turn ends.
- * No keyterms: the live transcript is the decider's hint-free check on the other two.
+ * Like the other recognisers, it is given no word list.
  */
 export const SCRIBE_REALTIME = {
   url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime",
   params: { model_id: "scribe_v2_realtime", audio_format: "pcm_16000", commit_strategy: "manual", language_code: "en" },
-  /** Keyterms given to the live transcript. Sent as realtimeKeyterms with each turn too. */
-  keyterms: [] as string[],
   /** Audio is sent in 100 ms pieces (five of the worklet's 20 ms chunks). */
   chunksPerSend: 5,
   /** Waits this long for the final text after asking for it. */
@@ -73,7 +71,6 @@ export class ScribeLiveTranscriber implements LiveTranscriber {
     // Stopped while the token was on its way: open nothing.
     if (this.stopped) return;
     const params = new URLSearchParams({ ...SCRIBE_REALTIME.params, model_id: this.modelId, token });
-    for (const term of SCRIBE_REALTIME.keyterms) params.append("keyterms", term);
     const socket = new WebSocket(`${SCRIBE_REALTIME.url}?${params}`);
     this.socket = socket;
     try {

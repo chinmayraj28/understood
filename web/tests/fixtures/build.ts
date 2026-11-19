@@ -46,7 +46,6 @@ interface HearSpec {
 
 export interface TurnSpec {
   turnId: string;
-  keyterms?: string[];
   exampleCount?: number;
   hear: HearSpec[];
   disputed?: string[];
@@ -64,8 +63,7 @@ function contentWords(text: string): string[] {
 
 export function turnEvents(spec: TurnSpec): PipelineEvent[] {
   const events: PipelineEvent[] = [];
-  const keyterms = spec.keyterms ?? ["Mum", "Sam", "Priya", "Dad", "Amma", "message", "call", "timer"];
-  events.push({ type: "turn.started", turnId: spec.turnId, at: 0, keyterms, exampleCount: spec.exampleCount ?? 5 });
+  events.push({ type: "turn.started", turnId: spec.turnId, at: 0, exampleCount: spec.exampleCount ?? 5 });
 
   let lastHeard = 0;
   for (const h of spec.hear) events.push({ type: "hear.started", hearer: h.hearer, at: h.start });

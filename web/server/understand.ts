@@ -5,9 +5,9 @@
 import { DEMO_CONTACTS, type HearerName, type PhrasebookMatch, type PipelineEvent, type Reading, type UnderstandRequest } from "../shared/pipeline";
 import { decide } from "../shared/rules/decider";
 import { trustedPhrasebookMatch } from "../shared/rules/evidence";
-import { bestMatch, matchesByHearer, phrasebookKeyterms } from "../shared/rules/phrasebook";
+import { bestMatch, matchesByHearer } from "../shared/rules/phrasebook";
 import { words } from "../shared/rules/speechText";
-import { acceptedKeyterms, agreementSummary, keytermLimit } from "../shared/rules/turn";
+import { agreementSummary } from "../shared/rules/turn";
 import type { DecisionInput, Hypothesis } from "../shared/rules/types";
 import { secondListenerModel, transcribeGeminiModel, type HearingRequest } from "./hearers";
 import { plainMessage, withTimeLimit } from "./http";
@@ -27,22 +27,6 @@ export interface UnderstandDeps {
 /** Time limits for a recording being transcribed, where accuracy matters more than speed. */
 export const TRANSCRIBE_LIMITS = { hearerSeconds: 15, repairSeconds: 8, secondListenerSeconds: 15 };
 
-/**
- * What the recognisers are told: the expected answers first (most likely in this turn), then the
- * person's own phrases, then the page's words and the demo contacts (not when transcribing a
- * recording, which is not talking to the phone). Within Scribe's rules, at most 100. The
- * phrasebook's phrases are left out when the phrasebook is switched off.
- */
-export function hintsFor(request: UnderstandRequest, now: number): string[] {
-  if (!request.switches.keyterms) return [];
-  // A recording is heard without hints: on TORGO dev clips the speaker's set-up phrases as Scribe
-  // keyterms raised words wrong from 25.2% to 28.2%, pulling new sentences towards known ones.
-  // Claude still sees them as known phrases (below), where it can weigh them.
-  if (request.purpose === "transcribe") return [];
-  const own = request.switches.phrasebook ? phrasebookKeyterms(request.phrasebook, keytermLimit, now) : [];
-  return acceptedKeyterms([...(request.context.expectedAnswers ?? []), ...own, ...request.keyterms, ...DEMO_CONTACTS], keytermLimit);
-}
-
 export async function understandTurn(
   request: UnderstandRequest, deps: UnderstandDeps, emit: (event: PipelineEvent) => void, signal?: AbortSignal,
 ): Promise<void> {
@@ -51,11 +35,12 @@ export async function understandTurn(
   const transcribing = request.purpose === "transcribe";
   const hearerSeconds = transcribing ? Math.max(deps.hearerSeconds, TRANSCRIBE_LIMITS.hearerSeconds) : deps.hearerSeconds;
   const repairSeconds = transcribing ? Math.max(deps.repairSeconds, TRANSCRIBE_LIMITS.repairSeconds) : deps.repairSeconds;
-  const keyterms = hintsFor(request, start);
   const examples = request.switches.gemini && request.switches.examples ? request.examples.slice(0, 5) : [];
-  emit({ type: "turn.started", turnId: request.turnId, at: start, keyterms, exampleCount: examples.length });
+  emit({ type: "turn.started", turnId: request.turnId, at: start, exampleCount: examples.length });
 
-  // Stage 2: the hearers, in parallel, each with its own time limit.
+  // Stage 2: the hearers, in parallel, each with its own time limit. They are given no word list:
+  // this is a general speech pipeline, and on TORGO recordings a list of the speaker's phrases
+  // made Scribe worse (25.2% to 28.2% of words wrong) by pulling new sentences towards known ones.
   const hearers: { name: HearerName; hear: (r: HearingRequest) => Promise<string>; seconds?: number }[] = [{ name: "scribe", hear: deps.hearScribe }];
   if (request.switches.gemini) {
     if (transcribing) {
@@ -83,7 +68,7 @@ export async function understandTurn(
     let hypothesis: Hypothesis;
     try {
       const text = await hear({
-        wavBase64: request.wavBase64, keyterms, examples,
+        wavBase64: request.wavBase64, examples,
         signal: withTimeLimit(limit * 1000, signal), seconds: limit,
         ...(transcribing ? { purpose: "transcribe" as const } : {}),
       });
@@ -111,7 +96,7 @@ export async function understandTurn(
   emit({ type: "phrasebook", at: at(), match: shown });
 
   const input: DecisionInput = {
-    hypotheses, matchesByHearer: byHearer, hintedTerms: keyterms, realtimeKeyterms: request.realtimeKeyterms ?? [], context: request.context,
+    hypotheses, matchesByHearer: byHearer, context: request.context,
     failedTries: request.context.failedTries ?? 0,
     transcribing,
   };
@@ -129,6 +114,7 @@ export async function understandTurn(
     emit({ type: "repair.started", at: at() });
     const began = deps.now();
     try {
+      // The page's known words are shown to Claude only, as evidence it weighs; no recogniser gets them.
       // Contacts first: Claude is shown at most 40 known words, and the contacts must be among them.
       const knownWords = transcribing ? (request.switches.keyterms ? request.keyterms : []) : [...DEMO_CONTACTS, ...request.keyterms];
       input.reading = await deps.repair(

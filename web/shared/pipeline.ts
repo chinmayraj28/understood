@@ -10,7 +10,7 @@
 
 /** Which recogniser produced a transcript. */
 export type HearerName =
-  | "scribe" // ElevenLabs Scribe batch (with the person's keyterms when speaking)
+  | "scribe" // ElevenLabs Scribe batch (given no word list)
   | "gemini" // Gemini through OpenRouter, shown a few of the person's own clips (Flash when speaking, 3.1 Pro for a recording)
   | "gemini4" // Gemini 4 Carbon, a second independent listener, only for a recording being transcribed
   | "realtime"; // ElevenLabs Scribe realtime: the live transcript shown while speaking (its final text is a vote too)
@@ -50,6 +50,7 @@ export interface TurnContext {
 
 /** Switches each stage on or off, so the page can show the difference each one makes. */
 export interface StageSwitches {
+  /** For a recording, whether Claude is shown the speaker's known phrases (`keyterms`). */
   keyterms: boolean;
   gemini: boolean;
   examples: boolean;
@@ -64,24 +65,21 @@ export interface UnderstandRequest {
   wavBase64: string;
   /** The final text from the live (realtime) recogniser, if it produced one. */
   realtimeText?: string;
-  /**
-   * The keyterms the live recogniser was given (none by default). The decider treats the live
-   * transcript as an independent, hint-free check only when these share no word with the hints
-   * the other recognisers got; otherwise all three could be pushed to the same wrong name.
-   */
-  realtimeKeyterms?: string[];
   /** The person's phrasebook. It lives only in their browser and is sent with each turn. */
   phrasebook: PhrasebookEntry[];
   /** A few of their clips for Gemini (the client picks them; at most 5). */
   examples: SpeechExample[];
-  /** Extra words likely in this turn (names, the things the demo assistant can do). */
+  /**
+   * Names and phrases likely in this turn. Never given to the recognisers: only shown to Claude in
+   * the repair stage as known words, which it weighs as evidence.
+   */
   keyterms: string[];
   context: TurnContext;
   switches: StageSwitches;
   /**
    * "transcribe" for a recording, where the transcript is the point and nobody is waiting to be
    * answered: the recognisers and Claude get longer to answer (Gemini with example clips can take
-   * well over 4 s), and the demo phone's contact names are not added as hints. Default "conversation".
+   * well over 4 s), and Claude is not shown the demo phone's contact names. Default "conversation".
    */
   purpose?: "conversation" | "transcribe";
 }
@@ -121,7 +119,7 @@ export type Decision =
  * On a server failure, turn.failed replaces the rest.
  */
 export type PipelineEvent =
-  | { type: "turn.started"; turnId: string; at: number; keyterms: string[]; exampleCount: number }
+  | { type: "turn.started"; turnId: string; at: number; exampleCount: number }
   | { type: "hear.started"; hearer: HearerName; at: number }
   | { type: "hear.done"; hearer: HearerName; at: number; text: string; seconds: number; failure?: string }
   | {
@@ -184,5 +182,5 @@ export interface ActResponse {
   needsConfirmation: boolean;
 }
 
-/** The contacts and things the pretend phone knows, used as keyterms and by /api/act. */
+/** The contacts the pretend phone knows: shown to Claude as known words, and used by /api/act. */
 export const DEMO_CONTACTS = ["Mum", "Sam", "Priya", "Dad", "Amma"] as const;

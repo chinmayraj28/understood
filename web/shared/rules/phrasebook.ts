@@ -4,7 +4,7 @@
 // Phrasebook.swift and PhrasebookMatching.swift; the SQLite store became an array.
 
 import type { HearerName, PhrasebookEntry, PhrasebookMatch } from "../pipeline";
-import { fillerWords, normalise, similarityOfWords, words } from "./speechText";
+import { normalise, similarityOfWords, words } from "./speechText";
 import type { Hypothesis, TurnOutcome } from "./types";
 
 /** Pairs not confirmed for this long count half as much: speech changes in progressive conditions. */
@@ -100,42 +100,6 @@ function best(entries: readonly PhrasebookEntry[], heard: string[][], now: numbe
     winner = { score, match };
   }
   return winner?.match ?? null;
-}
-
-/**
- * Words and phrases this person says, most used first, for recognisers that accept hints. Each
- * meant phrase is followed by its own content words ("message Mum", "message", "Mum"), so a
- * recogniser that only takes single words still gets the names. Use is the recency-weighted
- * number of confirmations.
- */
-export function phrasebookKeyterms(entries: readonly PhrasebookEntry[], limit: number, now: number): string[] {
-  if (limit <= 0) return [];
-  const usage = new Map<string, number>();
-  const wording = new Map<string, string>();
-  const newestFirst = [...entries].sort((a, b) => b.lastConfirmedAt - a.lastConfirmedAt);
-  for (const entry of newestFirst) {
-    const key = normalise(entry.meant);
-    if (!key) continue;
-    usage.set(key, (usage.get(key) ?? 0) + entry.timesConfirmed * recencyWeight(entry.lastConfirmedAt, now));
-    if (!wording.has(key)) wording.set(key, entry.meant); // newest wording
-  }
-  const terms: string[] = [];
-  const seen = new Set<string>();
-  const append = (term: string) => {
-    if (terms.length >= limit || seen.has(term.toLowerCase())) return;
-    seen.add(term.toLowerCase());
-    terms.push(term);
-  };
-  const keys = [...usage.keys()].sort((a, b) => usage.get(b)! - usage.get(a)! || (a < b ? -1 : a > b ? 1 : 0));
-  for (const key of keys) {
-    const phrase = wording.get(key)!;
-    append(phrase);
-    for (const raw of phrase.split(" ")) {
-      const word = raw.replace(/^\p{P}+|\p{P}+$/gu, "");
-      if ([...word].length > 1 && !fillerWords.has(word.toLowerCase())) append(word);
-    }
-  }
-  return terms;
 }
 
 /**

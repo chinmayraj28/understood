@@ -19,16 +19,6 @@ export interface DecisionInput {
    * Only these can let the decider act.
    */
   matchesByHearer?: Partial<Record<HearerName, PhrasebookMatch>>;
-  /**
-   * The keyterms the recognisers were given. Agreement on a hinted name needs the realtime
-   * (least-hinted) transcript as well.
-   */
-  hintedTerms?: string[];
-  /**
-   * The keyterms the page gave the realtime recogniser. When they share a word with the hinted
-   * words, the realtime transcript no longer counts as hint-free.
-   */
-  realtimeKeyterms?: string[];
   /** The repair stage's reading. Missing when repair was skipped (fast path) or failed. */
   reading?: Reading;
   context?: TurnContext;

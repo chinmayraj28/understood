@@ -39,7 +39,7 @@ Two things from the research shaped the design. First, the **meaning often survi
 Say "message Sam running late". The page draws the sentence moving along a line of five stations:
 
 1. **Hear it several ways, at the same time.**
-   - **ElevenLabs Scribe** is the main recogniser: v2 with hints (the person's contacts and usual phrases) for a spoken turn, v3 without fillers for a recording.
+   - **ElevenLabs Scribe** is the main recogniser: v2 for a spoken turn, v3 without fillers for a recording. No recogniser is given a word list of expected names or phrases.
    - **Gemini** (through OpenRouter) hears the clip after being shown a few recordings of this same person with their correct text: Gemini 3.8 Flash for a spoken turn, Gemini 3.1 Pro for a recording.
    - **Gemini 4 Carbon**, for a recording only, listens the same way as a second, independent ear.
    - **Scribe realtime** writes the live transcript you see while you speak (v2) or a recording plays (v3 live), and is a vote too.
@@ -75,9 +75,9 @@ Three pages under one header:
 What you can do there:
 
 - **Hear a recording.** The main way in. Pick a real TORGO recording of a person with dysarthria (by speaker, test or set-up clip, or search), or choose your own audio file (WAV, MP3, M4A, OGG or WebM, up to 60 seconds, decoded in the browser). It plays out loud while the live recogniser writes it down, then goes through every stage. The answer is shown as a transcript in large type and, when what was said is known (the TORGO prompt, or text you type), every word is marked right or wrong, with the share of words wrong for each recogniser on its own and for the whole pipeline, scored exactly as the evaluation scored it. A recording is only transcribed: nothing is acted on, asked, spoken or learned.
-- **Heard as the right voice.** The first time you hear one of a TORGO speaker's clips, the page sets up that speaker's voice from up to 20 of their own set-up clips, as the evaluation did: their phrases become Scribe's hints, five clips become Gemini's examples, and every mishearing becomes a phrasebook entry (about 20 seconds, once per visit). Test clips are never used for this, so a test clip is a fair test; hearing a set-up clip says so. Your own file can be heard as nobody in particular, as your own voice, or as a TORGO speaker.
+- **Heard as the right voice.** The first time you hear one of a TORGO speaker's clips, the page sets up that speaker's voice from up to 20 of their own set-up clips, as the evaluation did: their phrases become the known phrases shown to Claude, five clips become Gemini's examples, and every mishearing becomes a phrasebook entry (about 20 seconds, once per visit). Test clips are never used for this, so a test clip is a fair test; hearing a set-up clip says so. Your own file can be heard as nobody in particular, as your own voice, or as a TORGO speaker.
 - **Set up your voice.** Read 10 short phrases. Their recordings become Gemini's examples and the first phrasebook entries.
-- **Stage switches.** Turn off the hints, Gemini, the examples, the phrasebook or the repair, hear the same recording again, and compare the two results side by side.
+- **Stage switches.** Turn off the known phrases shown to Claude, Gemini, the examples, the phrasebook or the repair, hear the same recording again, and compare the two results side by side.
 - **Evaluation.** The numbers from real recordings of people with dysarthria (below), led by how many words the transcript got wrong.
 - **Speak live.** **Start listening** still runs your own speech through the same pipeline, with the pretend phone acting or asking first.
 - **Recordings.** Every TORGO clip on your computer, playable, filtered by speaker, severity, word or sentence, and set-up or test. For the 121 clips the evaluation tested, open one to see what each recogniser heard, Claude's reading and the decision, next to what Scribe alone did. It needs the data on disk (`eval/scripts/fetch_torgo.sh`, about 1 GB). Because TORGO may not be redistributed, the audio is served only by the local server, only to this computer, and only for clips listed in the manifest; a hosted copy of the site has no such route.
@@ -183,6 +183,8 @@ The first version of the pipeline was measured on **TORGO**, recordings of peopl
 | + Gemini with the person's own clips | 29% | 39% | 7% | 54% |
 | + third vote and Claude's repair | 27% | 37% | 4% | 59% |
 | + phrasebook (the full pipeline) | **25%** | 34% | **2%** | 64% |
+
+The "+ hints" row is history: since 19 Nov no recogniser is given hints (see `DECISIONS.md`).
 
 On phrases the person had said before (66 clips), words wrong fell from 38% to **19%**.
 

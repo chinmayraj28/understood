@@ -7,7 +7,7 @@ Written 9 Nov 2026, when the user moved the demo from the Mac app to a website: 
 A page that shows one turn of speech travelling through the pipeline, live:
 
 1. **Speak.** A big live transcript writes itself as you talk (ElevenLabs Scribe realtime). A waveform breathes with your voice. The page waits through long pauses (2.5 s by default, adjustable), or you say "done". A button also ends the turn, for visitors with hands.
-2. **Hear, three ways.** Three lanes race, each with its own stopwatch: Scribe with your keyterms, Gemini shown your own clips, and the realtime transcript. Words land as each finishes. Words the lanes disagree on light up.
+2. **Hear, three ways.** Three lanes race, each with its own stopwatch: Scribe, Gemini shown your own clips, and the realtime transcript. (Until 19 Nov Scribe was also given your keyterms; no recogniser gets a word list now.) Words land as each finishes. Words the lanes disagree on light up.
 3. **Phrasebook.** If something you said before was misheard the same way, its card turns over: "heard *call some* → you meant *call Sam*, confirmed 3 times".
 4. **Repair.** Claude's reading appears with a confidence meter and one plain sentence on why.
 5. **Decide.** A switch-track picks the route, and the rule that fired is written out: "Two recognisers heard the same words and Claude was sure, so it acts." Or: "Scribe heard a different name, so it asks first."
@@ -16,7 +16,7 @@ A page that shows one turn of speech travelling through the pipeline, live:
 
 Alongside:
 - **Set up your voice:** read 10 short phrases shown on screen. Their clips become Gemini's examples and the first phrasebook entries.
-- **Stage switches:** turn off keyterms, Gemini, examples, phrasebook or repair and say the same thing again, to see what each stage adds.
+- **Stage switches:** turn off the known phrases (shown to Claude only), Gemini, examples, phrasebook or repair and say the same thing again, to see what each stage adds.
 - **Evaluation:** the numbers from real recordings of people with dysarthria (TORGO, `eval/`), with replays of evaluation turns animated through the same pipeline view. Text and timings only: TORGO audio is not ours to publish.
 
 ## 2. Architecture

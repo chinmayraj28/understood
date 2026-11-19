@@ -138,13 +138,13 @@ describe("Decider: stop, answers and failures", () => {
     // From the page's live test: punctuation (":" and ",") is ignored, but "massage" is a different word.
     const result = decideFull({
       hypotheses: heard("Message Mum: I'm running late", "Message Mum, I'm running late.", "massage mum I'm running late"),
-      reading: reading("Message Mum, I'm running late", "high"), hintedTerms: ["Mum"],
+      reading: reading("Message Mum, I'm running late", "high"),
     });
     expect(result.decision).toEqual({ kind: "confirm", question: "Message Mum, I'm running late?", reading: "Message Mum, I'm running late" });
     expect(result.rule).toBe("Claude was sure, but the recognisers disagreed: the live recogniser heard \"massage mum I'm running late\", so it asks one yes/no question first.");
     const agreeing = decideFull({
       hypotheses: heard("Message Mum: I'm running late", "Message Mum, I'm running late.", "message mum I'm running late"),
-      reading: reading("Message Mum, I'm running late", "high"), hintedTerms: ["Mum"],
+      reading: reading("Message Mum, I'm running late", "high"),
     });
     expect(agreeing.decision).toEqual({ kind: "act", text: "Message Mum, I'm running late" });
   });
@@ -154,6 +154,10 @@ describe("Decider: stop, answers and failures", () => {
     expect(acted.rule).toBe("The recognisers heard the same words and Claude was sure, so it acts.");
     const asked = decideFull({ hypotheses: heard("message Mum", "message Sam", null), reading: reading("message Mum", "high") });
     expect(asked.rule).toContain("asks one yes/no question first");
+    // Gemini and the live recogniser agree, but Scribe, the main one, heard nothing.
+    const noScribe = decideFull({ hypotheses: heard(null, "volume up", "volume up") });
+    expect(noScribe.decision).toEqual({ kind: "confirm", question: "Volume up?", reading: "volume up" });
+    expect(noScribe.rule).toBe("The main recogniser, Scribe, heard nothing, and there was no reading from Claude, so it asks about what Gemini heard.");
   });
 });
 

@@ -33,7 +33,7 @@ class FakeServer implements Transport {
     this.hold = null;
     if (hold) await hold;
     const text = request.realtimeText ?? "";
-    yield { type: "turn.started", turnId: request.turnId, at: 0, keyterms: [], exampleCount: 0 };
+    yield { type: "turn.started", turnId: request.turnId, at: 0, exampleCount: 0 };
     yield { type: "hear.started", hearer: "scribe", at: 1 };
     yield { type: "hear.started", hearer: "realtime", at: 1 };
     yield { type: "hear.done", hearer: "realtime", at: 2, text: text.toLowerCase(), seconds: 0 };

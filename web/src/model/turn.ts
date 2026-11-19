@@ -28,7 +28,7 @@ export const HEARER_LABEL: Record<HearerName, string> = {
 };
 
 export const HEARER_NOTE: Record<HearerName, string> = {
-  scribe: "ElevenLabs Scribe v3 (given your names and phrases as hints when you speak)",
+  scribe: "ElevenLabs Scribe (v3 for a recording, v2 when speaking), given no word list",
   gemini: "Gemini (3.1 Pro for a recording, Flash when speaking), shown a few clips of the same voice",
   gemini4: "Gemini 4 Carbon, a second listener for a recording, shown the same clips",
   realtime: "ElevenLabs realtime: the live transcript, written as it was said",
@@ -91,7 +91,6 @@ export interface TurnModel {
   /** The question the person was answering, if any. */
   answering?: string;
   startedAt?: number;
-  keyterms: string[];
   exampleCount: number;
   lanes: Record<HearerName, Lane>;
   agreement?: AgreementEvent;
@@ -130,7 +129,6 @@ export function newTurn(init: {
     liveText: init.liveText ?? "",
     switches: init.switches ?? ALL_ON,
     answering: init.answering,
-    keyterms: [],
     exampleCount: 0,
     lanes,
     phrasebookChecked: false,
@@ -146,7 +144,7 @@ export function reduceTurn(turn: TurnModel, event: PipelineEvent, localNow: numb
   const next: TurnModel = { ...turn, events: [...turn.events, event] };
   switch (event.type) {
     case "turn.started":
-      return { ...next, startedAt: event.at, keyterms: event.keyterms, exampleCount: event.exampleCount, stage: "hear" };
+      return { ...next, startedAt: event.at, exampleCount: event.exampleCount, stage: "hear" };
     case "hear.started":
       return withLane(next, event.hearer, {
         status: "running",

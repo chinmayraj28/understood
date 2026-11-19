@@ -70,6 +70,8 @@ Today the ElevenLabs agent hears the user and acts on its own raw transcript str
 | **Gemini 3.8 Flash with audio** (`google/gemini-3.8-flash`), through OpenRouter (key we already have, verified 8 Nov), shown 3 to 5 of this person's own clips with their correct text | The only no-training technique with a published gain on impaired speech (~22% fewer errors) | ~1–3 s |
 | **Apple on-device** (SpeechAnalyzer), with the same words as hints | Free, private, already running for stage 1; a third vote | ~0 s extra |
 
+On the website (`web/`), since 19 Nov no recogniser is given keyterms or hints: Scribe, Gemini and the realtime transcript all hear each turn with no word list (`DECISIONS.md`). The table above is the original plan for the Mac app.
+
 **Why three:** when different recognisers agree, we can act without asking. When they disagree, the disagreement is the confidence signal ElevenLabs does not give us.
 
 **Rejected:** training a model per person (best results, but needs hundreds of recordings and days); Voiceitt (no public API docs); Apple's "Listen for atypical speech" (an Apple system setting our code cannot use); telling the models about the condition (shown to hurt).

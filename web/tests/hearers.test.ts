@@ -1,45 +1,24 @@
-// The shapes of the outside requests, the keyterm rules, and the prompts, checked without a network.
+// The shapes of the outside requests and the prompts, checked without a network.
 import { describe, expect, it } from "vitest";
 import { actInstructions } from "../server/act";
 import { claudeBody, objectFromReply } from "../server/claude";
-import { cleanTranscript, geminiBody, geminiInstruction, geminiReplyText, scribeForm, vocabulary, type HearingRequest } from "../server/hearers";
+import { cleanTranscript, geminiBody, geminiInstruction, geminiReplyText, scribeForm, type HearingRequest } from "../server/hearers";
 import { repairData, repairInstructions, readingFrom } from "../server/repair";
-import { acceptedKeyterms, fitsKeytermRules } from "../shared/rules/turn";
 
 const hearing = (change: Partial<HearingRequest> = {}): HearingRequest => ({
-  wavBase64: btoa("RIFF....WAVE"), keyterms: [], examples: [], signal: new AbortController().signal, seconds: 4, ...change,
-});
-
-describe("keyterms", () => {
-  it("keeps only terms Scribe accepts, without repeats, most likely first, at most 100", () => {
-    const terms = ["Sam", "sam ", "  Mum  ", "", "a b c d e", "a b c d e f", "x".repeat(49), "x".repeat(50), "bad <tag>", "brace {", "back\\slash", "[list]"];
-    expect(acceptedKeyterms(terms)).toEqual(["Sam", "Mum", "a b c d e", "x".repeat(49)]);
-    expect(acceptedKeyterms(Array.from({ length: 150 }, (_, index) => `term ${index}`))).toHaveLength(100);
-  });
-
-  it("counts length in code points, as the server does", () => {
-    // An emoji is one code point but two UTF-16 units; "é" written as e + accent is two code points.
-    expect(fitsKeytermRules("😀".repeat(49))).toBe(true);
-    expect(fitsKeytermRules("😀".repeat(50))).toBe(false);
-    expect(fitsKeytermRules("é".repeat(25))).toBe(false); // 50 code points
-    expect(fitsKeytermRules("é".repeat(24))).toBe(true);
-  });
-
-  it("gives Gemini a stricter vocabulary with no quotes or brackets", () => {
-    // A line break is folded into a space first (as in Swift), so it can never start a new line.
-    expect(vocabulary(["Sam", 'say "hi"', "(Mum)", "Priya", "line\nbreak", "tick`"])).toEqual(["Sam", "Priya", "line break"]);
-  });
+  wavBase64: btoa("RIFF....WAVE"), examples: [], signal: new AbortController().signal, seconds: 4, ...change,
 });
 
 describe("Scribe request", () => {
-  it("is a multipart form with the model, language, keyterms once each and the file", () => {
-    const form = scribeForm(hearing({ keyterms: ["Sam", "Mum", "bad <x>"] }));
+  it("is a multipart form with the model, language and the file, and no word list", () => {
+    const form = scribeForm(hearing());
     // A spoken turn keeps scribe_v2 and every word (no_verbatim could drop a "no").
     expect(form.get("model_id")).toBe("scribe_v2");
     expect(form.get("no_verbatim")).toBeNull();
     expect(form.get("language_code")).toBe("en");
     expect(form.get("tag_audio_events")).toBe("false");
-    expect(form.getAll("keyterms")).toEqual(["Sam", "Mum"]);
+    expect(form.has("keyterms")).toBe(false);
+    expect(scribeForm(hearing({ purpose: "transcribe" })).has("keyterms")).toBe(false);
     const file = form.get("file") as File;
     expect(file.type).toBe("audio/wav");
     expect(file.size).toBe(12);
@@ -47,15 +26,15 @@ describe("Scribe request", () => {
 });
 
 describe("Gemini request and reply", () => {
-  it("sends examples as earlier turns, the vocabulary as its own JSON part, and minimal reasoning", () => {
-    const body = geminiBody(hearing({ keyterms: ["Sam"], examples: [{ wavBase64: "EX", text: " call Sam " }, { wavBase64: "E2", text: "" }] }));
+  it("sends examples as earlier turns, no word list, and minimal reasoning", () => {
+    const body = geminiBody(hearing({ examples: [{ wavBase64: "EX", text: " call Sam " }, { wavBase64: "E2", text: "" }] }));
     expect(body).toMatchObject({ model: "google/gemini-3.8-flash", temperature: 0, max_tokens: 512, reasoning: { effort: "minimal", exclude: true } });
     const messages = body.messages as { role: string; content: unknown }[];
     expect(messages.map((message) => message.role)).toEqual(["system", "user", "assistant", "user"]);
     expect(messages[2].content).toBe("call Sam");
     const final = messages[3].content as { type: string; text?: string }[];
-    expect(final.map((part) => part.type)).toEqual(["text", "text", "input_audio"]);
-    expect(final[1].text).toBe('Vocabulary (JSON array, words only): ["Sam"]');
+    expect(final.map((part) => part.type)).toEqual(["text", "input_audio"]);
+    expect(JSON.stringify(body)).not.toMatch(/vocabulary/i);
   });
 
   it("treats a cut-off reply, a missing content or an error object as a failure, not silence", () => {

@@ -122,7 +122,7 @@ export const nothingHeard: Replay = {
       partials: [],
       speechSeconds: 2.2,
       events: [
-        { type: "turn.started", turnId: "example-fail-1", at: 0, keyterms: ["Mum", "Sam"], exampleCount: 0 },
+        { type: "turn.started", turnId: "example-fail-1", at: 0, exampleCount: 0 },
         { type: "hear.started", hearer: "realtime", at: 0 },
         { type: "hear.started", hearer: "scribe", at: 2 },
         { type: "hear.started", hearer: "gemini", at: 3 },

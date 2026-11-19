@@ -145,7 +145,10 @@ export function chooseExamples(clips: Clip[], max = 5): SpeechExample[] {
 
 const ACTION_WORDS = ["message", "call", "timer", "minutes", "music", "remind", "reminder", "yes", "no", "done"];
 
-/** Words likely in a turn: contacts, the things the pretend phone does, names from the phrasebook. */
+/**
+ * Words likely in a spoken turn: contacts, the things the pretend phone does, names from the
+ * phrasebook. Sent as the request's `keyterms`, which only Claude sees as known words.
+ */
 export function keytermsFor(entries: PhrasebookEntry[]): string[] {
   const terms = new Set<string>([...DEMO_CONTACTS, ...ACTION_WORDS]);
   for (const entry of entries) {

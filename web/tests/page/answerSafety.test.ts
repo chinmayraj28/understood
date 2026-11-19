@@ -9,7 +9,7 @@ import { newTurn, reduceTurn, type TurnModel } from "../../src/model/turn";
 
 function turn(heard: Partial<Record<HearerName, string>>, decision: Decision): TurnModel {
   let t = newTurn({ turnId: `t-${Math.random()}`, origin: "live" });
-  const events: PipelineEvent[] = [{ type: "turn.started", turnId: t.turnId, at: 0, keyterms: [], exampleCount: 0 }];
+  const events: PipelineEvent[] = [{ type: "turn.started", turnId: t.turnId, at: 0, exampleCount: 0 }];
   for (const [hearer, text] of Object.entries(heard) as [HearerName, string][]) {
     events.push({ type: "hear.started", hearer, at: 1 }, { type: "hear.done", hearer, at: 2, text, seconds: 0.5 });
   }

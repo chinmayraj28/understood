@@ -63,7 +63,7 @@ async function hear(model: string, clip: Clip, shots: number): Promise<string> {
   const k = `${model}|${shots}`;
   const examples = examplesFor(clip.speaker, shots);
   const purpose = layout === "single" ? "transcribe" : undefined;
-  const body = { ...geminiBody({ wavBase64: wav(clip), keyterms: [], examples, signal: new AbortController().signal, seconds: 30, purpose, model }), model } as Record<string, unknown>;
+  const body = { ...geminiBody({ wavBase64: wav(clip), examples, signal: new AbortController().signal, seconds: 30, purpose, model }), model } as Record<string, unknown>;
   if (!model.startsWith("google/")) delete body.reasoning;
   const file = path.join(cacheDir, `${hash(JSON.stringify(["listener", model, clip.id, shots, layout, hash(JSON.stringify(body))]))}.json`);
   if (existsSync(file)) {

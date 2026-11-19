@@ -49,7 +49,7 @@ export function decide(input: DecisionInput): Decided {
     };
   }
 
-  const agreed = agreedText(heard, input);
+  const agreed = agreedText(heard);
   const strongMatch = trustedPhrasebookMatch(heard, input.matchesByHearer ?? {});
   const scribeHeard = heard.some((hypothesis) => hypothesis.hearer === "scribe");
   const failedTries = input.failedTries ?? 0;
@@ -189,8 +189,8 @@ function whyNoAgreement(heard: Hypothesis[], readingWords?: string[]): string {
     }
     if (readingWords && !sameWords(target, readingWords)) return "The recognisers all heard different words from Claude's reading";
   }
-  // Same words everywhere, yet no agreement: a hinted name the hint-free live recogniser didn't confirm.
-  return "The recognisers agreed on a name they were hinted towards, but the live recogniser, which had no hint, didn't confirm it";
+  // Same words everywhere, yet no agreement: Scribe, the main recogniser, heard nothing that counts.
+  return scribe ? "The main recogniser, Scribe, heard only filler words" : "The main recogniser, Scribe, heard nothing";
 }
 
 const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);

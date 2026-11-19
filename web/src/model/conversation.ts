@@ -12,7 +12,6 @@
 //   - an action that simply went ahead: nothing, because nobody confirmed what it meant.
 
 import type { ActResponse, PhrasebookEntry, StageSwitches, UnderstandRequest } from "../../shared/pipeline";
-import { SCRIBE_REALTIME } from "../audio/liveTranscript";
 import type { VoiceStore } from "../storage/store";
 import { chooseExamples, keytermsFor, words, type Clip } from "./learning";
 import { PHONE_HOME, phoneCancel, type PhoneState } from "./phone";
@@ -185,7 +184,6 @@ export class Conversation {
       turnId,
       wavBase64: input.wavBase64,
       realtimeText: input.realtimeText,
-      realtimeKeyterms: SCRIBE_REALTIME.keyterms,
       phrasebook: voice ? voice.phrasebook : this.state.entries,
       examples: voice ? voice.examples : chooseExamples(this.clips),
       // Your own voice: the phrases you have confirmed, as known phrases (not the demo phone's contacts).
@@ -248,7 +246,6 @@ export class Conversation {
       turnId,
       wavBase64: input.wavBase64,
       realtimeText: input.realtimeText,
-      realtimeKeyterms: SCRIBE_REALTIME.keyterms,
       phrasebook: this.state.entries,
       examples: chooseExamples(this.clips),
       keyterms: keytermsFor(this.state.entries),

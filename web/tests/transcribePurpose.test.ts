@@ -1,9 +1,9 @@
-// A recording sent with purpose "transcribe": the demo phone's contacts are not hints, the
+// A recording sent with purpose "transcribe": Claude is not shown the demo phone's contacts, the
 // recognisers and Claude get longer, and the field is checked like every other.
 import { describe, expect, it } from "vitest";
-import { DEMO_CONTACTS, type PipelineEvent, type UnderstandRequest } from "../shared/pipeline";
+import type { PipelineEvent, UnderstandRequest } from "../shared/pipeline";
 import type { HearingRequest } from "../server/hearers";
-import { hintsFor, TRANSCRIBE_LIMITS, understandTurn, type UnderstandDeps } from "../server/understand";
+import { TRANSCRIBE_LIMITS, understandTurn, type UnderstandDeps } from "../server/understand";
 import { checkUnderstand } from "../server/validate";
 
 function request(change: Partial<UnderstandRequest> = {}): UnderstandRequest {
@@ -14,9 +14,17 @@ function request(change: Partial<UnderstandRequest> = {}): UnderstandRequest {
 }
 
 describe("purpose: transcribe", () => {
-  it("gives the recognisers no hints for a recording (they hurt on TORGO), but keeps them for speech", () => {
-    expect(hintsFor(request(), 0)).toEqual(expect.arrayContaining([...DEMO_CONTACTS, "stubble"]));
-    expect(hintsFor(request({ purpose: "transcribe" }), 0)).toEqual([]);
+  it("gives the recognisers no word list, for a recording or for speech", async () => {
+    const seen: HearingRequest[] = [];
+    const deps: UnderstandDeps = {
+      hearScribe: async (r) => (seen.push(r), "up"), hearGemini: async (r) => (seen.push(r), "up"),
+      repair: async () => ({ text: "up", confidence: "medium", alternatives: [], reason: "" }),
+      now: Date.now, hearerSeconds: 4, repairSeconds: 3,
+    };
+    await understandTurn(request({ purpose: "transcribe" }), deps, () => {});
+    await understandTurn(request(), deps, () => {});
+    expect(seen).toHaveLength(5); // three hearers for the recording, two for speech
+    expect(seen.every((r) => !("keyterms" in r))).toBe(true);
   });
 
   it("gives the recognisers and Claude the longer limits", async () => {

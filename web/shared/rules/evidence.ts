@@ -1,12 +1,12 @@
 // The evidence rules the decider uses before it may act without asking. Each one closes a way a
 // wrong reading could become an action: recognisers out-voting the main one (Scribe), a
-// phrasebook pair from one recogniser being used for another's transcript, a one-word negation,
-// and hints that push two recognisers into agreeing on the same hinted name.
-// Ported from the Swift DeciderEvidence.swift. On the web the "hint-free" voice is the realtime
-// recogniser, which the page gives few or no keyterms; on the Mac it was Apple's.
+// phrasebook pair from one recogniser being used for another's transcript, and a one-word negation.
+// Ported from the Swift DeciderEvidence.swift. The Swift version also guarded against hints
+// pushing recognisers into agreeing on a hinted name; the web recognisers get no hints, so that
+// guard is gone here.
 
 import type { HearerName, PhrasebookMatch } from "../pipeline";
-import { contentWords, fillerWords, keyWordsAgree, names, negationWords, normalise, sameWords, similarity, words } from "./speechText";
+import { contentWords, keyWordsAgree, names, negationWords, normalise, sameWords, similarity, words } from "./speechText";
 import type { DecisionInput, Hypothesis } from "./types";
 
 /** A phrasebook entry this close to what was heard (0...1)... */
@@ -31,8 +31,7 @@ export function isStrong(match: PhrasebookMatch | null | undefined): boolean {
  * The expected answer to act on, or null (then the turn is confirmed instead). All must hold:
  * - two or more recognisers heard it, Scribe among them;
  * - no recogniser heard a different expected answer;
- * - no recogniser heard a negation the answer does not itself contain ("not Mum", "yes, don't");
- * - when the answer was given to the recognisers as a hint, the realtime transcript agrees.
+ * - no recogniser heard a negation the answer does not itself contain ("not Mum", "yes, don't").
  */
 export function trustedExpectedAnswer(heard: Hypothesis[], input: DecisionInput): string | null {
   const expected = input.context?.expectedAnswers ?? [];
@@ -48,10 +47,6 @@ export function trustedExpectedAnswer(heard: Hypothesis[], input: DecisionInput)
     if (expected.some((other) => other !== answer && matchesAnswer(hypothesis.text, other, expected))) return null;
     const negations = words(hypothesis.text).filter((word) => negationWords.has(word));
     if (negations.some((word) => !answerWords.has(word))) return null;
-  }
-  if (isHintBiased(answer, input)) {
-    const independent = independentTranscript(input);
-    if (independent === null || !matchesAnswer(independent, answer, expected)) return null;
   }
   return answer;
 }
@@ -91,57 +86,15 @@ export function distinguishingParts(options: string[]): string[] {
 
 /**
  * The agreed text when at least two recognisers, Scribe among them, heard the same content words
- * and none heard different ones. Returns Scribe's wording. When the agreed words include a hinted
- * name or expected answer, the realtime transcript must agree too, because the hints alone can
- * make Scribe and Gemini agree on the wrong name.
+ * and none heard different ones. Returns Scribe's wording.
  */
-export function agreedText(heard: Hypothesis[], input: DecisionInput): string | null {
+export function agreedText(heard: Hypothesis[]): string | null {
   const usable = heard.filter((hypothesis) => words(hypothesis.text).length > 0);
   const scribe = usable.find((hypothesis) => hypothesis.hearer === "scribe");
   if (usable.length < 2 || !scribe) return null;
   const scribeWords = contentWords(scribe.text);
   if (scribeWords.length === 0 || !usable.every((hypothesis) => sameWords(contentWords(hypothesis.text), scribeWords))) return null;
-  if (isHintBiased(scribe.text, input)) {
-    const independent = independentTranscript(input);
-    if (independent === null || !sameWords(contentWords(independent), scribeWords)) return null;
-  }
   return scribe.text;
-}
-
-/**
- * Words the recognisers were pushed towards: capitalised words in the hints (names, apps) and
- * the words of any expected answer that was given as a hint.
- */
-export function hintedWords(input: DecisionInput): Set<string> {
-  const answers = new Set((input.context?.expectedAnswers ?? []).map(normalise));
-  const result = new Set<string>();
-  for (const term of input.hintedTerms ?? []) {
-    if (answers.has(normalise(term))) contentWords(term).forEach((word) => result.add(word));
-    for (const raw of term.split(" ")) {
-      const first = [...raw][0];
-      if (first !== undefined && first !== first.toLowerCase() && first === first.toUpperCase()) words(raw).forEach((word) => result.add(word));
-    }
-  }
-  for (const filler of fillerWords) result.delete(filler);
-  return result;
-}
-
-export function isHintBiased(text: string, input: DecisionInput): boolean {
-  const hinted = hintedWords(input);
-  return contentWords(text).some((word) => hinted.has(word));
-}
-
-/**
- * The realtime transcript, as the hint-free check, or null when there is none. The realtime
- * recogniser counts as hint-free only when the keyterms the page gave it share no word with the
- * hinted words: if it was pushed towards the same name as the others, all three could agree on
- * the same wrong name, so there is no independent transcript and the decider asks.
- */
-export function independentTranscript(input: DecisionInput): string | null {
-  const hinted = hintedWords(input);
-  if ((input.realtimeKeyterms ?? []).some((term) => words(term).some((word) => hinted.has(word)))) return null;
-  const realtime = input.hypotheses.find((hypothesis) => hypothesis.hearer === "realtime" && words(hypothesis.text).length > 0);
-  return realtime?.text ?? null;
 }
 
 // MARK: Phrasebook

@@ -18,8 +18,6 @@ export const maxExamples = 5;
 export const maxPhrasebookEntries = 200;
 export const maxPhraseWords = 20;
 export const maxRealtimeCharacters = 600;
-/** Scribe realtime takes at most 50 keyterms. */
-export const maxRealtimeKeyterms = 50;
 export const maxSpeakCharacters = 300;
 
 export type Checked<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -123,12 +121,10 @@ export function checkUnderstand(body: unknown): Checked<UnderstandRequest> {
   return checked(() => {
     if (!isObject(body)) return fail("The request must be a JSON object.");
     const realtimeText = text(body.realtimeText, "realtimeText", maxRealtimeCharacters, { optional: true });
-    const realtimeKeyterms = list(body.realtimeKeyterms, "realtimeKeyterms", maxRealtimeKeyterms, (item, name) => text(item, name, 100)!, true);
     return {
       turnId: text(body.turnId, "turnId", 100, { nonEmpty: true })!,
       wavBase64: wav(body.wavBase64, "wavBase64", maxWavBytes),
       ...(realtimeText !== undefined ? { realtimeText } : {}),
-      ...(realtimeKeyterms !== undefined ? { realtimeKeyterms } : {}),
       phrasebook: list(body.phrasebook, "phrasebook", maxPhrasebookEntries, entry)!,
       examples: list(body.examples, "examples", maxExamples, example)!,
       keyterms: list(body.keyterms, "keyterms", 200, (item, name) => text(item, name, 100)!)!,

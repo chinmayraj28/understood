@@ -64,7 +64,7 @@ function examplesFor(speaker: string) {
 async function judged(id: string): Promise<string> {
   const clip = clipById.get(id)!;
   const candidates = [...new Set(inputs.map((i) => answers.get(i)!.get(id)!))];
-  const body = geminiBody({ wavBase64: readFileSync(path.join(dataDir, clip.audio)).toString("base64"), keyterms: [], examples: examplesFor(clip.speaker), signal: new AbortController().signal, seconds: 30, purpose: "transcribe", model: judge });
+  const body = geminiBody({ wavBase64: readFileSync(path.join(dataDir, clip.audio)).toString("base64"), examples: examplesFor(clip.speaker), signal: new AbortController().signal, seconds: 30, purpose: "transcribe", model: judge });
   const messages = body.messages as { role: string; content: unknown[] }[];
   const user = messages[1].content;
   user.splice(user.length - 1, 0, {

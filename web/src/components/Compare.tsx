@@ -7,7 +7,7 @@ import { countErrors, errorRate } from "../../shared/wordErrors";
 import { ConfidenceMeter, MarkedWords, seconds } from "./bits";
 
 const SWITCHES: { key: keyof StageSwitches; name: string; what: string }[] = [
-  { key: "keyterms", name: "Known phrases", what: "The phrases this person tends to say: shown to Claude for a recording, and to Scribe when you speak." },
+  { key: "keyterms", name: "Known phrases", what: "The phrases this person tends to say, shown to Claude for a recording. No recogniser is given them." },
   { key: "gemini", name: "Gemini", what: "Gemini listening alongside Scribe (two Gemini models for a recording)." },
   { key: "examples", name: "Their clips", what: "Show Gemini a few recordings of the same voice." },
   { key: "phrasebook", name: "Phrasebook", what: "Catch a mishearing you confirmed before." },

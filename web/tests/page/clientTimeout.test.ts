@@ -33,7 +33,7 @@ function stallingStream() {
     vi.fn((_url: string, init: RequestInit) => {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode('data: {"type":"turn.started","turnId":"t","at":0,"keyterms":[],"exampleCount":0}\n\n'));
+          controller.enqueue(new TextEncoder().encode('data: {"type":"turn.started","turnId":"t","at":0,"exampleCount":0}\n\n'));
           init.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")));
         },
       });

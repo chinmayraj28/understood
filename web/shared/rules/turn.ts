@@ -1,45 +1,9 @@
-// Helpers around one turn: which keyterms the recognisers are given, how the hearers' words
-// compare (for the page's agreement view), and the one place failed tries are counted.
+// Helpers around one turn: how the hearers' words compare (for the page's agreement view), and
+// the one place failed tries are counted.
 
 import type { Decision, HearerName } from "../pipeline";
-import { codePointCount, contentWords, containsNegation, sameWords } from "./speechText";
+import { contentWords, containsNegation, sameWords } from "./speechText";
 import type { Hypothesis } from "./types";
-
-/** At most this many keyterms are sent: above 100, Scribe bills every request as at least 20 s. */
-export const keytermLimit = 100;
-/** Scribe's keyterm rules: each term under 50 characters (code points) and at most 5 words. */
-export const keytermMaxCharacters = 50;
-export const keytermMaxWords = 5;
-const scribeForbidden = /[<>{}[\]\\]/;
-
-/** Trims, collapses spaces, drops blanks and repeats (ignoring case), keeping the first spelling. */
-export function uniqueTerms(terms: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const term of terms) {
-    const trimmed = term.trim().replace(/\s+/g, " ");
-    if (!trimmed || seen.has(trimmed.toLowerCase())) continue;
-    seen.add(trimmed.toLowerCase());
-    result.push(trimmed);
-  }
-  return result;
-}
-
-/** True when a trimmed term is short enough, has at most five words, and none of `forbidden`. */
-export function fitsKeytermRules(term: string, forbidden: RegExp = scribeForbidden): boolean {
-  return codePointCount(term) < keytermMaxCharacters
-    && term.split(" ").filter((word) => word.length > 0).length <= keytermMaxWords
-    && !forbidden.test(term);
-}
-
-/**
- * The keyterms Scribe will take, most likely first: within ElevenLabs' rules, without repeats,
- * at most `limit`. A term that breaks a rule is dropped rather than shortened, because a cut-off
- * name would steer the recogniser wrongly.
- */
-export function acceptedKeyterms(terms: readonly string[], limit: number = keytermLimit): string[] {
-  return uniqueTerms(terms).filter((term) => fitsKeytermRules(term)).slice(0, Math.max(0, limit));
-}
 
 export interface AgreementSummary {
   contentWords: Partial<Record<HearerName, string[]>>;

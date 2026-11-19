@@ -4,7 +4,6 @@
 // examples Gemini is shown, so it learns how this person sounds without any training.
 
 import type { HearerName, PipelineEvent } from "../../shared/pipeline";
-import { SCRIBE_REALTIME } from "../audio/liveTranscript";
 import type { Conversation } from "./conversation";
 import { learnEnrolmentPair, normalise, wordMiss } from "./learning";
 
@@ -43,10 +42,9 @@ export async function enrolPhrase(conversation: Conversation, phrase: string, wa
     turnId: `setup-${Date.now().toString(36)}`,
     wavBase64,
     realtimeText,
-    realtimeKeyterms: SCRIBE_REALTIME.keyterms,
     phrasebook: [],
     examples: [],
-    keyterms: phrase.split(/\s+/).filter((w) => /^[A-Z]/.test(w)),
+    keyterms: [], // known words are only for Claude, and repair is off for set-up
     context: { recentTurns: [] },
     switches: { keyterms: true, gemini: true, examples: false, phrasebook: false, repair: false },
   });

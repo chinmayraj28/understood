@@ -2,7 +2,7 @@
 // file-privacy and many-threads tests have no web equivalent; the rest are case for case.
 import { describe, expect, it } from "vitest";
 import { strongMatchSimilarity } from "../shared/rules/evidence";
-import { addPair, bestMatch, learnFromTurn, phrasebookKeyterms } from "../shared/rules/phrasebook";
+import { addPair, bestMatch, learnFromTurn } from "../shared/rules/phrasebook";
 import { days, heard, makeId, startTime } from "./helpers";
 import type { PhrasebookEntry } from "../shared/pipeline";
 
@@ -48,13 +48,6 @@ describe("Phrasebook", () => {
     for (let index = 0; index < 4; index += 1) book = add(book, "call some", "call Sam", "scribe");
     expect(bestMatch(book, ["call some"], startTime)?.timesConfirmed).toBe(4);
     expect(bestMatch(book, ["call some"], startTime + days(60))?.timesConfirmed).toBe(1); // two half-lives
-  });
-
-  it("gives keyterms most used first, with their words", () => {
-    let book = add([], "scroll town", "scroll down", "scribe");
-    for (const hearer of ["scribe", "realtime", "gemini"] as const) book = add(book, "message mom", "message Mum", hearer);
-    expect(phrasebookKeyterms(book, 10, startTime)).toEqual(["message Mum", "message", "Mum", "scroll down", "scroll", "down"]);
-    expect(phrasebookKeyterms(book, 2, startTime)).toEqual(["message Mum", "message"]);
   });
 
   it("learns one pair per recogniser that got it wrong, or one meant→meant pair when all were right", () => {

@@ -108,22 +108,12 @@ describe("3. Unicode text matches as in Swift", () => {
   });
 });
 
-describe("4. the realtime transcript is hint-free only when it was given no hinted words", () => {
-  it("asks when the realtime recogniser was pushed towards the same name", () => {
-    const hypotheses = heard("message Priya", "message Priya", "message Priya");
-    const input = { hypotheses, hintedTerms: ["Priya", "Sam"] };
-    expect(decide({ ...input, realtimeKeyterms: [] }).decision).toEqual({ kind: "act", text: "message Priya" });
-    expect(decide({ ...input, realtimeKeyterms: ["call", "message"] }).decision).toEqual({ kind: "act", text: "message Priya" });
-    expect(decide({ ...input, realtimeKeyterms: ["Priya"] }).decision).toEqual({ kind: "confirm", question: "Message Priya?", reading: "message Priya" });
-    expect(checkUnderstand({ turnId: "t", wavBase64: "AAAA", phrasebook: [], examples: [], keyterms: [], context: {},
-      realtimeKeyterms: Array(51).fill("x"), switches: { keyterms: true, gemini: true, examples: true, phrasebook: true, repair: true } }).ok).toBe(false);
-  });
-
-  it("does the same for an expected answer given to every recogniser", () => {
-    const context = { pendingQuestion: "Send it?", expectedAnswers: ["yes", "no"] };
-    const input = { hypotheses: heard("yes", "yes", "yes"), context, hintedTerms: ["yes", "no"] };
-    expect(decide({ ...input, realtimeKeyterms: [] }).decision).toEqual({ kind: "act", text: "yes" });
-    expect(decide({ ...input, realtimeKeyterms: ["yes", "no"] }).decision.kind).not.toBe("act");
+describe("4. the live recogniser's keyterms are gone", () => {
+  it("ignores realtimeKeyterms from an older page instead of passing them on", () => {
+    const checked = checkUnderstand({ turnId: "t", wavBase64: "AAAA", phrasebook: [], examples: [], keyterms: [], context: {},
+      realtimeKeyterms: Array(51).fill("x"), switches: { keyterms: true, gemini: true, examples: true, phrasebook: true, repair: true } });
+    expect(checked.ok).toBe(true);
+    expect(checked.ok && "realtimeKeyterms" in checked.value).toBe(false);
   });
 });
 

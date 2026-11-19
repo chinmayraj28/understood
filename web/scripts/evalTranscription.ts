@@ -9,7 +9,7 @@
 // Test clips are split once, by a hash of the clip id, into "dev" (used while improving the
 // pipeline) and "holdout" (run only at the end, to report). Recogniser answers are cached on disk
 // (EVAL_CACHE, default the system temp folder), so changing the repair or the combination does
-// not pay for the audio again; a changed request (hints, examples, prompt) is a new cache entry.
+// not pay for the audio again; a changed request (examples, prompt) is a new cache entry.
 // Never prints a key. Audio never leaves this computer except to the recognition services.
 
 import { createHash } from "node:crypto";
@@ -129,7 +129,8 @@ const wavHash = new Map<string, string>();
 const keyOf = (name: string, r: HearingRequest, extra: unknown) => {
   let wh = wavHash.get(r.wavBase64);
   if (!wh) wavHash.set(r.wavBase64, (wh = hash(r.wavBase64)));
-  return JSON.stringify([name, wh, r.keyterms, r.examples.map((e) => hash(e.wavBase64) + e.text), extra]);
+  // The [] stood for the hints, which recordings never had; kept so earlier cache entries still match.
+  return JSON.stringify([name, wh, [], r.examples.map((e) => hash(e.wavBase64) + e.text), extra]);
 };
 const deps: UnderstandDeps = {
   ...real,
@@ -235,7 +236,6 @@ async function main() {
         turnId: clip.id,
         wavBase64: wavBase64(clip.id),
         realtimeText: rt || undefined,
-        realtimeKeyterms: [],
         phrasebook: voice.phrasebook,
         examples: voice.examples,
         keyterms: voice.keyterms,

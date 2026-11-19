@@ -63,18 +63,15 @@ describe("Review findings", () => {
     expect(learnFromTurn([], hypotheses, { kind: "confirmed", meant: "call Sam" }, startTime, makeId)).toHaveLength(1);
   });
 
-  // 5. Hints can push Scribe and Gemini into agreeing on a hinted name: the realtime transcript must agree too.
-  it("needs the least-hinted transcript for agreement on a hinted name", () => {
-    const input = { hypotheses: heard("message Priya", "message Priya.", null), hintedTerms: ["Priya", "Sam"] };
-    expect(decideInput(input)).toEqual({ kind: "confirm", question: "Message Priya?", reading: "message Priya" });
-    expect(decideInput({ ...input, hypotheses: heard("message Priya", "message Priya.", "message priya") }))
+  // 5. Was: hints could push Scribe and Gemini into agreeing on a hinted name. The recognisers now
+  //    get no hints, so that guard is gone; agreement still needs every recogniser that heard something.
+  it("needs every recogniser that heard something to agree on a name", () => {
+    expect(decideInput({ hypotheses: heard("message Priya", "message Priya.", "message pria") }))
+      .toEqual({ kind: "confirm", question: "Message Priya?", reading: "message Priya" });
+    expect(decideInput({ hypotheses: heard("message Priya", "message Priya.", "message priya") }))
       .toEqual({ kind: "act", text: "message Priya" });
-    expect(decideInput({ ...input, hintedTerms: [] })).toEqual({ kind: "act", text: "message Priya" });
-
-    const yesNo: TurnContext = { pendingQuestion: "Send it?", expectedAnswers: ["yes", "no"] };
-    const hintedYes = { hypotheses: heard("yes", "yes", "yet"), context: yesNo, hintedTerms: ["yes", "no"] };
-    expect(isAct(decideInput(hintedYes))).toBe(false);
-    expect(decideInput({ ...hintedYes, hypotheses: heard("yes", "yes", "yes") })).toEqual({ kind: "act", text: "yes" });
+    expect(decideInput({ hypotheses: heard("message Priya", "message Priya.", null) }))
+      .toEqual({ kind: "act", text: "message Priya" });
   });
 
   // 6. A rejected confirmation counts as one failed try, not two.

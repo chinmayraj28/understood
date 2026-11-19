@@ -41,7 +41,7 @@ export function setupClipsFor(index: DatasetIndex, speaker: string, limit = SETU
   return [...repeated, ...rest].slice(0, limit);
 }
 
-/** Distinct prompts, most frequent first: the hints Scribe is given for this speaker. */
+/** Distinct prompts, most frequent first: this speaker's known phrases, shown to Claude for a recording. */
 export function keytermsFrom(prompts: string[], limit = 200): string[] {
   const counts = new Map<string, { count: number; first: number; text: string }>();
   prompts.forEach((prompt, index) => {
@@ -104,7 +104,7 @@ export async function setUpSpeaker(index: DatasetIndex, speaker: string, label: 
   };
 }
 
-/** Hears one set-up clip with Scribe alone, as a recording (no hints), so the phrasebook matches what Scribe hears later. */
+/** Hears one set-up clip with Scribe alone, as a recording, so the phrasebook matches what Scribe hears later. */
 async function hearForSetup(deps: SetupDeps, wavBase64: string, keyterms: string[], clipId: string): Promise<Partial<Record<HearerName, string>>> {
   const heard: Partial<Record<HearerName, string>> = {};
   const events = deps.understand(

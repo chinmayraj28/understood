@@ -24,7 +24,7 @@ function fakeServer(heardBy: (request: UnderstandRequest) => { scribe: string; g
     requests.push(request);
     const heard = heardBy(request);
     const at = Date.now();
-    yield { type: "turn.started", turnId: request.turnId, at, keyterms: request.keyterms, exampleCount: request.examples.length };
+    yield { type: "turn.started", turnId: request.turnId, at, exampleCount: request.examples.length };
     yield { type: "hear.done", hearer: "scribe", at, text: heard.scribe, seconds: 0.5 };
     yield { type: "hear.done", hearer: "gemini", at, text: heard.gemini, seconds: 1.5 };
     yield { type: "agreement", at, contentWords: {}, agreeing: [], disputedWords: [] };

@@ -232,10 +232,3 @@ function computeSoundKey(word: string): string {
   while (key.length < 4) key.push("0");
   return key.slice(0, 4).join("");
 }
-
-/** Characters counted as Unicode code points, the way ElevenLabs counts keyterm length. */
-export function codePointCount(text: string): number {
-  let count = 0;
-  for (const _ of text) count += 1;
-  return count;
-}
