@@ -194,6 +194,46 @@
 .stages-card[open] summary {
   margin-bottom: 12px;
 }
+/* "Advanced": a chevron before the title, as on a settings page, instead of the plus after it. */
+.advanced-card summary {
+  padding-left: 26px;
+  position: relative;
+}
+.advanced-card summary::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 16px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--ink-2);
+  border-bottom: 2px solid var(--ink-2);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.advanced-card[open] summary::before {
+  transform: rotate(45deg);
+}
+.advanced-card summary > span:first-child::after,
+.advanced-card[open] summary > span:first-child::after {
+  content: none;
+}
+.advanced-card[open] {
+  display: grid;
+  gap: 14px;
+}
+.advanced-card[open] summary {
+  margin-bottom: 0;
+}
+.advanced-card .panel {
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .advanced-card summary::before {
+    transition: none;
+  }
+}
+
 .stages-card .switches {
   grid-template-columns: minmax(0, 1fr);
 }

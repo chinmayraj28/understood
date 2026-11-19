@@ -1,6 +1,7 @@
 // The pipeline workspace. Input on the left (a TORGO recording, your own file, or the
 // microphone) with the stage switches under it; the transcript and the pipeline line in the
-// middle; an inspector on the right for the phrasebook, the conversation and the pretend phone.
+// middle; on the right the phrasebook, and under "Advanced" (closed at first) the optional part
+// that acts on what was heard: the conversation and the pretend phone.
 
 import { useState } from "react";
 import { Compare, Settings, StageSwitchPanel } from "../components/Compare";
@@ -15,11 +16,13 @@ import { ALL_ON, pageAnnouncement } from "../model/turn";
 import type { useSession } from "../useSession";
 
 type Session = ReturnType<typeof useSession>;
-type Inspector = "phrasebook" | "conversation" | "phone";
+type Advanced = "conversation" | "phone";
 
 export function PipelinePage({ session }: { session: Session }) {
   const { state, ownState, live } = session;
-  const [inspector, setInspector] = useState<Inspector>("phrasebook");
+  const [advanced, setAdvanced] = useState<Advanced>("phone");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const logShown = advancedOpen && advanced === "conversation";
   const turn = state?.turns[state.turns.length - 1];
 
   // Setup works on your own voice: open the microphone if it is off.
@@ -134,31 +137,38 @@ export function PipelinePage({ session }: { session: Session }) {
         </div>
 
         <section className="ws-inspector" aria-label="Inspector">
-          <div className="segmented full" role="group" aria-label="Show">
-            {(["phrasebook", "conversation", "phone"] as Inspector[]).map((tab) => (
-              <button key={tab} aria-pressed={inspector === tab} className={inspector === tab ? "on" : ""} onClick={() => setInspector(tab)}>
-                {tab === "phrasebook" ? "Phrasebook" : tab === "conversation" ? "Conversation" : "Phone"}
-              </button>
-            ))}
-          </div>
           <div className="inspector-body">
-            {inspector === "phrasebook" && (
-              <PhrasebookPanel
-                entries={session.voiceInUse?.phrasebook ?? state?.entries ?? []}
-                justLearned={session.voiceInUse ? [] : (state?.justLearned ?? [])}
-                clipCount={state?.clipCount ?? 0}
-                scope={session.voiceInUse ? "voice" : state?.persistent === false ? "memory" : "yours"}
-                voiceLabel={session.voiceInUse?.label}
-                onForget={(id) => void session.own?.forget(id)}
-                onClear={() => void session.own?.clearEverything()}
-                onSetup={openSetup}
-              />
+            <PhrasebookPanel
+              entries={session.voiceInUse?.phrasebook ?? state?.entries ?? []}
+              justLearned={session.voiceInUse ? [] : (state?.justLearned ?? [])}
+              clipCount={state?.clipCount ?? 0}
+              scope={session.voiceInUse ? "voice" : state?.persistent === false ? "memory" : "yours"}
+              voiceLabel={session.voiceInUse?.label}
+              onForget={(id) => void session.own?.forget(id)}
+              onClear={() => void session.own?.clearEverything()}
+              onSetup={openSetup}
+            />
+            {/* Closed, a <details> hides its content from screen readers too. The conversation log must still be heard turn by turn, so it stays outside, visually hidden, until it is shown inside. */}
+            {!logShown && (
+              <div className="visually-hidden">
+                <ConversationLog chat={state?.chat ?? []} />
+              </div>
             )}
-            {/* The conversation log stays on the page, only visually hidden behind another tab, so screen readers still hear each turn. */}
-            <div className={inspector === "conversation" ? undefined : "visually-hidden"}>
-              <ConversationLog chat={state?.chat ?? []} />
-            </div>
-            {inspector === "phone" && <Phone phone={state?.phone ?? PHONE_HOME} />}
+            <details className="ws-card stages-card advanced-card" open={advancedOpen} onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}>
+              <summary>
+                <span>Advanced</span>
+                <span className="muted">Optional: acting on what was heard, on a pretend phone</span>
+              </summary>
+              <div className="segmented full" role="group" aria-label="Show">
+                {(["phone", "conversation"] as Advanced[]).map((tab) => (
+                  <button key={tab} aria-pressed={advanced === tab} className={advanced === tab ? "on" : ""} onClick={() => setAdvanced(tab)}>
+                    {tab === "phone" ? "Phone" : "Conversation"}
+                  </button>
+                ))}
+              </div>
+              {logShown && <ConversationLog chat={state?.chat ?? []} />}
+              {advanced === "phone" && <Phone phone={state?.phone ?? PHONE_HOME} />}
+            </details>
           </div>
         </section>
       </div>
