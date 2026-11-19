@@ -41,46 +41,14 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
-        <div className="footer-brand">
-          <a className="wordmark" href={href.landing}>
-            <ForkMark />
-            <span>Understood</span>
-          </a>
-          <p>A speech pipeline for people with dysarthria, built for the Hiya Voice AI Challenge, accessibility track.</p>
-        </div>
-        <div className="footer-cols">
-          <div>
-            <h2>Use it</h2>
-            <ul>
-              <li>
-                <a href={href.pipeline}>Pipeline</a>
-              </li>
-              <li>
-                <a href={href.recordings}>Recordings</a>
-              </li>
-              <li>
-                <a href={href.results} onClick={onSectionLink("results")}>
-                  Results
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h2>Built with</h2>
-            <ul>
-              <li>ElevenLabs Scribe and realtime</li>
-              <li>Gemini Flash, through OpenRouter</li>
-              <li>Claude Haiku 5.5</li>
-            </ul>
-          </div>
-          <div>
-            <h2>Data</h2>
-            <p>
-              TORGO, University of Toronto and Holland Bloorview (Rudzicz, Namasivayam and Wolff, 2012). Used to evaluate only, never to train,
-              and never published here.
-            </p>
-          </div>
-        </div>
+        <a className="wordmark" href={href.landing}>
+          <ForkMark />
+          <span>Understood</span>
+        </a>
+        <p>
+          Built for the Hiya Voice AI Challenge. Evaluated on TORGO (Rudzicz, Namasivayam and Wolff, 2012), University of Toronto and Holland
+          Bloorview.
+        </p>
       </div>
     </footer>
   );

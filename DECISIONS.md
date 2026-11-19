@@ -292,3 +292,11 @@ With the screen locked, the app used to say "Spotlight didn't open" or "I can't 
 **What went wrong, and the fix.** Tested from outside before sharing: the TORGO recordings were reachable through the tunnel, because tunnelled requests arrive from this machine and passed the local-only check. The link was shut at once; the route now also refuses requests with proxy or Cloudflare forwarding headers and checks the host the visitor typed. Re-tested: 403 from outside, 200 locally.
 
 **Limits.** The link lives only while the laptop is on, and changes if the tunnel restarts.
+
+## 19 Nov 2026: a much shorter landing page
+
+**What the user asked.** The landing page had too much text and looked AI-made.
+
+**What was chosen.** One claim, the real M05 example, the five stops as a single line, the measured result, and one line each on asking first and on privacy. The measurement notes and the older evaluation stay one click away under "How this was measured", so the caveats are not lost. The footer became one line and keeps the TORGO credit.
+
+**Rejected.** A new visual style. The transit line and the readable typeface already suit the product; the generic feel came from cards, numbered columns, repeated calls to action and long paragraphs.

@@ -77,6 +77,11 @@ body {
   overflow-x: hidden;
 }
 
+::selection {
+  background: var(--mark);
+  color: var(--ink);
+}
+
 h1,
 h2,
 h3,

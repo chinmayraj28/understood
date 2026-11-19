@@ -1,31 +1,16 @@
-// The landing page: what Understood is, how a sentence travels through it, how well it works,
-// and the way into the pipeline. The hero is a real result: TORGO speaker M05 saying "up".
+// The landing page: one claim, one real example, the route a sentence takes, the measured result,
+// and the two promises that matter. The hero is a real result: TORGO speaker M05 saying "up".
 
 import { useEffect, useState, type MouseEvent } from "react";
 import { EvaluationTable, useEvalResults, WordsWrongChart } from "../components/Evaluation";
 import { href } from "../router";
 
 const STAGES = [
-  {
-    name: "Record",
-    text: "A sentence is spoken, or a recording is played. The live transcript writes it down as it goes.",
-  },
-  {
-    name: "Hear it several ways",
-    text: "ElevenLabs Scribe, the live transcript, and Gemini models shown a few clips of the same voice all hear it at once.",
-  },
-  {
-    name: "Check the phrasebook",
-    text: "Mishearings this person confirmed before are looked up: “call some” has meant “call Sam” twice.",
-  },
-  {
-    name: "Repair",
-    text: "Claude weighs the transcripts, the phrasebook and the phrases this person says into one transcript, and says how sure it is.",
-  },
-  {
-    name: "Decide",
-    text: "A rule in code acts, or asks one short question first. Claude on its own never makes it act.",
-  },
+  { name: "Record", text: "Microphone or file" },
+  { name: "Hear", text: "Several listeners at once" },
+  { name: "Phrasebook", text: "Past mishearings" },
+  { name: "Repair", text: "Claude merges them" },
+  { name: "Decide", text: "Act, or ask first" },
 ];
 
 /**
@@ -70,34 +55,20 @@ export function Landing({ section }: { section?: string }) {
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title" tabIndex={-1}>Understands speech that voice assistants get wrong.</h1>
-          <p className="hero-lede">
-            Slow, slurred or quiet speech, common with cerebral palsy, ALS, Parkinson&rsquo;s and stroke, defeats ordinary
-            recognisers. Understood hears each sentence several ways, checks it against what this person has said before, and repairs
-            it into one transcript, showing every step as it happens.
-          </p>
-          <div className="hero-actions">
-            <a className="button primary" href={href.pipeline}>
-              Try it on a real recording
-            </a>
-            <a className="button" href={href.how} onClick={onSectionLink("how")}>
-              See how it works
-            </a>
-          </div>
+          <p className="hero-lede">For people whose speech is slow, slurred or quiet.</p>
+          <a className="button primary hero-action" href={href.pipeline}>
+            Try it on a real recording
+          </a>
         </div>
         <HeroDiagram />
       </section>
 
       <section className="band" id="how" aria-labelledby="how-title">
-        <div className="band-head">
-          <h2 id="how-title" tabIndex={-1}>How a sentence travels</h2>
-          <p>Five stops, each shown live on the pipeline page with its real timing.</p>
-        </div>
+        <h2 id="how-title" tabIndex={-1}>How a sentence travels</h2>
         <ol className="route-map">
-          {STAGES.map((stage, i) => (
+          {STAGES.map((stage) => (
             <li key={stage.name}>
-              <span className="route-stop" aria-hidden="true">
-                {i + 1}
-              </span>
+              <span className="route-stop" aria-hidden="true" />
               <h3>{stage.name}</h3>
               <p>{stage.text}</p>
             </li>
@@ -105,61 +76,20 @@ export function Landing({ section }: { section?: string }) {
         </ol>
       </section>
 
-      <section className="band split" aria-labelledby="ask-title">
-        <div className="split-copy">
-          <h2 id="ask-title">It asks before it acts</h2>
-          <p>
-            Someone who cannot use their hands cannot undo a wrong action. So when the recognisers disagree, Understood asks one short
-            question instead of guessing.
-          </p>
-          <ul className="plain-list">
-            <li>Acting needs two recognisers to agree, or a phrase this person has confirmed at least twice.</li>
-            <li>A yes counts only when it is just a yes, said after the question finished.</li>
-            <li>The model never chooses who a message goes to.</li>
-          </ul>
-        </div>
-        <figure className="decision-sample">
-          <div className="sample-heard">
-            <p>
-              <span className="lane-dot dot-scribe" aria-hidden="true" /> Scribe <q>Mum sis, I&rsquo;m running late</q>
-            </p>
-            <p>
-              <span className="lane-dot dot-gemini" aria-hidden="true" /> Gemini <span className="muted">timed out</span>
-            </p>
-            <p>
-              <span className="lane-dot dot-realtime" aria-hidden="true" /> Live <q>message Sam running late</q>
-            </p>
-          </div>
-          <div className="sample-question">
-            <p className="sample-label">Asks first</p>
-            <p className="sample-text">&ldquo;Message Sam running late?&rdquo;</p>
-            <p className="sample-rule">Claude thought this likely but was not sure of a word that matters.</p>
-          </div>
-          <figcaption className="muted">A live run on 11 November, with a synthetic voice.</figcaption>
-        </figure>
-      </section>
-
       <section className="band" id="results" aria-labelledby="results-title">
-        <div className="band-head">
-          <h2 id="results-title" tabIndex={-1}>Measured on real recordings</h2>
-          <p>
-            {transcription
-              ? `${transcription.clips} recordings of ${transcription.speakers} speakers from TORGO, most with dysarthria from cerebral palsy, held back from every choice made while improving the pipeline. Each speaker's voice was set up only from their own earlier clips.`
-              : "Recordings of people with dysarthria from TORGO."}
-          </p>
-        </div>
-        <div className="results-grid">
-          <div className="results-lead">
-            <p className="results-sentence">
-              This pipeline gets <strong>{pct(transcription?.after.wordErrorRate)}</strong> of words wrong, down from{" "}
-              <strong>{pct(transcription?.before.wordErrorRate)}</strong> before the 11 November changes. For speakers with dysarthria:{" "}
-              <strong>{pct(transcription?.after.dysarthric)}</strong>, down from {pct(transcription?.before.dysarthric)}. Every word right on{" "}
-              <strong>{pct(transcription?.after.exact)}</strong> of recordings.
-            </p>
-            <p className="muted">
-              One dataset, eleven speakers, one run, many isolated single words, the hardest case: a first measurement, not a benchmark. The
-              most severe speakers are still often misheard.
-            </p>
+        <div className="band-row">
+          <div>
+            <h2 id="results-title" tabIndex={-1}>
+              {transcription
+                ? `Words wrong fell from ${pct(transcription.before.wordErrorRate)} to ${pct(transcription.after.wordErrorRate)}`
+                : "Measured on real recordings"}
+            </h2>
+            {transcription && (
+              <p className="band-note">
+                For speakers with dysarthria, {pct(transcription.before.dysarthric)} to {pct(transcription.after.dysarthric)}. A first
+                measurement on {transcription.clips} TORGO recordings. The most severe speech is still often misheard.
+              </p>
+            )}
           </div>
           {transcription ? (
             <BeforeAfterChart data={transcription} />
@@ -167,52 +97,41 @@ export function Landing({ section }: { section?: string }) {
             <p className="muted">{loaded === "failed" ? "The results could not be loaded." : "Loading the results…"}</p>
           )}
         </div>
-        {results.data && (
+        {(transcription || results.data) && (
           <details className="results-more">
-            <summary>The earlier stage-by-stage evaluation (9 November)</summary>
-            <p className="muted results-earlier">
-              Measured on 9 November with the first version of the pipeline, built in Swift, where the third recogniser was Apple&rsquo;s
-              on-device one. Each stage is added to the one above. Words wrong fell from {pct(scribe?.wordErrorRate)} with Scribe alone to{" "}
-              {pct(full?.wordErrorRate)}; it went ahead wrongly on {pct(full?.wrongActionRate)} of recordings.
-            </p>
-            <WordsWrongChart setups={results.data.setups} />
-            <EvaluationTable results={results.data} />
+            <summary>How this was measured</summary>
+            {transcription && <p className="muted results-earlier">{transcription.note}</p>}
+            {results.data && (
+              <>
+                <p className="muted results-earlier">
+                  An earlier evaluation, on 9 November, used the first Swift version, where the third recogniser was Apple&rsquo;s on-device
+                  one. Words wrong fell from {pct(scribe?.wordErrorRate)} with Scribe alone to {pct(full?.wordErrorRate)}; it went ahead
+                  wrongly on {pct(full?.wrongActionRate)} of recordings.
+                </p>
+                <WordsWrongChart setups={results.data.setups} />
+                <EvaluationTable results={results.data} />
+              </>
+            )}
           </details>
         )}
       </section>
 
-      <section className="band split" id="privacy" aria-labelledby="privacy-title">
-        <div className="split-copy">
-          <h2 id="privacy-title" tabIndex={-1}>Your voice stays yours</h2>
-          <p>Speech recordings of a disabled person are health data, so they are handled that way.</p>
-        </div>
-        <ul className="fact-list">
-          <li>
-            <h3>Kept in your browser</h3>
-            <p>Your phrasebook and voice clips live in this browser. The server stores nothing.</p>
-          </li>
-          <li>
-            <h3>Sent only to be heard</h3>
-            <p>Audio goes to ElevenLabs, and to Gemini through OpenRouter, and text to Claude, only while a sentence is being understood.</p>
-          </li>
-          <li>
-            <h3>A pretend phone</h3>
-            <p>Messages and calls on the page are pretend. Nothing reaches a real person.</p>
-          </li>
-        </ul>
+      <section className="band band-row" aria-labelledby="ask-title">
+        <h2 id="ask-title">When it isn&rsquo;t sure, it asks</h2>
+        <figure className="ask-sample">
+          <blockquote>Message Sam running late?</blockquote>
+          <figcaption>
+            Scribe heard &ldquo;Mum sis, I&rsquo;m running late&rdquo;. The live transcript heard &ldquo;message Sam running late&rdquo;. A live
+            run with a synthetic voice.
+          </figcaption>
+        </figure>
       </section>
 
-      <section className="closing" aria-labelledby="closing-title">
-        <h2 id="closing-title">Hear it on a real recording</h2>
-        <p>Pick a TORGO speaker and a clip, or upload your own. You will see what each recogniser heard and every word it got right or wrong.</p>
-        <div className="hero-actions">
-          <a className="button primary" href={href.pipeline}>
-            Open the pipeline
-          </a>
-          <a className="button" href={href.recordings}>
-            Browse the recordings
-          </a>
-        </div>
+      <section className="band band-row" id="privacy" aria-labelledby="privacy-title">
+        <h2 id="privacy-title" tabIndex={-1}>Your voice stays yours</h2>
+        <p className="privacy-line">
+          Your phrasebook and clips stay in this browser. Audio is sent out only to be heard. The phone on the page is pretend.
+        </p>
       </section>
     </main>
   );
@@ -242,14 +161,14 @@ function useTranscriptionResults(): TranscriptionResults | null | "failed" {
 /** Words wrong: before, each listener alone, and the pipeline now. */
 function BeforeAfterChart({ data }: { data: TranscriptionResults }) {
   const bars = [
-    { name: "Before (11 Nov morning)", value: data.before.wordErrorRate, tone: "before" },
+    { name: "Before", value: data.before.wordErrorRate, tone: "before" },
     ...Object.entries(data.alone).map(([name, value]) => ({ name, value, tone: "alone" })),
-    { name: "The pipeline now", value: data.after.wordErrorRate, tone: "now" },
+    { name: "Understood now", value: data.after.wordErrorRate, tone: "now" },
   ];
   const most = Math.max(...bars.map((b) => b.value));
   return (
     <figure className="ww-chart">
-      <figcaption className="ww-caption">Share of words wrong on the held-out recordings (lower is better)</figcaption>
+      <figcaption className="visually-hidden">Share of words wrong on the held-out recordings. Lower is better.</figcaption>
       <ul>
         {bars.map((b) => (
           <li key={b.name} className={b.tone === "now" ? "best" : ""}>
@@ -261,7 +180,6 @@ function BeforeAfterChart({ data }: { data: TranscriptionResults }) {
           </li>
         ))}
       </ul>
-      <p className="muted ww-note">{data.note}</p>
     </figure>
   );
 }
@@ -324,12 +242,8 @@ function HeroDiagram() {
       </svg>
       <div className="hero-result">
         <p className="hero-result-text">&ldquo;up&rdquo;</p>
-        <p className="hero-result-score">Every word right</p>
       </div>
-      <figcaption>
-        TORGO speaker M05, cerebral palsy, moderate to severe. Two recognisers heard &ldquo;uh&rdquo;; Gemini, shown five of M05&rsquo;s own
-        clips, heard &ldquo;up&rdquo;. A real run, 11 November.
-      </figcaption>
+      <figcaption>TORGO speaker M05, saying &ldquo;up&rdquo;. A real run.</figcaption>
     </figure>
   );
 }
