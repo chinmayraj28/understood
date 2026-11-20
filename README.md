@@ -2,86 +2,92 @@
 
 **A voice assistant that understands speech other assistants get wrong.**
 
-Understood is a website that takes one sentence of speech, slow, slurred or quiet, and works out what the person said and meant. Play it a real recording of a person with dysarthria, upload your own, or speak. It shows every step on screen as it happens, with real timings, marks the transcript word by word against what was really said, and for spoken sentences acts on a pretend phone or asks a short question first.
+![The home page: three listeners hear TORGO speaker M05, and the pipeline gets it right](docs/images/home.jpg)
 
-**Results:** on 220 held-out recordings of people with and without dysarthria, the pipeline gets 20.6% of words wrong, down from 39.9% before the transcription work, and 27.6% for speakers with dysarthria (from 52.9%). See [Does it work?](#does-it-work-transcription-accuracy).
+Understood is for people with **dysarthria**: speech made slow, slurred or quiet by cerebral palsy, ALS, Parkinson's, MS or a stroke. It takes one sentence, from the microphone, an audio file or a real recording, and writes down what the person said. Every step shows on screen as it happens, with real timings, and the transcript is marked word by word against what was really said.
+
+It is built in two steps:
+
+1. **Now: personalised to each person.** A person makes a **profile** by reading a few short phrases aloud (at least three). From then on, the listeners are shown that person's own clips and a phrasebook of their past mishearings, so the pipeline learns how they speak with no training at all.
+2. **Next: one model for as many people with dysarthria as possible.** A speech model fine-tuned on recordings of dysarthric speech. On speakers it had **never heard**, it cut words wrong from 46% to 31% (the [Research page](#the-research-page-a-tuned-model)).
+
+**Live:** https://understood.chinmayraj.workers.dev (locked with a keyword sent with the submission). It is my submission for the Hiya Voice AI Challenge (Accessibility track). The write-up is [WRITEUP.md](WRITEUP.md), and the AI tools I used are described in [ai.md](ai.md).
+
+## Results
+
+![Words wrong fell from 40% to 21%](docs/images/results.jpg)
+
+On 220 held-out recordings from TORGO (11 people, 8 with dysarthria), the pipeline gets **20.6%** of words wrong, down from 39.9%. For speakers with dysarthria it went from 52.9% to **27.6%**. Each listener on its own gets 31% to 41% wrong on the same clips; hearing a sentence several ways and merging is what brings it down. The % is how many words are wrong out of every 100 a person says, so lower is better. Details: [Does it work?](#does-it-work-transcription-accuracy)
 
 ## Try it in two minutes
 
-**Live:** https://understood.chinmayraj.workers.dev (Cloudflare Workers), locked with a keyword sent with the submission.
-
-1. Open the link and enter the keyword. The page remembers it.
+1. Open https://understood.chinmayraj.workers.dev and enter the keyword. The page remembers it.
 2. Click **Open the pipeline**.
-3. Under **Input**, choose **Your file** and upload a short recording (WAV, MP3, M4A, OGG or WebM, up to 60 seconds). Optionally type what was said, to see every word marked right or wrong. Leave **Hear it as** on "Nobody in particular".
-4. Click **Hear it**. The recording plays while the live transcript writes it down. Then each recogniser's text, the phrasebook, Claude's merge and the final transcript appear, with real timings. The table shows how many words each listener got wrong on its own, and how many the pipeline did.
-5. Or choose **Microphone**, click **Start listening**, and say one sentence, such as "Message Sam I'm running late". It listens continuously, so press **Stop listening** when you are done.
+3. Under **Input**, **Microphone** is first: press **Record**, say a sentence, and press **Stop**. The sentence is heard by every listener, and the transcript appears on the right.
+4. Or choose **Your file**, upload a short recording (WAV, MP3, M4A, OGG or WebM, up to 60 seconds), optionally type what was said to see each word marked right or wrong, and click **Hear it**.
+5. To make the pipeline yours, open **Profiles**, click **New profile**, give it a name and read at least three phrases. The microphone then hears you as that profile.
 
-The TORGO recordings of people with dysarthria are not available through the link, because their licence keeps them on my computer. The demo video shows them.
-
-**On your own computer** (needs your own ElevenLabs, OpenRouter and Anthropic keys):
-
-1. Follow [Run it](#run-it).
-2. Fetch TORGO with `eval/scripts/fetch_torgo.sh` (about 1 GB) to hear real recordings.
-3. On the pipeline page, choose **TORGO**, pick a speaker, keep **Test clips**, and click a clip. A good first one is F03: "If you destroy confidence in banks, you do something to the economy, he said."
-
-The first clip for each speaker takes 10 to 20 seconds longer, while that speaker's voice is set up from their own earlier recordings.
-
-It is my submission for the Hiya Voice AI Challenge (Accessibility track). The one-page write-up is in [WRITEUP.md](WRITEUP.md), and the AI tools I used are described in [ai.md](ai.md).
-
-## Who it is for, and why voice
-
-People with **dysarthria** (speech made slow, slurred, quiet or breathy by cerebral palsy, ALS, Parkinson's, MS or a stroke) are failed by voice assistants. On severe dysarthria, off-the-shelf recognisers get more than 49% of words wrong. Many of the same people cannot use their hands well either, so a keyboard is not a fallback. Voice is their only way in, and today it is the way that works worst for them.
-
-Two things from the research shaped the design. First, the **meaning often survives when the words don't**: "mum sis, I'm running late" is very likely "message Sam, running late". Second, a recogniser gets much better at one person's speech when it is shown a few of that person's own recordings, with no training at all.
-
-## What happens to one sentence
-
-Say "message Sam running late". The page draws the sentence moving along a line of five stations:
-
-1. **Hear it several ways, at the same time.**
-   - **ElevenLabs Scribe** is the main recogniser: v2 for a spoken turn, v3 without fillers for a recording. No recogniser is given a word list of expected names or phrases.
-   - **Gemini** (through OpenRouter) hears the clip after being shown a few recordings of this same person with their correct text: Gemini 3.8 Flash for a spoken turn, Gemini 3.1 Pro for a recording.
-   - **Gemini 4 Carbon**, for a recording only, listens the same way as a second, independent ear.
-   - **Scribe realtime** writes the live transcript you see while you speak (v2) or a recording plays (v3 live), and is a vote too.
-
-   ElevenLabs gives no "how sure am I" score, so **agreement between the recognisers is the confidence signal**. Words they disagree on light up.
-2. **Phrasebook.** It keeps the mishearings this person has corrected before ("heard *call some*, meant *call Sam*, confirmed 3 times"). If a recogniser makes the same mistake again, the phrasebook catches it.
-3. **Repair.** For a spoken turn, Claude Haiku 5.5 reads the transcripts, the phrasebook matches and the conversation so far, and picks the most likely meaning. For a recording, Claude Opus 5.5 merges the transcripts into one verbatim transcript, knowing which recognisers are related and which phrases this person says. Either way it gives a confidence (high, medium or low) and explains why in one sentence.
-4. **Decide, in code.** Fixed rules decide whether to act, ask a yes/no question, offer a choice ("Mum or Sam?") or ask once to repeat only the unclear part. The page writes out the rule that fired. **Claude alone never makes it act:** a reading is acted on only when the recognisers, or a phrasebook entry confirmed at least twice, back it word for word. The rules are in [`web/shared/rules/decider.ts`](web/shared/rules/decider.ts).
-5. **Act or ask.** A pretend phone beside the line sends a message, makes a call, or sets a timer, a song or a reminder. Anything that would reach another person always asks first ("Send 'I'm running late' to Sam?"). Your answer is a new sentence that goes through the same pipeline.
-
-A turn that was confirmed or corrected is added to the phrasebook, so it gets better the more one person uses it.
-
-**A real run** (from the server check below, a synthetic voice saying "message Sam running late"):
-
-| Stage | Result | Time |
-|---|---|---|
-| Scribe | "Mum sis, I'm running late" | 0.8 s |
-| Live transcript | "message Sam running late" | live |
-| Gemini | timed out, so the pipeline went on with two votes | 4.0 s limit |
-| Claude | "message Sam running late", confidence **medium** | 2.1 s |
-| Decision | Ask: "Message Sam running late?" | rule: *Claude thought this likely but was not sure of a word that matters* |
-
-The recognisers disagreed, so it asked rather than guessing. That is the behaviour the whole design is built around: **a wrong action is worse than a slow one**, because the person cannot undo it by hand.
+The TORGO recordings are not available through the link, because their licence keeps them on my computer. To use them, run it locally (below) and fetch TORGO with `eval/scripts/fetch_torgo.sh` (about 1 GB).
 
 ## The site
 
-Three pages under one header:
+### Pipeline (`#/pipeline`)
 
-- **Home** (`#/`): what it is, how a sentence travels through the five stages, the TORGO results, and how your voice is handled. The opening diagram is a real run: TORGO speaker M05 saying "up", heard as "Uh" by two recognisers and "up" by Gemini.
-- **Pipeline** (`#/pipeline`): the workspace. Input on the left (a TORGO recording, your own file, or the microphone) with the stage switches under it; the scored transcript and the pipeline line in the middle; an inspector on the right for the phrasebook, the conversation and the pretend phone.
-- **Recordings** (`#/recordings`): every TORGO clip on your computer.
+![The pipeline page: input on the left, the transcript and the stages in the middle, the phrasebook on the right](docs/images/pipeline.jpg)
 
-What you can do there:
+Input on the left, in three tabs:
 
-- **Hear a recording.** The main way in. Pick a real TORGO recording of a person with dysarthria (by speaker, test or set-up clip, or search), or choose your own audio file (WAV, MP3, M4A, OGG or WebM, up to 60 seconds, decoded in the browser). It plays out loud while the live recogniser writes it down, then goes through every stage. The answer is shown as a transcript in large type and, when what was said is known (the TORGO prompt, or text you type), every word is marked right or wrong, with the share of words wrong for each recogniser on its own and for the whole pipeline, scored exactly as the evaluation scored it. A recording is only transcribed: nothing is acted on, asked, spoken or learned.
-- **Heard as the right voice.** The first time you hear one of a TORGO speaker's clips, the page sets up that speaker's voice from up to 20 of their own set-up clips, as the evaluation did: their phrases become the known phrases shown to Claude, five clips become Gemini's examples, and every mishearing becomes a phrasebook entry (about 20 seconds, once per visit). Test clips are never used for this, so a test clip is a fair test; hearing a set-up clip says so. Your own file can be heard as nobody in particular, as your own voice, or as a TORGO speaker.
-- **Set up your voice.** Read 10 short phrases. Their recordings become Gemini's examples and the first phrasebook entries.
-- **Stage switches.** Turn off the known phrases shown to Claude, Gemini, the examples, the phrasebook or the repair, hear the same recording again, and compare the two results side by side.
-- **Evaluation.** The numbers from real recordings of people with dysarthria (below), led by how many words the transcript got wrong.
-- **Speak live.** **Start listening** still runs your own speech through the same pipeline, with the pretend phone acting or asking first.
-- **Recordings.** Every TORGO clip on your computer, playable, filtered by speaker, severity, word or sentence, and set-up or test. For the 121 clips the evaluation tested, open one to see what each recogniser heard, Claude's reading and the decision, next to what Scribe alone did. It needs the data on disk (`eval/scripts/fetch_torgo.sh`, about 1 GB). Because TORGO may not be redistributed, the audio is served only by the local server, only to this computer, and only for clips listed in the manifest; a hosted copy of the site has no such route.
-- **Clear everything** deletes the phrasebook, the recordings and the conversation from the browser.
+- **Microphone.** Choose a profile (the list ends with **Create new profile**), then one **Record / Stop** button. Stop in the middle of a sentence still sends that sentence through. Listening settings are folded away under **Settings**. If the browser refuses the microphone, the page says exactly where to allow it and starts listening by itself once you do.
+- **Your file.** Upload audio and choose **Hear it as**: one of your profiles or a TORGO speaker.
+- **TORGO**, in three steps:
+  1. **Speaker.**
+  2. **Profile clips:** the clips this speaker's voice is learned from. By default these are the evaluation's 20 set-up clips; **Change** lets you pick others (3 to 40).
+  3. **Clip to transcribe:** choose a phrase, or **Pick one at random** (always a test clip). The profile clips are never in this list, so a clip is never transcribed by a profile that learned from it.
+
+In the middle: the transcript in large type, scored word by word when what was said is known, then each stage with its timing. **Stages** switches turn off a stage (the Gemini listeners, their example clips, the phrasebook, the known phrases, Claude's repair), so you can hear the same clip again and compare the two results side by side. On the right: the phrasebook of the profile in use. Under **Advanced**, **Act on what I say** sends speech to a pretend phone that acts or asks first.
+
+### Profiles (`#/profiles`)
+
+<p>
+  <img src="docs/images/profiles.jpg" alt="The profiles page: one profile in use, with Record phrases, Rename and Delete" width="49%">
+  <img src="docs/images/new-profile.jpg" alt="The New profile dialog: a name, then phrases read aloud" width="49%">
+</p>
+
+Each profile is one person's voice: its own phrasebook and voice clips, kept in its own database in this browser, so profiles never mix.
+
+- **New profile** is a short dialog: a name, then phrases read aloud with **Record**, **Stop**, **Re-record** and **Next**. **Save profile** appears only after three phrases; cancelling deletes the half-made profile and what it recorded.
+- **Record phrases** adds more to an existing profile; **Cancel** undoes everything that session recorded and learned.
+- **Use**, **Rename** and **Delete** do what they say. The profile in use is the one the microphone hears and learns into.
+- The TORGO speakers are listed too, as built-in profiles set up automatically from their own clips.
+
+### Recordings (`#/recordings`)
+
+![The recordings page: a card per TORGO speaker](docs/images/recordings.jpg)
+
+A card for each TORGO speaker: their condition and severity, and how many words and sentences they recorded. Open one (`#/recordings/F01`) for every recording of that person: play it, search, filter words or sentences, hear any of them in the pipeline, and, for the clips the evaluation tested, see what each recogniser heard and what the pipeline decided. The audio is served only by the local server, only to this computer; a hosted copy has no such route.
+
+### Research (`#/research`)
+
+![The research page: on a person it never heard, training cut words wrong from 46% to 31%](docs/images/research.jpg)
+
+What training a speech model on dysarthric speech did. See [below](#the-research-page-a-tuned-model).
+
+## What happens to one sentence
+
+The same steps for the microphone, a file or a TORGO clip:
+
+1. **Record.** The browser takes one sentence and sends it on, with the live transcript (ElevenLabs Scribe realtime) written while it is spoken or played.
+2. **Hear it several ways, at the same time** (each listener gets up to 15 seconds):
+   - **ElevenLabs Scribe v3**, given no word list.
+   - **Gemini 3.1 Pro** (through OpenRouter), first shown 5 earlier clips of this person with what they said.
+   - **Gemini 4 Carbon**, shown the same clips: a second opinion that makes different mistakes.
+   - **Scribe realtime**, the live transcript, as one more vote.
+3. **Phrasebook** (plain code, no model). It looks for mishearings already learned for this person ("heard *Mum sis*, meant *message Sam*").
+4. **Repair. Claude Opus 5.5** reads all the transcripts and any phrasebook match and writes one final transcript, with a confidence and a one-sentence reason (up to 8 seconds).
+
+Agreement between the listeners is the confidence signal: words they disagree on light up. Nothing is acted on: with **Act on what I say** switched on, speech goes instead to a faster path (Scribe v2, Gemini 3.8 Flash, Claude Haiku 5.5), then fixed rules in code ([`web/shared/rules/decider.ts`](web/shared/rules/decider.ts)) decide whether the pretend phone acts, asks a yes/no question, offers a choice or asks to repeat. **Claude alone never makes it act**, and anything that reaches another person always asks first.
+
+Where the phrasebook comes from: reading phrases when a profile is made (the phrase is known, so every mishearing becomes a "heard → meant" pair), spoken corrections when acting is on ("no, Sam"), and, for a TORGO speaker, their own set-up clips.
 
 ## Run it
 
@@ -117,7 +123,7 @@ npm install
 npm run dev
 ```
 
-4. Open http://localhost:5173 and click **Open the pipeline**. Under **Input**, pick a TORGO clip (this needs the data: `eval/scripts/fetch_torgo.sh`) or choose your own audio file, and watch it go through the pipeline. To speak instead, choose **Microphone**, click **Start listening**, allow the microphone and say "message Sam running late"; the turn ends after 2.5 seconds of silence, or when you say "done".
+4. Open http://localhost:5173 and click **Open the pipeline**. Under **Input**, choose **Microphone**, press **Record**, allow the microphone and say a sentence; press **Stop** (or pause for 2.5 seconds) and the transcript appears. Or choose **Your file**, or **TORGO** (this needs the data: `eval/scripts/fetch_torgo.sh`).
 
 To share it with someone without giving them API keys, set `ACCESS_KEY` in `.env` and expose port 5173 (for example `cloudflared tunnel --url http://localhost:5173`). Every paid route then needs the keyword, which the page asks for once. The TORGO recordings stay local: requests that come through a tunnel or proxy are refused.
 
@@ -125,9 +131,12 @@ The server keeps the keys. They never reach the browser: the page gets only a sh
 
 ## The Research page (a tuned model)
 
-`#/research` shows what fine-tuning a speech model on the speakers' own recordings did: on held-out prompts the model never trained on, words wrong fell from 35.6% to 24.6% (`docs/FINETUNE_RESULTS.md`, method in `docs/FINETUNE_PLAN.md`). The numbers are in `web/public/research/results.json`, so they show on the hosted site too.
+`#/research` shows what fine-tuning a speech model (Whisper large-v3-turbo) on recordings of dysarthric speech did:
 
-On your own computer the page can also try a random never-trained clip and hear it live with the tuned model. That needs the TORGO data, the saved runs in `train/runs/` (not in this repository: the weights were trained on TORGO), and the model service:
+- **On people it had never heard** (leave one speaker out: trained on everyone else, tested on the one left out, for each of 8 speakers with dysarthria in turn), words wrong fell from **46.4% to 31.4%** over 940 clips; single words from 83% to 45%.
+- **On prompts it never trained on**, for speakers it had trained on, words wrong fell from 35.6% to 24.6% ([`docs/FINETUNE_RESULTS.md`](docs/FINETUNE_RESULTS.md), method in [`docs/FINETUNE_PLAN.md`](docs/FINETUNE_PLAN.md)).
+
+The numbers are in `web/public/research/results.json`, so they show on the hosted site too. On your own computer the page can also try a random never-trained clip with the tuned model. That needs the TORGO data, the saved runs in `train/runs/` (not in this repository: the weights were trained on TORGO), and the model service:
 
 ```bash
 cd train
@@ -140,11 +149,11 @@ It keeps the model in memory and answers only this computer, on port 8791. A cli
 
 ```bash
 cd web
-npm test            # 283 tests in 30 files, no network
+npm test            # 355 tests in 33 files, no network
 npm run typecheck
 ```
 
-Last run on 11 Nov 2026: all 283 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift implementation the 9 Nov evaluation ran against (not included in this submission). They give the same answer as the Swift version on all 3,902 comparison cases, so the website decides exactly as the evaluated pipeline did.
+Last run on 20 Nov 2026: all 355 passed, and the typecheck was clean. The decision rules and phrasebook matching are ported from the Swift implementation the 9 Nov evaluation ran against (not included in this submission), and give the same answer on all 3,902 comparison cases.
 
 A live check against real services (it uses the keys and costs a fraction of a penny):
 
@@ -155,8 +164,6 @@ npm start           # API server only, in one terminal
 say -o x.aiff "message Sam running late" && afconvert -f WAVE -d LEI16@16000 -c 1 x.aiff x.wav
 npx tsx tests/live.smoke.ts x.wav
 ```
-
-It prints each stage with its time, then checks the phone action, the spoken reply and the live-transcript token. The table above came from this check on 11 Nov 2026.
 
 ## Does it work? Transcription accuracy
 
@@ -174,7 +181,7 @@ Each listener alone gets 31% to 41% wrong on the same clips; merging them is wha
 
 ## The earlier evaluation: deciding when to act
 
-The first version of the pipeline was measured on **TORGO**, recordings of people with dysarthria (mostly from cerebral palsy) made by the University of Toronto. Each speaker's earlier recordings were used to set them up; their later recordings were the test, so no clip was in both. There were 121 test clips. Full method and results are in [`eval/README.md`](eval/README.md) and [`eval/results/2026-11-09-second-run/results.md`](eval/results/2026-11-09-second-run/results.md).
+The first version of the pipeline was measured on **TORGO**, recordings of people with dysarthria (mostly from cerebral palsy) made by the University of Toronto. Each speaker's earlier recordings were used to set them up; their later recordings were the test, so no clip was in both. There were 121 test clips. The full method and results are in [`eval/README.md`](eval/README.md).
 
 | Setup (each adds to the one above) | Words wrong | Acted, and was right | Acted, and was **wrong** | Asked first |
 |---|---|---|---|---|
@@ -202,11 +209,14 @@ npx tsx scripts/evalTranscription.ts --split dev --per-speaker 10
 
 ## Privacy
 
-- **Recordings and the phrasebook stay in the browser** (IndexedDB), because speech recordings of a disabled person are health data. Each request carries only the clips it needs, and the server stores nothing.
-- Audio goes to ElevenLabs (Scribe) and to Google's Gemini through OpenRouter, and the transcripts go to Anthropic (Claude), only while a sentence or recording is being understood. The live transcript streams audio only during a turn. A TORGO clip heard in the pipeline goes to the same services, as it did in the evaluation; it is never stored by the server or added to the repo.
-- Keys stay on the server and are never logged.
+- **Profiles, recordings and phrasebooks stay in the browser** (IndexedDB, one database per profile), because speech recordings of a disabled person are health data. Each request carries only the clips it needs, and the server stores nothing. Deleting a profile deletes its database.
+- Audio goes to ElevenLabs (Scribe) and to Google's Gemini through OpenRouter, and the transcripts go to Anthropic (Claude), only while a sentence or recording is being understood. A TORGO clip heard in the pipeline goes to the same services, as it did in the evaluation; it is never stored by the server or added to the repo.
+- Keys stay on the server and are never logged. The page gets only a short-lived token for the live transcript.
 
 ## Safety rules it follows
+
+These apply when **Act on what I say** (under Advanced) is on, so speech is acted on by the pretend phone:
+
 
 - Nothing is acted on when the pipeline is unsure. That rule is code, not a prompt, so it holds when the model is wrong.
 - Anything that reaches another person (a message or a call) always needs a yes.
@@ -217,11 +227,10 @@ npx tsx scripts/evalTranscription.ts --split dev --per-speaker 10
 
 ## Known limits
 
-- **Hosted on Cloudflare Workers** at https://understood.chinmayraj.workers.dev, locked with a keyword (`ACCESS_KEY`). Deploy with `npx wrangler deploy` after `npm run build`; keys are Worker secrets. A permanent deployment to Cloudflare Workers is the plan (Vercel was ruled out because it runs on AWS); the checklist is in [`docs/WEB_PLAN.md`](docs/WEB_PLAN.md), section 6. The TORGO recordings are never served to other machines, tunnel or not.
-- **The microphone listens continuously.** It is built for people who cannot click, so every pause of about 2.5 seconds ends a turn and it starts listening again. A long pause, background noise or (rarely) the assistant's own spoken reply can start a new turn. Turning off "Speak replies aloud" and pressing **Stop listening** after a sentence avoids this when demonstrating. Recordings and uploads do not have this problem and are the measured path.
-- **Speed.** About 3 to 6 seconds from the end of a spoken sentence to the decision: the 2.5-second pause wait, then up to 4 seconds for Gemini and about 2 seconds for Claude. A recording, where accuracy matters most, takes about 6 to 15 seconds after it has played, because the stronger listeners are slower.
+- **Hosted on Cloudflare Workers** at https://understood.chinmayraj.workers.dev, locked with a keyword (`ACCESS_KEY`). Deploy with `npm run build` then `npx wrangler deploy`; keys are Worker secrets. The TORGO recordings are never served to other machines.
+- **Speed.** A sentence takes about 6 to 15 seconds after it ends, because the strongest listeners are slow; Gemini with example clips is erratic (1.4 to 14 seconds for the same request). Acting on speech uses faster models (about 3 to 6 seconds).
 - **Hard cases.** Isolated single words stay hard (36% wrong held-out), homophones such as "knew" and "new" cannot be told apart without context, and the most severe speakers (M02, M04) are still misheard about half the time.
-- **Gemini with example clips is erratic.** On 11 Nov the same request took anywhere from 1.4 to 14 seconds. A spoken turn gives it 4 seconds and goes on with two votes when it is late. A recording, where the transcript is the point, gives it 15 seconds and Claude 8, so a recording can take up to about 25 seconds.
+- **Profiles live in one browser.** They do not sync between devices, and clearing the browser's data deletes them.
 - **Not tested with a person with dysarthria using it live.** The evaluation used real recordings, played in offline; the live checks used synthetic voices.
 - **English only, and a pretend phone.** Nothing on the page reaches a real person.
 - The per-visitor limit is kept in memory, which is enough locally but not for a public deployment.
@@ -230,25 +239,26 @@ npx tsx scripts/evalTranscription.ts --split dev --per-speaker 10
 
 ```
 web/                  the website (submission)
-  src/                the pages: React; pages/ (home, pipeline), router.ts, microphone,
-                      recordings, live transcript, pipeline view
-  server/             the API: Hono on Node; /api/understand, /api/realtime-token,
-                      /api/speak, /api/act; the three recognisers and the repair;
-                      dataset.ts, the local-only TORGO route for the Recordings tab
+  src/                the pages (React): pages/ (home, pipeline, profiles, research),
+                      components/, the microphone, profiles and storage (storage/)
+  server/             the API (Hono): /api/understand, /api/realtime-token, /api/speak,
+                      /api/act; the listeners and the repair; dataset.ts, the local-only
+                      TORGO route
   shared/rules/       the decision rules and phrasebook matching, ported from Swift
-  tests/              Vitest: 283 tests, plus live.smoke.ts
+  tests/              Vitest: 355 tests, plus live.smoke.ts
+train/                fine-tuning a speech model on dysarthric speech (Python)
 eval/                 the TORGO evaluation: method, scripts, results (no audio)
-docs/                 SPEECH_PLAN.md (the design), WEB_PLAN.md (the website)
+docs/                 SPEECH_PLAN.md (the design), WEB_PLAN.md (the website),
+                      TRANSCRIPTION.md, FINETUNE_*.md, images/ (README screenshots)
 DECISIONS.md          every significant choice, what was rejected, and why
 ```
 
-This repo holds the website and the evaluation only. An earlier Mac prototype, built the first week, was removed for the submission; its history is in `DECISIONS.md`.
-
-Where to read first: [`docs/SPEECH_PLAN.md`](docs/SPEECH_PLAN.md) (why each stage exists), then [`DECISIONS.md`](DECISIONS.md).
+This repo holds the website, the evaluation and the training code. An earlier Mac prototype, built the first week, was removed for the submission; its history is in `DECISIONS.md`.
 
 ## Credits
 
 - **ElevenLabs** (Scribe v2, v3 and realtime speech-to-text, and text-to-speech), **Google Gemini** (3.8 Flash, 3.1 Pro, 4 Carbon) through **OpenRouter**, and **Anthropic** (Claude Haiku 5.5 and Opus 5.5).
+- **Whisper large-v3-turbo** (OpenAI), the model fine-tuned on the Research page.
 - **TORGO**: Rudzicz, Namasivayam and Wolff (2012), *The TORGO database of acoustic and articulatory speech from speakers with dysarthria*, Language Resources and Evaluation 46(4):523–541.
 - Fonts: Atkinson Hyperlegible, self-hosted (see `web/public/fonts/README.md`).
 - The earlier Mac prototype (not included here) adapted parts of **Clicky** by Farza (MIT).
