@@ -1,8 +1,8 @@
 // Whose voice a recording is heard as. Each voice brings what the pipeline knows about that
 // person: their phrasebook, a few of their clips for Gemini, and the words they tend to say.
 //
-//   - "Your voice": what you set up in this browser (the conversation's own phrasebook and clips).
-//   - "Nobody in particular": nothing known, so only the recognisers and Claude's repair help.
+//   - One of your profiles: what was set up in this browser under that name (its phrasebook and
+//     clips, storage/profiles.ts). The profile in use is the conversation's own.
 //   - A TORGO speaker: set up from that speaker's own enrolment clips, exactly as the evaluation
 //     did (eval/README.md, section 2). Up to 20 clips, prompts said again later first; each is
 //     heard by Scribe, and where Scribe heard something else the phrasebook learns "heard ->
@@ -26,7 +26,19 @@ export interface Voice {
   setupPrompts: string[];
 }
 
-export const NOBODY: Voice = { id: "nobody", label: "Nobody in particular", phrasebook: [], examples: [], keyterms: [], setupClipIds: [], setupPrompts: [] };
+/** One of your profiles as a voice, for hearing a recording as a profile that is not the one in use. */
+export function profileVoice(id: string, label: string, entries: PhrasebookEntry[], clips: Clip[]): Voice {
+  return {
+    id: `profile:${id}`,
+    label,
+    phrasebook: entries,
+    examples: chooseExamples(clips),
+    // The phrases this profile has confirmed, as known phrases: the same as the conversation's own.
+    keyterms: [...new Set(entries.map((e) => e.meant))].slice(0, 40),
+    setupClipIds: [],
+    setupPrompts: [],
+  };
+}
 
 /** The evaluation's cap on set-up clips per speaker. */
 export const SETUP_CLIP_LIMIT = 20;
@@ -69,9 +81,17 @@ export interface SetupDeps {
   signal?: AbortSignal;
 }
 
-/** Sets up a TORGO speaker's voice from their enrolment clips. Three clips are heard at a time. */
-export async function setUpSpeaker(index: DatasetIndex, speaker: string, label: string, deps: SetupDeps): Promise<Voice> {
-  const clips = setupClipsFor(index, speaker);
+/** The fewest clips a TORGO speaker's profile may be set up from, as for your own profiles. */
+export const MIN_PROFILE_CLIPS = 3;
+/** The most: each one is heard by Scribe during setup. */
+export const MAX_PROFILE_CLIPS = 40;
+
+/**
+ * Sets up a TORGO speaker's voice from their clips: by default the evaluation's set-up clips,
+ * or the clips chosen on the page. Three clips are heard at a time.
+ */
+export async function setUpSpeaker(index: DatasetIndex, speaker: string, label: string, deps: SetupDeps, chosen?: DatasetClip[]): Promise<Voice> {
+  const clips = chosen ?? setupClipsFor(index, speaker);
   const keyterms = keytermsFrom(clips.map((c) => c.prompt));
   let entries: PhrasebookEntry[] = [];
   const kept: Clip[] = [];

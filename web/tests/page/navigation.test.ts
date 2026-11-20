@@ -48,7 +48,7 @@ describe("the app around the pages", () => {
   const app = source("App.tsx");
 
   it("leaves the pipeline through leavePipeline and remembers whether to resume the microphone", () => {
-    const effect = slice(app, "const resumeListening = useRef(false);", "}, [page, listening, leavePipeline, startListening]);");
+    const effect = slice(app, "const resumeListening = useRef(false);", "}, [page, listening, leavePipeline, startListening, settingUpOnProfiles]);");
     expect(effect).toMatch(/if \(page !== "pipeline"\) \{\s*if \(leavePipeline\(\)\) resumeListening\.current = true;/);
     expect(effect).not.toMatch(/stopHearing\(|stopListening\(/);
   });
@@ -66,7 +66,9 @@ describe("the app around the pages", () => {
   });
 
   it("moves focus to the new page's heading after a page change", () => {
-    expect(app).toMatch(/"hero-title" : "pipeline-title"/);
+    expect(app).toMatch(/landing: "hero-title",\s+pipeline: "pipeline-title",\s+profiles: "profiles-title"/);
+    expect(app).toMatch(/const heading = HEADINGS\[route\.page\];/);
+    expect(source("pages/ProfilesPage.tsx")).toMatch(/<h1 id="profiles-title" tabIndex=\{-1\}>/);
     expect(source("pages/PipelinePage.tsx")).toMatch(/<h1 id="pipeline-title" className="ws-title" tabIndex=\{-1\}>/);
     expect(source("pages/Landing.tsx")).toMatch(/<h1 id="hero-title" tabIndex=\{-1\}>/);
   });
@@ -80,11 +82,10 @@ describe("pages and links", () => {
     expect(hear).toMatch(/hidden=\{source !== "file"\}/);
   });
 
-  it("section links scroll even when the address already matches", () => {
+  it("the header links to the pages only, not to landing-page sections", () => {
     const chrome = source("components/SiteChrome.tsx");
-    expect(chrome).toMatch(/href=\{href\.how\} onClick=\{onSectionLink\("how"\)\}/);
-    expect(chrome).toMatch(/href=\{href\.results\} onClick=\{onSectionLink\("results"\)\}/);
-    expect(source("pages/Landing.tsx")).toMatch(/window\.location\.hash !== event\.currentTarget\.getAttribute\("href"\)/);
+    expect(chrome).not.toMatch(/How it works|href\.how|href\.results/);
+    expect(chrome).toMatch(/href=\{href\.profiles\}/);
   });
 
   it("the pipeline page has no complementary regions inside main", () => {
@@ -98,6 +99,6 @@ describe("pages and links", () => {
   it("scroll targets stop below the sticky header", () => {
     expect(source("styles/hear.css")).toMatch(/#hear-title \{\s*scroll-margin-top: 80px;/);
     expect(source("styles/workspace.css")).toMatch(/#result-area \{\s*scroll-margin-top: 80px;/);
-    expect(source("styles/site.css")).toMatch(/#how,\s*#results,\s*#privacy \{\s*scroll-margin-top: 80px;/);
+    expect(source("styles/site.css")).toMatch(/#how,\s*#results \{\s*scroll-margin-top: 80px;/);
   });
 });

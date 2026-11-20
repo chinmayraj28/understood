@@ -27,8 +27,15 @@ describe("routes", () => {
     expect(parseRoute("#/pipeline?hear=%E0").page).toBe("pipeline");
   });
 
-  it("opens the privacy section", () => {
-    expect(parseRoute("#/privacy")).toEqual({ page: "landing", section: "privacy" });
+  it("sends the removed privacy section to the top of the landing page", () => {
+    expect(parseRoute("#/privacy")).toEqual({ page: "landing" });
+  });
+
+  it("opens the profiles page, with the new-profile form when asked", () => {
+    expect(parseRoute(href.profiles)).toEqual({ page: "profiles" });
+    expect(parseRoute("#/profiles/")).toEqual({ page: "profiles" });
+    expect(parseRoute(href.newProfile)).toEqual({ page: "profiles", create: true });
+    expect(parseRoute("#/profilesx")).toEqual({ page: "landing" });
   });
 
   it("opens the research page", () => {
@@ -41,6 +48,13 @@ describe("routes", () => {
   it("does not open the research page for a look-alike address", () => {
     expect(parseRoute("#/researcher")).toEqual({ page: "landing" });
     expect(parseRoute("#research")).toEqual({ page: "landing" });
+  });
+
+  it("opens one speaker's recordings, and the list for a bad speaker id", () => {
+    expect(parseRoute(href.speaker("F01"))).toEqual({ page: "recordings", speaker: "F01" });
+    expect(parseRoute("#/recordings/fc02")).toEqual({ page: "recordings", speaker: "FC02" });
+    expect(parseRoute("#/recordings/")).toEqual({ page: "recordings" });
+    expect(parseRoute("#/recordings/%3Cscript%3E")).toEqual({ page: "recordings" });
   });
 
   it("keeps the old recordings address", () => {

@@ -13,6 +13,7 @@ import "./styles/hear.css";
 import "./styles/site.css";
 import "./styles/research.css";
 import "./styles/workspace.css";
+import "./styles/profiles.css";
 import "./styles/motion.css";
 
 createRoot(document.getElementById("root")!).render(

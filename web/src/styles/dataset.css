@@ -2,7 +2,7 @@
 
 
 .dataset-head {
-  padding: 24px 0 8px;
+  padding: 40px 0 8px;
   display: grid;
   gap: 12px;
   max-width: 70ch;
@@ -10,6 +10,8 @@
 .dataset-head h1 {
   font-size: clamp(var(--t-4), 3.4vw, 2.75rem);
   line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.025em;
 }
 .dataset-head p {
   color: var(--ink-2);
@@ -24,81 +26,10 @@
 }
 .dataset-missing {
   margin-top: 24px;
-  padding: 16px 20px;
-  border-radius: var(--radius-m);
-  background: var(--surface);
+  padding: 20px 24px;
+  border-radius: var(--radius-card);
+  background: rgb(255 255 255 / 0.5);
   border: 2px dashed var(--rule);
-}
-
-.dataset-speakers {
-  margin-top: 28px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
-}
-.speaker-chip {
-  display: grid;
-  gap: 2px;
-  justify-items: start;
-  text-align: left;
-  padding: 10px 14px;
-  border-radius: var(--radius-m);
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  font-size: var(--t-0);
-  color: var(--ink-2);
-  cursor: pointer;
-}
-.speaker-chip strong {
-  font-size: var(--t-1);
-  color: var(--ink);
-}
-.speaker-chip.control {
-  background: var(--paper);
-}
-.speaker-chip[aria-pressed="true"] {
-  border-color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--ink);
-}
-
-.dataset-split {
-  margin-top: 28px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  align-items: center;
-}
-.split-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.split-tab {
-  display: grid;
-  gap: 2px;
-  min-height: 44px;
-  padding: 8px 18px;
-  border-radius: var(--radius-s);
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.split-tab span {
-  font-size: var(--t-0);
-  color: var(--ink-2);
-}
-.split-tab[aria-pressed="true"] {
-  border-color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--ink);
-}
-.split-note {
-  flex: 1 1 280px;
-  margin: 0;
-  color: var(--ink-2);
-  font-size: var(--t-0);
 }
 
 .dataset-filters {
@@ -110,22 +41,10 @@
 }
 .dataset-filters label {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--t-0);
   font-weight: 700;
   color: var(--ink-2);
-}
-.dataset-filters input[type="search"],
-.dataset-filters select {
-  min-height: 44px;
-  padding: 6px 12px;
-  border-radius: var(--radius-s);
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  font: inherit;
-  font-size: var(--t-1);
-  font-weight: 400;
-  color: var(--ink);
 }
 .dataset-filters input[type="search"] {
   width: min(320px, 100%);
@@ -159,10 +78,11 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 10px 20px;
   align-items: center;
-  padding: 14px 18px;
-  border-radius: var(--radius-m);
+  padding: 16px 20px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
 }
 @media (min-width: 820px) {
   .clip {
@@ -184,10 +104,6 @@
   gap: 4px 12px;
   font-size: var(--t-0);
   color: var(--ink-3);
-}
-.clip-meta span:first-child {
-  font-family: var(--mono);
-  color: var(--ink);
 }
 .clip-tested {
   color: var(--act);
@@ -260,22 +176,6 @@
   .dataset-head p {
     font-size: var(--t-0);
   }
-  .dataset-speakers {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    overscroll-behavior-x: contain;
-    margin-left: calc(-1 * var(--gutter));
-    margin-right: calc(-1 * var(--gutter));
-    padding: 2px var(--gutter) 8px;
-    scrollbar-width: thin;
-  }
-  .dataset-speakers .speaker-chip {
-    flex: 0 0 auto;
-    min-width: 112px;
-    scroll-snap-align: start;
-  }
   .dataset-filters label,
   .dataset-filters input[type="search"],
   .dataset-filters select {
@@ -290,4 +190,94 @@
   .clip-audio {
     width: 100%;
   }
+}
+
+/* ── The speakers, as cards ── */
+.speaker-cards {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.speaker-card {
+  display: grid;
+  gap: 6px;
+  height: 100%;
+  padding: 18px 20px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease), transform 160ms var(--ease);
+}
+.speaker-card:hover {
+  border-color: var(--rule-strong);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+.speaker-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.speaker-card-id {
+  font-size: var(--t-3);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.speaker-card-what {
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.speaker-card-count {
+  font-size: var(--t-0);
+  color: var(--ink-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .speaker-card,
+  .speaker-card:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+.group-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e6edfb;
+  color: #1d4ab8;
+  font-size: var(--t-0);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.group-badge.control {
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+
+/* ── One speaker's page ── */
+.back-link {
+  justify-self: start;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.back-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.speaker-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--t-1);
+  color: var(--ink-2);
 }

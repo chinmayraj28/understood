@@ -14,7 +14,7 @@ export const SETUP_PHRASES = [
   "Play some music",
   "Yes",
   "No",
-  "Call Priya",
+  "Call Chinmay",
   "Remind me to ring Amma at six",
   "Message Dad see you soon",
   "Stop the music",

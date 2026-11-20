@@ -1,6 +1,6 @@
 /* The research page. Same quiet bands as the landing page: a hairline, a heading, the evidence.
-   Untuned is drawn in the muted ink, tuned in full ink; held-out wears the mark colour, as the
-   end of the line does on the landing page. */
+   In every table the untuned share is drawn in muted ink and the trained share in full ink on a
+   green wash, so the eye lands on the trained number first. */
 
 .research {
   max-width: var(--wide);
@@ -8,283 +8,208 @@
   padding: 0 var(--gutter);
 }
 
-/* ── The finding ── */
+/* ── The headline ── */
 .research-hero {
   padding: 56px 0 64px;
   display: grid;
-  gap: 40px;
-  align-items: start;
+  gap: 20px;
 }
 @media (min-width: 1040px) {
   .research-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-    gap: 64px;
-    padding: 80px 0 88px;
+    padding: 88px 0 96px;
   }
 }
 .research-hero h1 {
-  font-size: clamp(2.1rem, 4.4vw, 3.6rem);
+  font-size: clamp(2.1rem, 4.8vw, 3.8rem);
   line-height: 1.04;
   font-weight: 800;
   letter-spacing: -0.035em;
-  max-width: 15ch;
+  max-width: 19ch;
   text-wrap: balance;
 }
 .research-lede {
-  margin-top: 20px;
   font-size: var(--t-2);
   line-height: 1.45;
   color: var(--ink-2);
-  max-width: 42ch;
+  max-width: 48ch;
 }
 
-/* Paired bars: untuned above, tuned below, the number at the end of each. */
-.pair-chart {
-  margin: 0;
-  display: grid;
-  gap: 20px;
+/* ── Tables: untuned beside trained ── */
+.rate-wrap {
+  margin-top: 28px;
+  max-width: 880px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
 }
-.pair-chart figcaption {
+.rate-wrap.narrow {
+  max-width: 640px;
+}
+/* Eight speaker rows: a little tighter, so the whole table fits on one screen. */
+.rate-wrap.narrow tbody th,
+.rate-wrap.narrow tbody td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.rate-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rate-table th,
+.rate-table td {
+  padding: 18px 22px;
+  text-align: right;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+}
+.rate-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.rate-table thead th {
+  padding-top: 12px;
+  padding-bottom: 12px;
   font-size: var(--t-0);
-  color: var(--ink-2);
-}
-.pair-chart ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 22px;
-}
-.pair-name {
   font-weight: 700;
-  margin-bottom: 6px;
+  color: var(--ink-2);
+  vertical-align: bottom;
+  white-space: nowrap;
+  background: var(--paper);
 }
-.pair-clips {
+.rate-table thead th:first-child,
+.rate-table tbody th {
+  text-align: left;
+}
+/* The label column takes the room the numbers leave. */
+.rate-table tbody th {
+  width: 100%;
+  font-weight: 700;
+}
+.rate-label {
+  display: block;
+  font-size: var(--t-1);
+}
+.rate-table .rate-clips {
   font-weight: 400;
-  font-size: var(--t-0);
   color: var(--ink-3);
+  padding-top: 21px;
+}
+.rate-table thead .rate-clips {
+  padding-top: 12px;
+}
+.rate-clips-inline {
+  display: none;
+}
+.rate-value {
+  display: block;
+  font-size: var(--t-2);
+  line-height: 1.2;
   white-space: nowrap;
 }
-.pair-line {
-  display: grid;
-  grid-template-columns: 3.6rem minmax(0, 1fr) 3.4rem 4.8rem;
-  gap: 2px 10px;
-  align-items: center;
-}
-.pair-tag {
-  font-size: var(--t-0);
-  color: var(--ink-2);
-}
-.pair-bar {
-  display: block;
-  height: 10px;
-  background: var(--sunk);
-}
-.pair-bar span {
-  display: block;
-  height: 100%;
-  background: var(--ink);
-}
-.pair-line.before .pair-bar span {
-  background: var(--ink-3);
-}
-.pair-value {
-  text-align: right;
-}
-.pair-line.before .pair-value {
+.rate-before .rate-value {
   font-weight: 400;
   color: var(--ink-2);
 }
-.pair-line.after .pair-value {
+.rate-after .rate-value {
   font-weight: 800;
+  color: var(--ink);
 }
-.pair-ci {
+.rate-table .rate-after {
+  background: var(--act-wash);
+}
+.rate-range {
+  display: block;
+  margin-top: 4px;
   font-size: var(--t-0);
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-@media (max-width: 420px) {
-  .pair-line {
-    grid-template-columns: 3.4rem minmax(0, 1fr) 3.4rem;
-  }
-  .pair-ci {
-    grid-column: 2 / -1;
-    justify-self: end;
-  }
-}
-
-/* ── The split: one track cut in proportion to the clips ── */
-.split-bar {
-  margin-top: 32px;
-  display: flex;
-  gap: 3px;
-  height: 18px;
-}
-.split-part {
-  min-width: 6px;
-  flex-basis: 0;
-}
-.split-part:first-child {
-  border-radius: 9px 0 0 9px;
-}
-.split-part:last-child {
-  border-radius: 0 9px 9px 0;
-}
-.role-train {
-  background: var(--ink);
-}
-.role-val {
-  background: var(--ink-3);
-}
-.role-dev {
-  background: var(--rail-off);
-}
-.role-holdout {
-  background: var(--mark);
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-.split-legend {
-  list-style: none;
-  margin: 20px 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 16px 28px;
-}
-.split-legend li {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.split-swatch {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  margin-top: 5px;
+.rate-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
   border-radius: 3px;
+  vertical-align: -1px;
 }
-.split-use {
+.rate-key.before,
+.rate-bar.before span {
+  background: var(--rule-strong);
+}
+.rate-key.after,
+.rate-bar.after span {
+  background: var(--learn);
+}
+.rate-bars {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  max-width: 300px;
+}
+.rate-bar {
   display: block;
-  font-size: var(--t-0);
-  color: var(--ink-2);
+  height: 7px;
+  border-radius: 4px;
+  background: var(--sunk);
+  overflow: hidden;
 }
-.split-note {
-  margin-top: 28px;
-  max-width: 60ch;
-}
-
-/* ── Models on the dev clips ── */
-.dev-wrap {
-  margin-top: 28px;
-}
-.dev-table {
-  width: 100%;
-  min-width: 620px;
-  border-collapse: collapse;
-}
-.dev-table th,
-.dev-table td {
-  padding: 10px 14px;
-  text-align: right;
-  border-bottom: 1px solid var(--rule);
-  vertical-align: top;
-}
-.dev-table thead th {
-  font-size: var(--t-0);
-  color: var(--ink-2);
-  vertical-align: bottom;
-}
-.dev-table thead th:nth-child(-n + 2),
-.dev-table .dev-model,
-.dev-table .dev-stage {
-  text-align: left;
-}
-.dev-table tbody + tbody tr:first-child > * {
-  border-top: 2px solid var(--rule);
-}
-.dev-table tbody tr:last-child > * {
-  border-bottom: 0;
-}
-.dev-model {
-  font-weight: 800;
-}
-.dev-stage {
-  font-weight: 400;
-  color: var(--ink-2);
-}
-.dev-best {
-  background: var(--mark);
-  color: var(--ink);
-  font-weight: 800;
-  padding: 1px 6px;
+.rate-bar span {
+  display: block;
+  height: 100%;
   border-radius: 4px;
 }
-
-/* ── Per speaker ── */
-.speaker-key {
-  margin-top: 20px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--t-0);
-  color: var(--ink-2);
-}
-.speaker-key .key {
-  display: inline-block;
-  width: 18px;
-  height: 8px;
-  background: var(--ink);
-}
-.speaker-key .key.before {
-  background: var(--ink-3);
-}
-.speaker-key .key.after {
-  margin-left: 12px;
-}
-.speaker-grid {
-  list-style: none;
-  margin: 16px 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-  gap: 12px;
-}
-.speaker-grid li {
-  padding: 12px 14px;
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-.speaker-grid li.control {
-  background: var(--paper);
-}
-.speaker-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-}
-.speaker-name span {
+.rate-note {
+  margin-top: 12px;
   font-size: var(--t-0);
   color: var(--ink-3);
 }
-.speaker-bars {
+
+/* ── How it was tested: three numbered cards ── */
+.method-steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 28px 0 0;
+  padding: 0;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 12px;
+}
+.method-steps li {
+  counter-increment: step;
+  padding: 20px 22px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
   display: grid;
   gap: 4px;
+  align-content: start;
 }
-.speaker-bars .pair-line {
-  display: block;
+.method-steps li::before {
+  content: counter(step);
+  width: 32px;
+  height: 32px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 800;
 }
-.speaker-bars .pair-bar {
-  height: 8px;
+.method-steps strong {
+  font-size: var(--t-2);
 }
-.speaker-values {
-  font-size: var(--t-0);
-  white-space: nowrap;
+.method-steps span {
+  color: var(--ink-2);
+}
+.method-data {
+  margin-top: 20px;
+  max-width: 64ch;
+  color: var(--ink-2);
 }
 
 /* ── Limits ── */
@@ -293,8 +218,33 @@
   padding-left: 1.2em;
   display: grid;
   gap: 8px;
-  max-width: 52ch;
+  max-width: 60ch;
   color: var(--ink-2);
+}
+
+/* Phones: the clip count moves under the label, so three narrow number columns fit. */
+@media (max-width: 520px) {
+  .rate-table th,
+  .rate-table td {
+    padding: 14px 12px;
+  }
+  .rate-table thead th {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .rate-table .rate-clips {
+    display: none;
+  }
+  .rate-clips-inline {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--t-0);
+    font-weight: 400;
+    color: var(--ink-3);
+  }
+  .rate-value {
+    font-size: var(--t-1);
+  }
 }
 
 /* ── The clip tester ── */
@@ -311,20 +261,13 @@
 }
 .tester-field {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--t-0);
   font-weight: 700;
   color: var(--ink-2);
 }
 .tester-field select {
-  min-height: 48px;
   min-width: 9rem;
-  padding: 6px 12px;
-  border-radius: var(--radius-s);
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  font-size: var(--t-1);
-  color: var(--ink);
 }
 .tester-field .segmented {
   max-width: 100%;
@@ -342,10 +285,11 @@
 .clip-card {
   margin-top: 24px;
   max-width: 780px;
-  padding: 20px;
-  border-radius: var(--radius-m);
+  padding: 24px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--rule);
+  box-shadow: var(--shadow-2);
   display: grid;
   gap: 20px;
 }
@@ -467,7 +411,7 @@
 @media (max-width: 600px) {
   .research-hero {
     padding: 32px 0 44px;
-    gap: 32px;
+    gap: 16px;
   }
   .clip-card {
     padding: 16px;

@@ -46,6 +46,12 @@ export interface ConversationState {
   persistent: boolean;
 }
 
+/** A voice's phrasebook and clips at one moment. */
+export interface VoiceSnapshot {
+  entries: PhrasebookEntry[];
+  clips: Clip[];
+}
+
 export interface TurnInput {
   wavBase64: string;
   realtimeText?: string;
@@ -367,6 +373,44 @@ export class Conversation {
     const entries = this.state.entries.filter((e) => e.id !== entryId);
     this.set({ entries });
     await this.store.saveEntries(entries);
+  }
+
+  /** What this voice knows right now, to put back if a setup is cancelled. */
+  snapshot(): VoiceSnapshot {
+    return { entries: this.state.entries, clips: [...this.clips] };
+  }
+
+  /**
+   * Puts back what a snapshot holds: phrasebook entries learned since are dropped, clips added
+   * since are deleted, and a clip that was recorded again gets its old recording back.
+   */
+  async restore(snapshot: VoiceSnapshot) {
+    const kept = new Set(snapshot.clips.map((c) => c.id));
+    for (const clip of this.clips) if (!kept.has(clip.id)) await this.store.removeClip(clip.id);
+    const now = new Map(this.clips.map((c) => [c.id, c]));
+    for (const clip of snapshot.clips) if (now.get(clip.id) !== clip) await this.store.addClip(clip);
+    this.clips = [...snapshot.clips];
+    this.set({ entries: snapshot.entries, clipCount: this.clips.length, justLearned: [] });
+    await this.store.saveEntries(snapshot.entries);
+  }
+
+  /**
+   * Changes whose voice this is: loads another profile's phrasebook and clips, and from then on
+   * learns into that profile. Waits for the turn in progress. A question still waiting for an
+   * answer is dropped, so one profile's "yes" can never confirm what another profile said.
+   */
+  useStore(store: VoiceStore): Promise<void> {
+    this.queue = this.queue
+      .then(async () => {
+        const [entries, clips] = await Promise.all([store.loadEntries(), store.loadClips()]);
+        this.store = store;
+        this.clips = clips;
+        this.wavByTurn.clear();
+        this.recent = [];
+        this.set({ entries, clipCount: clips.length, justLearned: [], pending: undefined, failedTries: 0, persistent: store.persistent });
+      })
+      .catch(() => {});
+    return this.queue;
   }
 
   /** Forgets everything about the person: phrasebook, clips, recordings, the conversation. */

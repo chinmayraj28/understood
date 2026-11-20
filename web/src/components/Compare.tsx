@@ -6,12 +6,33 @@ import { bestText, decisionSpeech, HEARER_LABEL, hearersOf, routeOf, type TurnMo
 import { countErrors, errorRate } from "../../shared/wordErrors";
 import { ConfidenceMeter, MarkedWords, seconds } from "./bits";
 
+// In the order the pipeline runs them (server/understand.ts). Scribe and Live always listen.
 const SWITCHES: { key: keyof StageSwitches; name: string; what: string }[] = [
-  { key: "keyterms", name: "Known phrases", what: "The phrases this person tends to say, shown to Claude for a recording. No recogniser is given them." },
-  { key: "gemini", name: "Gemini", what: "Gemini listening alongside Scribe (two Gemini models for a recording)." },
-  { key: "examples", name: "Their clips", what: "Show Gemini a few recordings of the same voice." },
-  { key: "phrasebook", name: "Phrasebook", what: "Catch a mishearing you confirmed before." },
-  { key: "repair", name: "Claude's repair", what: "Weigh the transcripts and the phrasebook into one reading." },
+  {
+    key: "gemini",
+    name: "Gemini listeners",
+    what: "Gemini 3.1 Pro and Gemini 4 Carbon listen alongside Scribe. Off: only Scribe and Live listen.",
+  },
+  {
+    key: "examples",
+    name: "Their clips",
+    what: "Both Gemini models first hear 5 earlier clips of this speaker, with what was said. Off: they hear the new clip cold.",
+  },
+  {
+    key: "phrasebook",
+    name: "Phrasebook",
+    what: "Looks up mishearings already learned for this speaker (heard → meant) and passes the closest one to Claude.",
+  },
+  {
+    key: "keyterms",
+    name: "Known phrases",
+    what: "Up to 40 phrases this speaker has said before, shown to Claude only. No listener is given them.",
+  },
+  {
+    key: "repair",
+    name: "Claude's repair",
+    what: "Claude Opus 5.5 reads every transcript and the phrasebook match, and writes the final one. Off: the phrasebook match, or else Scribe's transcript, is used as it is.",
+  },
 ];
 
 export function StageSwitchPanel(props: {

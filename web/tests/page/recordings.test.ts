@@ -6,7 +6,7 @@ import type { DatasetClip, DatasetIndex } from "../../shared/dataset";
 import type { ActRequest, ActResponse, PipelineEvent, UnderstandRequest } from "../../shared/pipeline";
 import { Conversation } from "../../src/model/conversation";
 import type { Transport } from "../../src/model/transport";
-import { keytermsFrom, NOBODY, setUpSpeaker, setupClipsFor, SETUP_CLIP_LIMIT } from "../../src/model/voices";
+import { keytermsFrom, profileVoice, setUpSpeaker, setupClipsFor, SETUP_CLIP_LIMIT } from "../../src/model/voices";
 import { MemoryStore } from "../../src/storage/store";
 
 function clip(id: string, prompt: string, split: "enrolment" | "test", repeatedLater = false, speaker = "F03"): DatasetClip {
@@ -49,6 +49,16 @@ describe("setting up a TORGO speaker's voice", () => {
     expect(chosen[0].id).toBe("b");
     expect(chosen[1].id).toBe("a");
     expect(chosen.some((c) => c.split === "test")).toBe(false);
+  });
+
+  it("can be set up from the clips chosen on the page instead, test clips included", async () => {
+    const clips = [clip("a", "air", "enrolment"), clip("b", "up", "enrolment"), clip("c", "sip", "enrolment"), clip("t", "chair", "test")];
+    const server = fakeServer(() => ({ scribe: "uh", gemini: "uh" }));
+    const chosen = clips.filter((c) => ["b", "c", "t"].includes(c.id));
+    const voice = await setUpSpeaker(index(clips), "F03", "F03", { understand: server.understand, loadWav: async (c) => `wav-${c.id}`, onProgress: () => {} }, chosen);
+    expect(voice.setupClipIds).toEqual(["b", "c", "t"]);
+    expect(server.requests).toHaveLength(3);
+    expect(voice.setupPrompts).toContain("chair");
   });
 
   it("gives Scribe the distinct prompts, most frequent first", () => {
@@ -130,7 +140,7 @@ describe("transcribing a recording", () => {
     const server = fakeServer(() => ({ scribe: "Uh", gemini: "up" }));
     const transport = new RecordingTransport(server);
     const conversation = await Conversation.create(transport, new MemoryStore([]));
-    const voice = { ...NOBODY, id: "torgo:M05", label: "M05", keyterms: ["up"], examples: [{ wavBase64: "AAAA", text: "up" }], setupPrompts: ["up"] };
+    const voice = { ...profileVoice("x", "x", [], []), id: "torgo:M05", label: "M05", keyterms: ["up"], examples: [{ wavBase64: "AAAA", text: "up" }], setupPrompts: ["up"] };
     await conversation.transcribe({ wavBase64: "AAAA", realtimeText: "Uh...", speechSeconds: 2.3, recording: { label: "M05: up", reference: "up", voiceLabel: "M05" }, voice });
 
     const request = server.requests[0];
@@ -165,7 +175,59 @@ describe("transcribing a recording", () => {
   it("earlier recordings never steer a later one", async () => {
     const server = fakeServer(() => ({ scribe: "hello", gemini: "hello" }));
     const conversation = await Conversation.create(new RecordingTransport(server), new MemoryStore([]));
-    for (let i = 0; i < 3; i++) await conversation.transcribe({ wavBase64: "AAAA", speechSeconds: 1, recording: { label: `r${i}`, voiceLabel: "nobody" }, voice: NOBODY });
+    for (let i = 0; i < 3; i++) await conversation.transcribe({ wavBase64: "AAAA", speechSeconds: 1, recording: { label: `r${i}`, voiceLabel: "a profile" }, voice: profileVoice("p1", "A profile", [], []) });
     expect(server.requests.map((r) => r.context.recentTurns)).toEqual([[], [], []]);
+  });
+});
+
+describe("profiles", () => {
+  const entry = (id: string, heard: string, meant: string) => ({ id, heard, meant, hearer: "scribe" as const, timesConfirmed: 1, lastConfirmedAt: 1, source: "enrolment" as const });
+
+  it("switching profile loads its phrasebook, and later recordings use it", async () => {
+    const server = fakeServer(() => ({ scribe: "mum sis", gemini: "message sam" }));
+    const first = new MemoryStore([entry("a", "mum sis", "message Sam")]);
+    const second = new MemoryStore([entry("b", "coal", "call Priya")]);
+    const conversation = await Conversation.create(new RecordingTransport(server), first);
+    await conversation.useStore(second);
+    expect(conversation.getState().entries.map((e) => e.id)).toEqual(["b"]);
+    await conversation.transcribe({ wavBase64: "AAAA", speechSeconds: 1, recording: { label: "f.wav", voiceLabel: "the profile" } });
+    expect(server.requests[0].phrasebook.map((e) => e.id)).toEqual(["b"]);
+  });
+
+  it("learning after a switch goes to the new profile only", async () => {
+    const server = fakeServer(() => ({ scribe: "x", gemini: "x" }));
+    const first = new MemoryStore([]);
+    const second = new MemoryStore([]);
+    const conversation = await Conversation.create(new RecordingTransport(server), first);
+    await conversation.useStore(second);
+    await conversation.addEntries([entry("c", "tie mer", "timer")], [entry("c", "tie mer", "timer")]);
+    expect((await second.loadEntries()).map((e) => e.id)).toEqual(["c"]);
+    expect(await first.loadEntries()).toEqual([]);
+  });
+
+  it("cancelling setup puts back the phrasebook and clips exactly as they were", async () => {
+    const server = fakeServer(() => ({ scribe: "x", gemini: "x" }));
+    const clip = (id: string, text: string, wavBase64: string) => ({ id, text, wavBase64, createdAt: 1, source: "enrolment" as const, difficulty: 0 });
+    const store = new MemoryStore([entry("a", "mum sis", "message Sam")]);
+    await store.addClip(clip("setup-call-mum", "Call Mum", "OLD"));
+    const conversation = await Conversation.create(new RecordingTransport(server), store);
+    const before = conversation.snapshot();
+    // The setup: a new entry, a new clip, and "Call Mum" recorded again.
+    await conversation.addEntries([...before.entries, entry("b", "coal", "call Chinmay")], [entry("b", "coal", "call Chinmay")]);
+    await conversation.addClip(clip("setup-call-chinmay", "Call Chinmay", "NEW"));
+    await conversation.addClip(clip("setup-call-mum", "Call Mum", "RETAKE"));
+    await conversation.restore(before);
+    expect(conversation.getState().entries.map((e) => e.id)).toEqual(["a"]);
+    expect((await store.loadEntries()).map((e) => e.id)).toEqual(["a"]);
+    const clips = await store.loadClips();
+    expect(clips.map((c) => [c.id, c.wavBase64])).toEqual([["setup-call-mum", "OLD"]]);
+    expect(conversation.getState().clipCount).toBe(1);
+  });
+
+  it("a profile heard as a voice brings its phrasebook, clips and confirmed phrases", () => {
+    const voice = profileVoice("p1", "Sam", [entry("a", "mum sis", "message Sam"), entry("b", "mum siss", "message Sam")], []);
+    expect(voice.id).toBe("profile:p1");
+    expect(voice.phrasebook).toHaveLength(2);
+    expect(voice.keyterms).toEqual(["message Sam"]);
   });
 });

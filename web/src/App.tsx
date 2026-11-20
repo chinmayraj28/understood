@@ -8,6 +8,7 @@ import { SiteFooter, SiteHeader } from "./components/SiteChrome";
 import { loadDataset } from "./model/datasetLoader";
 import { Landing } from "./pages/Landing";
 import { PipelinePage } from "./pages/PipelinePage";
+import { ProfilesPage } from "./pages/ProfilesPage";
 import { Research } from "./pages/Research";
 import { useRoute, type Page } from "./router";
 import { microphoneAllowed, useSession } from "./useSession";
@@ -15,8 +16,18 @@ import { microphoneAllowed, useSession } from "./useSession";
 const TITLES: Record<Page, string> = {
   landing: "Understood: speech other assistants get wrong",
   pipeline: "Pipeline · Understood",
+  profiles: "Profiles · Understood",
   recordings: "Recordings · Understood",
   research: "Research · Understood",
+};
+
+/** Each page's main heading, focused after moving to that page. */
+const HEADINGS: Record<Page, string> = {
+  landing: "hero-title",
+  pipeline: "pipeline-title",
+  profiles: "profiles-title",
+  recordings: "dataset-title",
+  research: "research-title",
 };
 
 export function App() {
@@ -31,19 +42,22 @@ export function App() {
   // The microphone and any recording belong to the pipeline page. Leaving it stops both (a clip
   // played on the recordings page must not be heard as the person) and closes the voice setup;
   // if the microphone was on, it comes back on with the pipeline, so a hands-free visitor does
-  // not lose their voice control.
+  // not lose their voice control. The one exception: recording a profile's phrases on the
+  // profiles page, which opens the microphone for itself and closes it when done.
   const { listening, leavePipeline, startListening, hearRecording, showNotice } = session;
   const resumeListening = useRef(false);
   const pageRef = useRef(page);
   pageRef.current = page;
+  const settingUpOnProfiles = page === "profiles" && session.enrol.open;
   useEffect(() => {
+    if (settingUpOnProfiles) return;
     if (page !== "pipeline") {
       if (leavePipeline()) resumeListening.current = true;
     } else if (resumeListening.current) {
       resumeListening.current = false;
       void startListening();
     }
-  }, [page, listening, leavePipeline, startListening]);
+  }, [page, listening, leavePipeline, startListening, settingUpOnProfiles]);
 
   // Hands-free start on first load, if the visitor asked for it and the browser already allows
   // the microphone. Only on the pipeline page; anywhere else it waits until the visitor gets there.
@@ -100,7 +114,7 @@ export function App() {
     const pageChanged = shownRoute.current.page !== route.page;
     shownRoute.current = route;
     if (!pageChanged || route.section || route.hearClip || route.page === "recordings") return;
-    const heading = route.page === "research" ? "research-title" : route.page === "landing" ? "hero-title" : "pipeline-title";
+    const heading = HEADINGS[route.page];
     document.getElementById(heading)?.focus({ preventScroll: true }); // the new page is already in place when effects run
   }, [route]);
 
@@ -113,10 +127,11 @@ export function App() {
       <SiteHeader page={page} />
       {page === "landing" && <Landing section={route.section} />}
       {page === "pipeline" && <PipelinePage session={session} />}
+      {page === "profiles" && <ProfilesPage session={session} create={route.create} />}
       {page === "research" && <Research />}
       {page === "recordings" && (
         <main id="main" className="page-shell">
-          <Dataset />
+          <Dataset speaker={route.speaker} />
         </main>
       )}
       {page !== "pipeline" && <SiteFooter />}

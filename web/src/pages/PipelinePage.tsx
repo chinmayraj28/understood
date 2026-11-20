@@ -3,19 +3,23 @@
 // middle; on the right the phrasebook, and under "Advanced" (closed at first) the optional part
 // that acts on what was heard: the conversation and the pretend phone.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Compare, Settings, StageSwitchPanel } from "../components/Compare";
-import { Enrolment, ENROLMENT_START } from "../components/Enrolment";
+import { Enrolment } from "../components/Enrolment";
 import { HearRecording } from "../components/HearRecording";
+import { MicHelp } from "../components/MicHelp";
 import { Phone } from "../components/Phone";
 import { Pipeline } from "../components/Pipeline";
 import { ConversationLog, PhrasebookPanel } from "../components/SidePanels";
 import { TranscriptResult } from "../components/TranscriptResult";
 import { PHONE_HOME } from "../model/phone";
 import { ALL_ON, pageAnnouncement } from "../model/turn";
+import { href } from "../router";
 import type { useSession } from "../useSession";
 
 type Session = ReturnType<typeof useSession>;
+/** The profile list's last option: make a new profile. */
+const NEW_PROFILE = "__new";
 type Advanced = "conversation" | "phone";
 
 export function PipelinePage({ session }: { session: Session }) {
@@ -25,52 +29,71 @@ export function PipelinePage({ session }: { session: Session }) {
   const logShown = advancedOpen && advanced === "conversation";
   const turn = state?.turns[state.turns.length - 1];
 
-  // Setup works on your own voice: open the microphone if it is off.
-  const openSetup = () => {
-    session.stopHearing();
-    session.setEnrol({ ...ENROLMENT_START, open: true });
-    if (!session.listening) void session.startListening();
-  };
-
   // Screen readers hear each turn once, through the conversation log or the transcript; this adds only failures.
   const announcement = pageAnnouncement(turn);
   const entryCount = session.voiceInUse?.phrasebook.length ?? state?.entries.length ?? 0;
   const step = session.hearing.step;
   const pendingLabel = step === "loading" || step === "setup" || step === "playing" ? session.hearing.label : undefined;
+  const profileField = useId();
 
-  const micPanel = (
+    const micPanel = (
     <div className="mic-panel">
-      <p className="muted">
-        {session.settings.actOnSpeech ? (
-          <>
-            Speak a sentence to the pretend phone, such as &ldquo;Message Mum, I&rsquo;m running late&rdquo;. It acts, or asks one short question
-            first.
-          </>
-        ) : (
-          <>Say anything. Every listener hears it and the transcript appears on the right.</>
-        )}{" "}
-        End a turn by pausing, by saying &ldquo;done&rdquo;, or with the space bar.
-      </p>
-      <div className="mic-actions">
-        <button
-          className={`button${session.listening ? "" : " primary"}`}
-          onClick={session.listening ? session.stopListening : session.startListening}
-          disabled={!session.listening && session.recordingBusy}
+      <label htmlFor={profileField} className="voice-select">
+        <span>Profile</span>
+        <select
+          id={profileField}
+          value={session.activeProfile.id}
+          onChange={(e) => {
+            if (e.target.value === NEW_PROFILE) window.location.hash = href.newProfile;
+            else void session.selectProfile(e.target.value);
+          }}
         >
-          {session.listening ? "Stop listening" : "Start listening"}
-        </button>
-        <button className="button quiet" onClick={openSetup}>
-          Set up your voice
-        </button>
-      </div>
-      <Settings
-        endSilence={session.settings.endSilence}
-        onEndSilence={session.settings.setEndSilence}
-        speakReplies={session.settings.speakReplies}
-        onSpeakReplies={session.settings.setSpeakReplies}
-        autoListen={session.settings.autoListen}
-        onAutoListen={session.settings.setAutoListen}
-      />
+          {session.profiles.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+          <option value={NEW_PROFILE}>＋ Create new profile…</option>
+        </select>
+      </label>
+
+      <button
+        className={`record-button${session.listening ? " on" : ""}`}
+        aria-pressed={session.listening}
+        onClick={session.listening ? session.stopRecording : session.startListening}
+        disabled={(!session.listening && session.recordingBusy) || live.status === "finishing"}
+      >
+        <span className="record-dot" aria-hidden="true" />
+        {live.status === "finishing"
+          ? "Finishing the sentence…"
+          : session.listening
+            ? "Stop"
+            : live.status === "starting"
+              ? "Opening the microphone…"
+              : "Record"}
+      </button>
+      {session.micRefused && !session.listening && (
+        <MicHelp permission={session.micPermission} onRetry={() => void session.startListening()} />
+      )}
+      <p className="muted mic-hint">
+        {session.listening
+          ? "Listening. A turn ends when you pause, say “done”, or press the space bar."
+          : session.settings.actOnSpeech
+            ? "Press Record and ask the pretend phone something, such as “Message Mum, I’m running late”."
+            : "Press Record and say anything. The transcript appears on the right."}
+      </p>
+
+      <details className="mic-settings">
+        <summary>Settings</summary>
+        <Settings
+          endSilence={session.settings.endSilence}
+          onEndSilence={session.settings.setEndSilence}
+          speakReplies={session.settings.speakReplies}
+          onSpeakReplies={session.settings.setSpeakReplies}
+          autoListen={session.settings.autoListen}
+          onAutoListen={session.settings.setAutoListen}
+        />
+      </details>
     </div>
   );
 
@@ -93,6 +116,8 @@ export function PipelinePage({ session }: { session: Session }) {
             busy={state?.busy ?? false}
             micPanel={micPanel}
             listening={session.listening}
+            profiles={session.profiles}
+            activeProfileId={session.activeProfile.id}
             onHear={(choice) => {
               // On a narrow screen the result is below the input: go to it.
               const result = document.getElementById("result-area");
@@ -108,7 +133,7 @@ export function PipelinePage({ session }: { session: Session }) {
           <details className="ws-card stages-card">
             <summary>
               <span>Stages</span>
-              <span className="muted">Switch one off to see what it adds</span>
+              <span className="muted">Switch one off to see what it adds. Scribe and Live always listen.</span>
             </summary>
             <StageSwitchPanel switches={ownState?.switches ?? ALL_ON} onChange={(s) => session.own?.setSwitches(s)} />
           </details>
@@ -152,9 +177,11 @@ export function PipelinePage({ session }: { session: Session }) {
               clipCount={state?.clipCount ?? 0}
               scope={session.voiceInUse ? "voice" : state?.persistent === false ? "memory" : "yours"}
               voiceLabel={session.voiceInUse?.label}
+              voiceIsProfile={session.voiceInUse?.id.startsWith("profile:") ?? false}
+              profileName={session.activeProfile.name}
               onForget={(id) => void session.own?.forget(id)}
               onClear={() => void session.own?.clearEverything()}
-              onSetup={openSetup}
+              onSetup={session.openSetup}
             />
             {/* Closed, a <details> hides its content from screen readers too. The conversation log must still be heard turn by turn, so it stays outside, visually hidden, until it is shown inside. */}
             {!logShown && (
@@ -189,12 +216,20 @@ export function PipelinePage({ session }: { session: Session }) {
       </div>
 
       <Enrolment
+        profileName={session.activeProfile.name}
         state={session.enrol}
         liveText={live.text}
         listening={session.listening}
-        onAgain={() => session.setEnrol((e) => ({ ...e, status: "listening", result: undefined, error: undefined }))}
-        onSkip={() => session.setEnrol((e) => ({ ...e, index: e.index + 1, status: "listening", result: undefined }))}
-        onClose={() => session.setEnrol((e) => ({ ...e, open: false }))}
+        micStatus={live.status}
+        notice={session.notice}
+        micBlocked={session.recordingBusy}
+        micRefused={session.micRefused}
+        micPermission={session.micPermission}
+        onRecord={session.enrolRecord}
+        onStop={session.enrolStop}
+        onNext={session.enrolNext}
+        onClose={() => session.closeSetup()}
+        onCancel={() => void session.cancelSetup()}
       />
       <div className="visually-hidden" aria-live="polite">
         {announcement}
@@ -260,7 +295,7 @@ function EmptyResult() {
   return (
     <div className="empty-result">
       <h2>Nothing heard yet</h2>
-      <p>Pick a recording on the left, upload your own, or switch to the microphone and speak. The transcript appears here, scored word by word.</p>
+      <p>Speak into the microphone, upload a file, or pick a TORGO recording on the left. The transcript appears here, scored word by word.</p>
     </div>
   );
 }

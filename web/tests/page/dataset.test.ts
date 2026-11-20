@@ -1,7 +1,7 @@
 // Filtering and wording for the recordings view.
 import { describe, expect, it } from "vitest";
 import type { DatasetClip, DatasetResult, DatasetSpeaker } from "../../shared/dataset";
-import { decisionWords, filterClips, pickRandomClip, splitCounts, matchesPrompt, NO_FILTER, orderSpeakers, secondsLabel, speakerDescription } from "../../src/model/dataset";
+import { decisionWords, filterClips, pickRandomClip, matchesPrompt, NO_FILTER, orderSpeakers, secondsLabel, speakerDescription } from "../../src/model/dataset";
 
 const clip = (id: string, speaker: string, prompt: string, kind = "word", split = "test"): DatasetClip => ({ id, speaker, prompt, kind, split, seconds: 1, session: "Session1" });
 const clips = [
@@ -50,11 +50,6 @@ describe("test and training data", () => {
   it("keeps only test clips whose prompt that speaker never said in set-up", () => {
     // A-2 repeats F01's set-up prompt; B-1 is the same word, but M04 never said it in set-up.
     expect(filterClips(both, { ...NO_FILTER, newPromptsOnly: true }).map((c) => c.id)).toEqual(["A-3", "B-1"]);
-  });
-
-  it("counts each tab under the other filters, whichever tab is open", () => {
-    expect(splitCounts(both, { ...NO_FILTER, split: "test", newPromptsOnly: true })).toEqual({ test: 3, enrolment: 1 });
-    expect(splitCounts(both, { ...NO_FILTER, split: "enrolment", speaker: "M04" })).toEqual({ test: 1, enrolment: 0 });
   });
 
   it("picks a random clip from the list, and nothing from an empty one", () => {

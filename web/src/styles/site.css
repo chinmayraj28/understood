@@ -7,14 +7,16 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgb(244 246 250 / 0.86);
-  backdrop-filter: saturate(1.4) blur(10px);
-  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  background: rgb(255 255 255 / 0.82);
+  backdrop-filter: saturate(1.6) blur(12px);
+  -webkit-backdrop-filter: saturate(1.6) blur(12px);
   border-bottom: 1px solid var(--rule);
+  box-shadow: 0 1px 0 rgb(20 32 54 / 0.02), 0 4px 16px -12px rgb(20 32 54 / 0.18);
 }
 .site-header-inner {
   max-width: var(--wide);
   margin: 0 auto;
+  min-height: 64px;
   padding: 10px var(--gutter);
   display: flex;
   align-items: center;
@@ -32,24 +34,38 @@
   flex-wrap: wrap;
 }
 .site-nav a {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-s);
   color: var(--ink-2);
   font-weight: 700;
   font-size: var(--t-0);
   text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 .site-nav a:hover {
   color: var(--ink);
   background: var(--sunk);
 }
+/* The page you are on: full ink on a light chip, with a short line under it like a stop on a map. */
 .site-nav a[aria-current="page"] {
   color: var(--ink);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--rule);
+  background: var(--sunk);
+}
+.site-nav a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
 }
 .site-actions {
   display: flex;
@@ -84,7 +100,7 @@
 .site-footer-inner {
   max-width: var(--wide);
   margin: 0 auto;
-  padding: 28px var(--gutter) 32px;
+  padding: 32px var(--gutter) 36px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -176,9 +192,16 @@
 }
 .hero-heard {
   font-family: var(--font);
-  font-size: 26px;
+  /* A whole sentence now, so smaller than when the example was one word. */
+  font-size: 17px;
   font-weight: 800;
   fill: var(--ink);
+}
+@media (max-width: 600px) {
+  /* The phone drawing is 340 wide: the sentence must end before the tracks bend. */
+  .hero-heard {
+    font-size: 12.5px;
+  }
 }
 .hero-heard.wrong {
   fill: var(--ink-3);
@@ -198,15 +221,16 @@
 }
 .hero-result {
   justify-self: end;
-  margin-top: -74px;
+  /* Sits just under the drawing: a sentence is too wide to tuck beside the last track. */
+  margin-top: -30px;
   padding: 10px 18px 12px;
   border-radius: var(--radius-s);
   background: var(--ink);
   color: var(--surface);
 }
 .hero-result-text {
-  font-size: clamp(2rem, 4vw, 2.8rem);
-  line-height: 1;
+  font-size: clamp(1.15rem, 2.2vw, 1.6rem);
+  line-height: 1.15;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -270,8 +294,7 @@
 /* The header links scroll here: stop below the sticky header (static on phones). */
 @media (min-width: 721px) {
   #how,
-  #results,
-  #privacy {
+  #results {
     scroll-margin-top: 80px;
   }
 }
@@ -347,7 +370,7 @@
 }
 @media (min-width: 1040px) {
   .route-map {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 24px;
   }
   .route-map li {
@@ -363,32 +386,12 @@
   }
 }
 
-.ask-sample {
-  margin: 0;
-  display: grid;
-  gap: 14px;
-}
-.ask-sample blockquote {
-  margin: 0;
-  font-size: clamp(var(--t-4), 3.2vw, var(--t-5));
-  line-height: 1.08;
-  letter-spacing: -0.025em;
-  font-weight: 800;
-  color: var(--ask);
-}
-.ask-sample figcaption {
-  max-width: 56ch;
-  color: var(--ink-2);
-  font-size: var(--t-0);
-}
-.privacy-line {
-  max-width: 34ch;
-  font-size: var(--t-2);
-  line-height: 1.35;
-}
-
 .ww-chart {
   margin: 0;
+}
+.ww-caption {
+  margin-bottom: 16px;
+  color: var(--ink-2);
 }
 .ww-chart ul {
   list-style: none;
@@ -427,8 +430,65 @@
 .ww-chart li.best .ww-bar span {
   background: var(--ink);
 }
+.results-how {
+  margin-top: 40px;
+  max-width: 70ch;
+}
+.results-how h3 {
+  font-size: var(--t-2);
+  margin-bottom: 12px;
+}
+.results-how ul {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 8px;
+  color: var(--ink-2);
+}
+.results-how > .muted {
+  margin-bottom: 16px;
+}
+.tech-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+.tech-steps li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.tech-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.tech-head h4 {
+  font-size: var(--t-1);
+  margin: 0;
+}
+.tech-head code {
+  font-size: var(--t-0);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--sunk);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+.tech-score {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: var(--t-0);
+}
+.tech-steps p {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+}
 .results-more {
-  margin-top: 32px;
+  margin-top: 24px;
 }
 .results-more summary {
   cursor: pointer;
@@ -436,6 +496,22 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+  gap: 8px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* The flex layout hides the browser's own arrow, so draw one that turns when open. */
+.results-more summary::before {
+  content: "▸";
+  transition: transform 150ms ease;
+}
+.results-more[open] summary::before {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-more summary::before {
+    transition: none;
+  }
 }
 .results-more[open] summary {
   margin-bottom: 16px;
@@ -469,9 +545,6 @@
   .route-map {
     margin-top: 28px;
   }
-  .privacy-line {
-    font-size: var(--t-1);
-  }
 }
 
 .results-earlier {
@@ -495,9 +568,10 @@
   display: grid;
   gap: 12px;
   padding: 28px;
-  border-radius: 20px;
+  border-radius: var(--radius-l);
   background: var(--surface);
   border: 1px solid var(--rule);
+  box-shadow: var(--shadow-2);
 }
 .gate-card h1 {
   font-size: var(--t-4);
@@ -511,11 +585,7 @@
   font-size: var(--t-0);
 }
 .gate-card input {
-  min-height: 48px;
-  padding: 8px 12px;
-  border-radius: var(--radius-s);
-  border: 2px solid var(--rule);
-  font-size: var(--t-1);
+  width: 100%;
 }
 .gate-error {
   color: var(--stop) !important;

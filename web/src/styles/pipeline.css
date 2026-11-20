@@ -354,7 +354,8 @@ mark.disputed {
   padding: 14px 18px;
   border-radius: var(--radius-m);
   background: var(--surface);
-  border: 2px solid var(--rule);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
 }
 .agreement > :not(.agree-count) {
   flex: 1 1 200px;

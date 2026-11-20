@@ -33,6 +33,9 @@ const PREROLL_CHUNKS = Math.round(0.4 / CHUNK_SECONDS);
 /** How long the microphone stays deaf after the page stops speaking. */
 const DEAF_TAIL_MS = 700;
 
+/** What start() throws when the browser (or the computer) refuses the microphone. */
+export const MICROPHONE_REFUSED = "The browser was not allowed to use the microphone. Allow it in the address bar, then try again.";
+
 export class Listener {
   onTick: (tick: ListenerTick) => void = () => {};
   onLiveText: (text: string) => void = () => {};
@@ -99,11 +102,7 @@ export class Listener {
         });
       } catch (error) {
         const name = (error as DOMException).name;
-        throw new Error(
-          name === "NotAllowedError"
-            ? "The browser was not allowed to use the microphone. Allow it in the address bar, then try again."
-            : "No microphone could be opened.",
-        );
+        throw new Error(name === "NotAllowedError" ? MICROPHONE_REFUSED : "No microphone could be opened.");
       }
       if (overtaken()) return;
       context = new AudioContext();
@@ -174,6 +173,11 @@ export class Listener {
   }
 
   /** The "End turn" button and the space bar. */
+  /** True while someone is speaking (a turn has started and not yet ended). */
+  get isInTurn() {
+    return this.isOn && this.detector.isInTurn;
+  }
+
   endTurn() {
     this.handle(this.detector.endNow());
   }

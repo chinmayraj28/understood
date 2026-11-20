@@ -47,13 +47,6 @@ export function filterClips(index: Pick<DatasetIndex, "clips" | "results">, filt
   );
 }
 
-/** How many clips each tab holds under the other filters (speaker, kind, search). */
-export function splitCounts(index: Pick<DatasetIndex, "clips" | "results">, filter: DatasetFilter): { test: number; enrolment: number } {
-  const rest = filterClips(index, { ...filter, split: "all", newPromptsOnly: false });
-  const test = rest.filter((c) => c.split === "test").length;
-  return { test, enrolment: rest.length - test };
-}
-
 /** One clip at random, or nothing when the list is empty. */
 export function pickRandomClip(clips: DatasetClip[], random: () => number = Math.random): DatasetClip | undefined {
   return clips[Math.min(clips.length - 1, Math.floor(random() * clips.length))];

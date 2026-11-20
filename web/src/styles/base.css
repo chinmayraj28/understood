@@ -12,7 +12,10 @@
   --ink-2: #44516a;
   --ink-3: #5f6b84;
   --rule: #d3dae5;
+  /* Borders that identify a control (fields, default buttons) keep 3:1 against white. */
+  --rule-strong: #7d889e;
   --rail-off: #c6cfdc;
+  --hover: #f6f8fb;
 
   --scribe: #2156d9;
   --gemini: #7638dc;
@@ -43,9 +46,17 @@
   --wide: 1320px;
   --rail-w: 8px;
   --station: 64px;
-  --radius-s: 6px;
+  /* One radius scale: small chips and fields, cards, and the large result surfaces. */
+  --radius-s: 8px;
   --radius-m: 12px;
-  --radius-l: 28px;
+  --radius-card: 16px;
+  --radius-l: 20px;
+  --control-h: 48px;
+  /* Elevation: a hairline lift for cards, a soft float for things that sit above the page. */
+  --shadow-1: 0 1px 2px rgb(20 32 54 / 0.05), 0 1px 3px rgb(20 32 54 / 0.04);
+  --shadow-2: 0 1px 2px rgb(20 32 54 / 0.06), 0 8px 24px -10px rgb(20 32 54 / 0.18);
+  --shadow-3: 0 24px 64px -16px rgb(20 32 54 / 0.35);
+  --ring: 0 0 0 4px rgb(33 86 217 / 0.18);
   --speed: 380ms;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -109,10 +120,19 @@ select {
   color: inherit;
 }
 
+/* The outline follows each element's own corners; only bare text links get a soft corner. */
 :focus-visible {
   outline: 3px solid var(--scribe);
   outline-offset: 3px;
+}
+a:not(.button):not(.wordmark):focus-visible {
   border-radius: 4px;
+}
+/* Page headings take focus after moving between pages so a screen reader starts there; they
+   are not controls, so they show no ring. */
+h1[tabindex="-1"]:focus,
+h2[tabindex="-1"]:focus {
+  outline: none;
 }
 
 .visually-hidden {
@@ -138,42 +158,137 @@ select {
   top: 8px;
 }
 
-/* Buttons: big targets, nothing that needs a precise click. */
+/* Buttons: big targets, nothing that needs a precise click.
+   Hierarchy: primary (filled ink), default (outlined), quiet (light outline), danger (red), small. */
 .button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  min-height: 52px;
-  padding: 10px 22px;
-  border-radius: 999px;
-  border: 2px solid var(--ink);
+  min-height: var(--control-h);
+  padding: 10px 20px;
+  border-radius: var(--radius-m);
+  border: 1.5px solid var(--rule-strong);
   background: var(--surface);
   color: var(--ink);
   font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
   text-decoration: none;
+  box-shadow: var(--shadow-1);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
-.button:hover {
-  background: var(--sunk);
+.button:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--ink);
+}
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 .button.primary {
   background: var(--ink);
+  border-color: var(--ink);
   color: var(--surface);
+  box-shadow: 0 1px 2px rgb(20 32 54 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
-.button.primary:hover {
-  background: #23324f;
+.button.primary:hover:not(:disabled) {
+  background: #24365a;
+  border-color: #24365a;
 }
 .button.quiet {
   border-color: var(--rule);
+  background: transparent;
+  box-shadow: none;
+}
+.button.quiet:hover:not(:disabled) {
+  background: var(--sunk);
+  border-color: var(--rule-strong);
+}
+.button.danger,
+.button.quiet.danger {
+  background: var(--stop);
+  border-color: var(--stop);
+  color: var(--surface);
+  box-shadow: 0 0 0 4px var(--stop-wash);
+}
+.button.danger:hover:not(:disabled) {
+  background: #951c13;
+  border-color: #951c13;
 }
 .button.small {
   min-height: 44px;
-  padding: 6px 16px;
+  padding: 6px 14px;
+  border-radius: 10px;
   font-size: var(--t-0);
 }
 .button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Fields: every text box and select is the same height, corner and border, with a clear focus. */
+input[type="text"],
+input[type="search"],
+input[type="password"],
+select {
+  min-height: var(--control-h);
+  max-width: 100%;
+  padding: 8px 14px;
+  border-radius: var(--radius-s);
+  border: 1.5px solid var(--rule-strong);
+  background-color: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-1);
+  font-weight: 400;
+  line-height: 1.3;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 42px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5l4 4 4-4' fill='none' stroke='%2344516a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+input[type="text"]:hover,
+input[type="search"]:hover,
+input[type="password"]:hover,
+select:hover {
+  border-color: var(--ink-2);
+}
+input[type="text"]:focus-visible,
+input[type="search"]:focus-visible,
+input[type="password"]:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--scribe);
+  outline-offset: 2px;
+  border-color: var(--scribe);
+}
+input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+select:disabled,
+input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--ink);
 }
 
 kbd {

@@ -5,7 +5,7 @@
 .workspace {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 20px var(--gutter) 80px;
+  padding: 28px var(--gutter) 80px;
 }
 .ws-head {
   display: flex;
@@ -36,6 +36,7 @@
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
   font-size: var(--t-0);
   font-weight: 700;
 }
@@ -117,10 +118,11 @@
 .ws-card,
 .ws-input .hear {
   margin: 0;
-  padding: 18px;
-  border-radius: 16px;
+  padding: 20px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
 }
 .ws-input .hear {
   gap: 14px;
@@ -158,14 +160,10 @@
   flex: 1;
   padding: 6px 10px;
 }
-.segmented button[aria-pressed="true"] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgb(20 32 54 / 0.12);
-}
 
 .stages-card summary {
   cursor: pointer;
+  border-radius: var(--radius-s);
   display: grid;
   gap: 2px;
   min-height: 44px;
@@ -262,25 +260,108 @@
   display: grid;
   gap: 14px;
 }
-.mic-panel > p {
-  font-size: var(--t-0);
-}
-.mic-actions {
+/* One big button: Record, or Stop while the microphone is on. */
+.record-button {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-size: var(--t-2);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+  transition: background-color 160ms var(--ease), transform 160ms var(--ease);
 }
-.mic-panel .settings {
-  padding: 14px 0 0;
+.record-button:hover:not(:disabled) {
+  background: #1f2f4d;
+}
+.record-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.record-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.record-button.on {
+  background: var(--stop);
+}
+.record-button.on:hover {
+  background: #9a1d14;
+}
+.record-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ff5a4e;
+  box-shadow: 0 0 0 4px rgb(255 90 78 / 0.25);
+}
+.record-button.on .record-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: none;
+  animation: record-pulse 1.4s ease-in-out infinite;
+}
+@keyframes record-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .record-button.on .record-dot {
+    animation: none;
+  }
+}
+.mic-hint {
+  font-size: var(--t-0);
+  text-align: center;
+}
+/* The rarely changed settings, folded away under the button. */
+.mic-settings {
   border-top: 1px solid var(--rule);
+  padding-top: 12px;
+}
+.mic-settings summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.mic-settings .settings {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
+/* Empty states: a dashed outline and an empty station marker, waiting for the first turn. */
 .empty-result {
-  padding: 28px;
-  border-radius: 20px;
+  padding: 32px 28px;
+  border-radius: var(--radius-l);
   border: 2px dashed var(--rule);
+  background: rgb(255 255 255 / 0.5);
   display: grid;
   gap: 6px;
+  justify-items: start;
+}
+.empty-result::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 6px solid var(--rail-off);
 }
 .empty-result h2 {
   font-size: var(--t-2);
@@ -296,6 +377,7 @@
 .ws-section {
   display: grid;
   gap: 8px;
+  margin-top: 8px;
   padding-top: 28px;
   border-top: 1px solid var(--rule);
 }
@@ -382,10 +464,10 @@
     align-items: center;
     gap: 12px;
     padding: 10px 10px 10px 16px;
-    border-radius: 16px;
+    border-radius: var(--radius-card);
     background: var(--ink);
     color: var(--surface);
-    box-shadow: 0 8px 28px rgb(20 32 54 / 0.28);
+    box-shadow: var(--shadow-3);
   }
   .mobile-dock .dot {
     flex: none;
@@ -412,6 +494,11 @@
     background: transparent;
     color: var(--surface);
     border-color: rgb(255 255 255 / 0.5);
+    box-shadow: none;
+  }
+  .mobile-dock .button:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.12);
+    border-color: var(--surface);
   }
 }
 @media (max-width: 1099px) and (prefers-reduced-motion: no-preference) {
@@ -448,4 +535,29 @@
   .ws-section h2 {
     font-size: var(--t-2);
   }
+}
+
+/* The microphone was refused: where to allow it, and a way to ask again. */
+.mic-help {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 14px 16px;
+  border-radius: var(--radius-m);
+  background: var(--stop-wash);
+  border: 1px solid rgb(180 35 24 / 0.25);
+  color: var(--ink);
+  text-align: left;
+}
+.mic-help-title {
+  font-weight: 800;
+  color: var(--stop);
+}
+.mic-help ol {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  font-size: var(--t-0);
+  line-height: 1.5;
 }

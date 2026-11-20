@@ -1,6 +1,5 @@
 // The bar across the top of every page and the footer under it.
 
-import { onSectionLink } from "../pages/Landing";
 import { href, type Page } from "../router";
 
 export function SiteHeader({ page }: { page: Page }) {
@@ -12,14 +11,11 @@ export function SiteHeader({ page }: { page: Page }) {
           <span>Understood</span>
         </a>
         <nav className="site-nav" aria-label="Main">
-          <a href={href.how} onClick={onSectionLink("how")}>
-            How it works
-          </a>
-          <a href={href.results} onClick={onSectionLink("results")}>
-            Results
-          </a>
           <a href={href.pipeline} aria-current={page === "pipeline" ? "page" : undefined}>
             Pipeline
+          </a>
+          <a href={href.profiles} aria-current={page === "profiles" ? "page" : undefined}>
+            Profiles
           </a>
           <a href={href.recordings} aria-current={page === "recordings" ? "page" : undefined}>
             Recordings

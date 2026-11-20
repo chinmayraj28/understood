@@ -5,7 +5,7 @@
 // are transcribed only: nothing is acted on, and nothing is learned from them.
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Listener, type FinishedTurn } from "./audio/listener";
+import { Listener, MICROPHONE_REFUSED, type FinishedTurn } from "./audio/listener";
 import type { EnrolmentState } from "./components/Enrolment";
 import { ENROLMENT_START } from "./components/Enrolment";
 import type { LiveInput } from "./components/Pipeline";
@@ -14,16 +14,29 @@ import { scoringWords } from "../shared/wordErrors";
 import { decodeAudioFile, type DecodedAudio } from "./audio/decode";
 import { playAndTranscribe } from "./audio/fileHearing";
 import { encodeWav, toBase64 } from "./audio/wav";
-import { Conversation, type ConversationState } from "./model/conversation";
+import { Conversation, type ConversationState, type VoiceSnapshot } from "./model/conversation";
 import { loadClipAudio } from "./model/datasetLoader";
 import { speakerDescription } from "./model/dataset";
 import { enrolPhrase, setupCommand, SETUP_PHRASES } from "./model/enrolment";
 import { normalise } from "./model/learning";
 import { LiveTransport } from "./model/transport";
 import type { TurnModel } from "./model/turn";
-import { NOBODY, setUpSpeaker, type Voice } from "./model/voices";
+import { profileVoice, setUpSpeaker, setupClipsFor, type Voice } from "./model/voices";
+import {
+  abandonedDrafts,
+  cleanProfileName,
+  databaseName,
+  FIRST_PROFILE,
+  freeProfileName,
+  loadActiveProfile,
+  loadProfiles,
+  newProfileId,
+  saveActiveProfile,
+  saveProfiles,
+  type Profile,
+} from "./storage/profiles";
 import { readSetting, writeSetting } from "./storage/settings";
-import { BrowserStore } from "./storage/store";
+import { BrowserStore, deleteDatabase } from "./storage/store";
 
 /** Spoken commands for the page itself, so it can be used by voice alone. */
 function pageCommand(text: string | undefined): "setup" | "stop" | null {
@@ -33,13 +46,30 @@ function pageCommand(text: string | undefined): "setup" | "stop" | null {
   return null;
 }
 
-/** A recording to hear: a TORGO clip, or a file the visitor chose. */
+/**
+ * A recording to hear: a TORGO clip, or a file the visitor chose. `voiceId` says whose voice it
+ * is heard as; a TORGO clip without one is heard as its own speaker.
+ */
 export type RecordingChoice =
-  | { kind: "torgo"; clip: DatasetClip; index: DatasetIndex }
+  | {
+      kind: "torgo";
+      clip: DatasetClip;
+      index: DatasetIndex;
+      voiceId?: VoiceId;
+      /** The speaker's clips their voice is set up from. Missing: the evaluation's set-up clips. */
+      profileClipIds?: string[];
+    }
   | { kind: "file"; name: string; data: ArrayBuffer; reference?: string; voiceId: VoiceId; index?: DatasetIndex };
 
-/** "own" (this browser's setup), "nobody", or "torgo:F03". */
+/** "profile:<id>" (one of your profiles) or "torgo:F03" (a TORGO speaker). */
 export type VoiceId = string;
+
+/** What a profile knows, for the profiles page. */
+export interface ProfileSummary {
+  entries: number;
+  clips: number;
+  persistent: boolean;
+}
 
 /** Where hearing a recording has got to. */
 export type HearingStatus =
@@ -49,6 +79,12 @@ export type HearingStatus =
   | { step: "playing"; label: string }
   | { step: "hearing"; label: string }
   | { step: "error"; message: string };
+
+/** One cached voice per speaker and set of profile clips: the same choice is set up only once. */
+function speakerVoiceKey(index: DatasetIndex, speaker: string, clipIds?: string[]): string {
+  const ids = clipIds ?? setupClipsFor(index, speaker).map((c) => c.id);
+  return `torgo:${speaker}:${[...ids].sort().join(",")}`;
+}
 
 /** A TORGO speaker's name on the page: "F03 (cerebral palsy, moderate)". */
 export function torgoVoiceLabel(index: DatasetIndex, speaker: string): string {
@@ -106,8 +142,24 @@ export function useSession() {
   actOnSpeechRef.current = actOnSpeech;
   const [live, setLive] = useState<LiveInput>({ text: "", level: 0, quietSeconds: 0, status: "off", endSilenceSeconds: endSilence, playing: false });
   const [hearing, setHearing] = useState<HearingStatus>({ step: "idle" });
-  /** The voice the latest recording was heard as, when it is not your own. */
+  /** The browser or the computer refused the microphone on the last try. */
+  const [micRefused, setMicRefused] = useState(false);
+  /** The browser's own answer for this site: "granted", "denied" or "prompt" ("unknown" if it will not say). */
+  const [micPermission, setMicPermission] = useState<PermissionState | "unknown">("unknown");
+  /** The voice the latest recording was heard as, when it is not the profile in use. */
   const [voiceInUse, setVoiceInUse] = useState<Voice | null>(null);
+  // Your profiles, and the one in use: the microphone, setup and learning all go to it.
+  const [profiles, setProfiles] = useState<Profile[]>(loadProfiles);
+  const [activeProfileId, setActiveProfileId] = useState(() => loadActiveProfile(profiles));
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
+  const activeRef = useRef(activeProfileId);
+  activeRef.current = activeProfileId;
+  /** The open store of the profile in use. */
+  const activeStore = useRef<BrowserStore | null>(null);
+  /** The latest profile switch: each waits for the one before. */
+  const switching = useRef<Promise<void>>(Promise.resolve());
+  const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? profiles[0];
 
   const playing = useRef(false);
   const hearingAbort = useRef<AbortController | null>(null);
@@ -129,19 +181,128 @@ export function useSession() {
   enrolRef.current = enrol;
   const enrolToken = useRef(0);
 
-  // Your own conversation: the real server, and a phrasebook kept in this browser.
+  // Your own conversation: the real server, and the phrasebook of the profile in use, kept in this browser.
   useEffect(() => {
     let gone = false;
     void (async () => {
-      const store = await BrowserStore.open();
+      const store = await BrowserStore.open(databaseName(activeRef.current));
       const conversation = await Conversation.create(transport, store);
-      if (gone) return;
+      if (gone) return store.close();
+      activeStore.current = store;
       setOwn(conversation);
     })();
     return () => {
       gone = true;
     };
   }, [transport]);
+
+  // A profile whose creation was never finished (the tab was closed) is removed with what it
+  // recorded. Read before the list below is saved again without it.
+  const [leftDrafts] = useState(abandonedDrafts);
+  useEffect(() => {
+    for (const draft of leftDrafts) void deleteDatabase(databaseName(draft.id)).catch(() => {});
+  }, [leftDrafts]);
+  useEffect(() => saveProfiles(profiles), [profiles]);
+  const finishedProfiles = useMemo(() => profiles.filter((p) => !p.draft), [profiles]);
+  useEffect(() => saveActiveProfile(activeProfileId), [activeProfileId]);
+
+  /** Uses another of your profiles: the conversation loads its phrasebook and clips and learns into it. */
+  const selectProfile = useCallback(
+    (id: string): Promise<void> => {
+      if (!own || id === activeRef.current || !profilesRef.current.some((p) => p.id === id)) return switching.current;
+      activeRef.current = id;
+      setActiveProfileId(id);
+      setVoiceInUse(null);
+      // One switch at a time, in the order asked: two quick switches can never end on the first.
+      switching.current = switching.current.then(async () => {
+        const store = await BrowserStore.open(databaseName(id));
+        await own.useStore(store);
+        activeStore.current?.close();
+        activeStore.current = store;
+      });
+      return switching.current;
+    },
+    [own],
+  );
+
+  /** Makes a new, empty profile. A draft is kept only once finishProfile is called. Returns its id. */
+  const createProfile = useCallback((name: string, options: { draft?: boolean } = {}): string => {
+    const id = newProfileId();
+    const wanted = cleanProfileName(name) || "New profile";
+    const list = profilesRef.current;
+    const profile: Profile = { id, name: freeProfileName(list, wanted), createdAt: Date.now() };
+    if (options.draft) profile.draft = true;
+    const next = [...list, profile];
+    // Known at once, so "Create and use" can switch to it in the same click.
+    profilesRef.current = next;
+    setProfiles(next);
+    return id;
+  }, []);
+
+  /** Keeps a draft profile: its first phrases are recorded. */
+  const finishProfile = useCallback((id: string) => {
+    const next = profilesRef.current.map((p) => (p.id === id ? { id: p.id, name: p.name, createdAt: p.createdAt } : p));
+    profilesRef.current = next;
+    setProfiles(next);
+  }, []);
+
+  const renameProfile = useCallback((id: string, name: string) => {
+    const wanted = cleanProfileName(name);
+    if (!wanted) return;
+    setProfiles((list) =>
+      list.map((p) => (p.id === id ? { ...p, name: freeProfileName(list.filter((o) => o.id !== id), wanted) } : p)),
+    );
+  }, []);
+
+  /**
+   * Deletes a profile and everything it learned (its whole database). Deleting the one in use
+   * switches to another first. There is always a profile for the microphone to learn into, so
+   * deleting the last one leaves a fresh, empty "My voice".
+   */
+  const deleteProfile = useCallback(
+    async (id: string) => {
+      if (!profilesRef.current.some((p) => p.id === id)) return;
+      // Out of the list first, so a replacement can take its name.
+      profilesRef.current = profilesRef.current.filter((p) => p.id !== id);
+      if (!profilesRef.current.some((p) => !p.draft)) createProfile(FIRST_PROFILE.name);
+      const rest = profilesRef.current;
+      setProfiles(rest);
+      if (id === activeRef.current) await selectProfile(rest.find((p) => !p.draft)?.id ?? rest[0].id);
+      await deleteDatabase(databaseName(id)).catch(() => {});
+    },
+    [selectProfile, createProfile],
+  );
+
+  /** How much a profile has learned. The one in use is read from the conversation, live. */
+  const summariseProfile = useCallback(
+    async (id: string): Promise<ProfileSummary> => {
+      const state = own?.getState();
+      if (id === activeRef.current && state) return { entries: state.entries.length, clips: state.clipCount, persistent: state.persistent };
+      const store = await BrowserStore.open(databaseName(id));
+      try {
+        const [entries, clips] = await Promise.all([store.loadEntries(), store.loadClips()]);
+        return { entries: entries.length, clips: clips.length, persistent: store.persistent };
+      } finally {
+        store.close();
+      }
+    },
+    [own],
+  );
+
+  /** One of your profiles as a voice, for a recording heard as a profile that is not in use. */
+  const voiceOfProfile = useCallback(async (id: string): Promise<Voice> => {
+    const profile = profilesRef.current.find((p) => p.id === id);
+    if (!profile) throw new Error("That profile no longer exists. Choose another.");
+    const store = await BrowserStore.open(databaseName(id));
+    try {
+      const [entries, clips] = await Promise.all([store.loadEntries(), store.loadClips()]);
+      return profileVoice(id, profile.name, entries, clips);
+    } finally {
+      store.close();
+    }
+  }, []);
+
+  const activeName = () => profilesRef.current.find((p) => p.id === activeRef.current)?.name ?? "your profile";
 
   useEffect(() => {
     transport.speechMuted = !speakReplies;
@@ -164,20 +325,21 @@ export function useSession() {
       const command = setupCommand(turn.realtimeText);
       if (command === "finish") return setEnrol((e) => ({ ...e, open: false }));
       if (command === "again") return setEnrol((e) => ({ ...e, status: "listening", result: undefined, error: undefined }));
-      if (command === "skip") return setEnrol((e) => ({ ...e, index: e.index + 1, status: "listening", result: undefined }));
-      if (current.index >= SETUP_PHRASES.length) return;
+      if (command === "skip") return setEnrol((e) => ({ ...e, index: e.index + 1, status: "listening", result: undefined, error: undefined }));
+      // Only what is said while Record is on counts as the phrase. Nothing moves on by itself:
+      // the person chooses Re-record or Next.
+      if (current.status !== "listening" || current.index >= SETUP_PHRASES.length) return;
       const index = current.index;
       const token = ++enrolToken.current;
       setEnrol((e) => ({ ...e, status: "hearing", error: undefined }));
       try {
         const result = await enrolPhrase(own, SETUP_PHRASES[index], turn.wavBase64, turn.realtimeText);
-        setEnrol((e) => ({ ...e, status: "heard", result, done: e.done.map((d, i) => d || i === index) }));
-        setTimeout(() => {
-          if (enrolToken.current !== token) return;
-          setEnrol((e) => (e.index === index ? { ...e, index: index + 1, status: "listening", result: undefined } : e));
-        }, 1800);
+        if (enrolToken.current !== token) return;
+        // Skipped while it was being heard: it still counts as recorded, but the page stays on the new phrase.
+        setEnrol((e) => ({ ...(e.index === index ? { ...e, status: "heard" as const, result } : e), done: e.done.map((d, i) => d || i === index) }));
       } catch (error) {
-        setEnrol((e) => ({ ...e, status: "error", error: `${(error as Error).message} Say it again, or skip it.` }));
+        if (enrolToken.current !== token) return;
+        setEnrol((e) => (e.index === index ? { ...e, status: "error", error: `${(error as Error).message} Re-record it, or skip it.` } : e));
       }
     },
     [own],
@@ -196,21 +358,73 @@ export function useSession() {
       // A stop while it was starting (a recording began, or the visitor left the page) wins:
       // start() then returns quietly with the microphone closed, and the page must say so.
       if (!listener.isOn) return;
+      setMicRefused(false);
       setListening(true);
       if (listener.needsGesture) setNotice("Press any key, or click anywhere, so the browser lets the page hear you.");
     } catch (error) {
-      setNotice((error as Error).message);
+      const message = (error as Error).message;
+      if (message === MICROPHONE_REFUSED) {
+        // The help panel explains what to do, so no second message.
+        setMicRefused(true);
+        return;
+      }
+      setNotice(message);
     }
   }, [listener]);
 
   const startListeningRef = useRef(startListening);
   startListeningRef.current = startListening;
+  const micRefusedRef = useRef(micRefused);
+  micRefusedRef.current = micRefused;
+
+  // Follows the browser's microphone setting for this site. When the person switches it to
+  // Allow after a refusal, listening starts by itself: no reload, no second click.
+  useEffect(() => {
+    let status: PermissionStatus | null = null;
+    let gone = false;
+    void navigator.permissions
+      ?.query({ name: "microphone" as PermissionName })
+      .then((result) => {
+        if (gone) return;
+        status = result;
+        setMicPermission(result.state);
+        result.onchange = () => {
+          setMicPermission(result.state);
+          if (result.state === "granted" && micRefusedRef.current) {
+            setMicRefused(false);
+            void startListeningRef.current();
+          }
+        };
+      })
+      .catch(() => {});
+    return () => {
+      gone = true;
+      if (status) status.onchange = null;
+    };
+  }, []);
 
   const stopListening = useCallback(() => {
     micAfterRecording.current = false; // a deliberate stop: do not reopen it after a recording
+    stopAfterTurn.current = false;
     listener.stop();
     setListening(false);
   }, [listener]);
+
+  /** Set by "Stop" pressed mid-sentence: close the microphone once that sentence is handed on. */
+  const stopAfterTurn = useRef(false);
+  /**
+   * The Record button's Stop. Mid-sentence, the sentence is ended and sent through the pipeline
+   * first, and the microphone closes after; otherwise it closes at once. Never throws a sentence away.
+   */
+  const stopRecording = useCallback(() => {
+    if (!listener.isInTurn) return stopListening();
+    stopAfterTurn.current = true;
+    listener.endTurn();
+    // If the sentence never arrives (the live transcript hangs), close anyway after a while.
+    setTimeout(() => {
+      if (stopAfterTurn.current) stopListening();
+    }, 8000);
+  }, [listener, stopListening]);
 
   const handleTurn = useCallback(
     (turn: FinishedTurn) => {
@@ -226,11 +440,14 @@ export function useSession() {
           wavBase64: turn.wavBase64,
           realtimeText: turn.realtimeText,
           speechSeconds: turn.speechSeconds,
-          recording: { label: "What you said", voiceLabel: "your voice (set up in this browser)" },
+          recording: { label: "What you said", voiceLabel: `the profile “${activeName()}”` },
         });
       }
       const command = own.getState().pending ? null : pageCommand(turn.realtimeText);
-      if (command === "setup") return setEnrol({ ...ENROLMENT_START, open: true });
+      if (command === "setup") {
+        setupSnapshot.current = own.snapshot();
+        return setEnrol({ ...ENROLMENT_START, open: true, status: "listening" });
+      }
       if (command === "stop") return stopListening();
       setVoiceInUse(null);
       void own.submitTurn({ wavBase64: turn.wavBase64, realtimeText: turn.realtimeText, liveText: turn.realtimeText ?? "", speechSeconds: turn.speechSeconds, origin: "live", speechStartedAt: turn.speechStartedAt });
@@ -251,9 +468,12 @@ export function useSession() {
       // Speaking interrupts: the reply stops mid-word.
       own?.interrupt();
     };
-    listener.onTurn = handleTurn;
+    listener.onTurn = (turn) => {
+      handleTurn(turn);
+      if (stopAfterTurn.current) stopListening();
+    };
     listener.onNotice = setNotice;
-  }, [listener, own, handleTurn]);
+  }, [listener, own, handleTurn, stopListening]);
 
   /**
    * A TORGO speaker's voice, set up once per visit from their own enrolment clips. The setup is
@@ -261,11 +481,12 @@ export function useSession() {
    * stopped; it finishes in the background and is kept for the next clip.
    */
   const voiceFor = useCallback(
-    (index: DatasetIndex, speaker: string): Promise<Voice> => {
+    (index: DatasetIndex, speaker: string, clipIds?: string[]): Promise<Voice> => {
       if (!own) return Promise.reject(new Error("The page is still starting."));
-      const key = `torgo:${speaker}`;
+      const key = speakerVoiceKey(index, speaker, clipIds);
       let voice = voices.current.get(key);
       if (!voice) {
+        const chosen = clipIds ? index.clips.filter((c) => c.speaker === speaker && clipIds.includes(c.id)) : undefined;
         voice = setUpSpeaker(index, speaker, torgoVoiceLabel(index, speaker), {
           understand: (request, s) => own.transport.understand(request, s),
           loadWav: async (clip) => wavOf((await loadClipAudio(clip.id)).audio),
@@ -274,7 +495,7 @@ export function useSession() {
             const waiting = waitingForVoice.current;
             if (waiting?.key === key) setHearing({ step: "setup", label: waiting.label, voiceLabel: waiting.voiceLabel, ...progress });
           },
-        });
+        }, chosen);
         voices.current.set(key, voice);
         voice.catch(() => voices.current.delete(key));
       }
@@ -301,6 +522,57 @@ export function useSession() {
     waitingForVoice.current = null;
     setHearing({ step: "idle" });
   }, []);
+
+  /** Opens "Set up your voice" for the profile in use, and the microphone with it. Call from a click. */
+  /** What the profile knew when setup opened, so Cancel can put it back. */
+  const setupSnapshot = useRef<VoiceSnapshot | null>(null);
+  const openSetup = useCallback(() => {
+    stopHearing();
+    setupSnapshot.current = own?.snapshot() ?? null;
+    // Waits for Record, unless the microphone is already on (then the first phrase is being recorded).
+    setEnrol({ ...ENROLMENT_START, open: true, status: listener.isOn ? "listening" : "idle" });
+  }, [listener, stopHearing, own]);
+
+  /** Cancel: closes setup and undoes everything it recorded and learned. */
+  const cancelSetup = useCallback(
+    async (stopMicrophone = false) => {
+      enrolToken.current += 1; // a phrase still being heard is not shown
+      setEnrol((e) => ({ ...e, open: false }));
+      if (stopMicrophone) stopListening();
+      const snapshot = setupSnapshot.current;
+      setupSnapshot.current = null;
+      if (snapshot && own) await own.restore(snapshot);
+    },
+    [own, stopListening],
+  );
+
+  /** Record: opens the microphone if needed, and from now on what is said is this phrase. Call from a click. */
+  const enrolRecord = useCallback(() => {
+    enrolToken.current += 1; // a result still on its way belongs to the take being replaced
+    setEnrol((e) => ({ ...e, status: "listening", result: undefined, error: undefined }));
+    if (!listener.isOn) void startListeningRef.current();
+  }, [listener]);
+
+  /** Stop: ends the phrase now if it is being said, otherwise stops waiting for it. */
+  const enrolStop = useCallback(() => {
+    if (listener.isInTurn) listener.endTurn();
+    else setEnrol((e) => (e.status === "listening" ? { ...e, status: "idle" } : e));
+  }, [listener]);
+
+  /** Next (or Skip): the following phrase, recording straight away if the microphone is on. */
+  const enrolNext = useCallback(() => {
+    enrolToken.current += 1;
+    setEnrol((e) => ({ ...e, index: e.index + 1, status: listener.isOn ? "listening" : "idle", result: undefined, error: undefined }));
+  }, [listener]);
+
+  /** Closes setup. With `stopMicrophone`, the microphone too (setup opened it outside the pipeline). */
+  const closeSetup = useCallback(
+    (stopMicrophone = false) => {
+      setEnrol((e) => ({ ...e, open: false }));
+      if (stopMicrophone) stopListening();
+    },
+    [stopListening],
+  );
 
   /**
    * Leaving the pipeline page: stops any recording and the microphone, closes the voice setup,
@@ -352,25 +624,30 @@ export function useSession() {
         const audio = choice.kind === "torgo" ? (await loadClipAudio(choice.clip.id, signal)).audio : await decodeAudioFile(choice.data);
         if (!current()) return;
 
-        // Whose voice it is heard as.
+        // Whose voice it is heard as: a TORGO speaker (set up from their clips), or one of your
+        // profiles. The profile in use is the conversation's own, so it needs no voice.
         let voice: Voice | undefined;
-        let voiceLabel = "your voice (set up in this browser)";
-        const speaker = choice.kind === "torgo" ? choice.clip.speaker : choice.voiceId.startsWith("torgo:") ? choice.voiceId.slice(6) : null;
+        let voiceLabel = `the profile “${activeName()}”`;
+        const voiceId = choice.voiceId ?? (choice.kind === "torgo" ? `torgo:${choice.clip.speaker}` : `profile:${activeRef.current}`);
+        const speaker = voiceId.startsWith("torgo:") ? voiceId.slice(6) : null;
+        const profileId = voiceId.startsWith("profile:") ? voiceId.slice(8) : null;
         const index = choice.index;
+        if (speaker && !index) throw new Error("The TORGO recordings are not loaded, so a TORGO speaker’s voice cannot be set up.");
         if (speaker && index) {
-          const key = `torgo:${speaker}`;
+          const clipIds = choice.kind === "torgo" && speaker === choice.clip.speaker ? choice.profileClipIds : undefined;
+          const key = speakerVoiceKey(index, speaker, clipIds);
           const waiting = { key, label, voiceLabel: torgoVoiceLabel(index, speaker) };
           waitingForVoice.current = waiting;
           const progress = setupProgress.current.get(key);
           if (!voices.current.has(key) || (progress && progress.done < progress.total)) {
             show({ step: "setup", label, voiceLabel: waiting.voiceLabel, done: progress?.done ?? 0, total: progress?.total ?? 0 });
           }
-          voice = await untilStopped(voiceFor(index, speaker), signal);
+          voice = await untilStopped(voiceFor(index, speaker, clipIds), signal);
           if (waitingForVoice.current === waiting) waitingForVoice.current = null;
           voiceLabel = voice.label;
-        } else if (choice.kind === "file" && choice.voiceId === "nobody") {
-          voice = NOBODY;
-          voiceLabel = NOBODY.label.toLowerCase();
+        } else if (profileId && profileId !== activeRef.current) {
+          voice = await voiceOfProfile(profileId);
+          voiceLabel = `the profile “${voice.label}”`;
         }
         if (!current()) return;
 
@@ -418,7 +695,7 @@ export function useSession() {
         }
       }
     },
-    [own, listener, stopHearing, voiceFor, endRecordingAloud],
+    [own, listener, stopHearing, voiceFor, voiceOfProfile, endRecordingAloud],
   );
 
   // The space bar ends a turn; any key or click lets a held-back audio context start.
@@ -474,11 +751,29 @@ export function useSession() {
     setEnrol,
     startListening,
     stopListening,
+    stopRecording,
     endTurn: () => listener.endTurn(),
     hearing,
     /** True while a recording is loading, being set up or playing: the microphone stays closed. */
     recordingBusy: hearing.step === "loading" || hearing.step === "setup" || hearing.step === "playing",
     voiceInUse,
+    micRefused,
+    micPermission,
+    /** Your finished profiles, for choosing one. */
+    profiles: finishedProfiles,
+    activeProfile,
+    selectProfile,
+    createProfile,
+    finishProfile,
+    openSetup,
+    closeSetup,
+    cancelSetup,
+    enrolRecord,
+    enrolStop,
+    enrolNext,
+    renameProfile,
+    deleteProfile,
+    summariseProfile,
     hearRecording,
     stopHearing,
     leavePipeline,

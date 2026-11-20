@@ -1,4 +1,4 @@
-// The turn is heard three ways at once. Each recogniser runs on its own track against one shared
+// The turn is heard several ways at once (four recognisers for a recording, three when speaking). Each recogniser runs on its own track against one shared
 // clock, so you can see who finished first and who was left out at the time limit. Words the
 // tracks disagree on are marked; that disagreement is the confidence signal no single
 // recogniser gives.
@@ -37,6 +37,12 @@ function ticks(scale: number, limit: number): number[] {
   return limit <= scale && !marks.includes(limit) ? [...marks.filter((m) => limit - m >= step * 0.6), limit] : marks;
 }
 
+/** 4 → "four": a recording has four recognisers, speaking has three. */
+function countWord(n: number): string {
+  return ["zero", "one", "two", "three", "four", "five", "six"][n] ?? String(n);
+}
+const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
 function switchedOff(turn: TurnModel | undefined, hearer: HearerName): boolean {
   return (hearer === "gemini" || hearer === "gemini4") && turn !== undefined && !turn.switches.gemini;
 }
@@ -55,8 +61,8 @@ export function HearStation({ state, turn }: { state: StationState; turn?: TurnM
     <Station
       state={state}
       variant="hear"
-      title="Heard three ways"
-      note="Three recognisers listen at once, each with a stopwatch."
+      title={lanes.length ? `Heard ${countWord(lanes.length)} ways` : "Heard several ways"}
+      note={`${lanes.length ? capitalised(countWord(lanes.length)) : "Several"} recognisers listen at once, each with a stopwatch.`}
       aside={
         turn?.exampleCount ? (
           <span className="chip">

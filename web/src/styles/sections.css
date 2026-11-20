@@ -27,9 +27,13 @@
   padding: 12px 14px;
   text-align: left;
   border-radius: var(--radius-m);
-  border: 2px solid var(--rule);
+  border: 1px solid var(--rule);
   background: var(--surface);
+  box-shadow: var(--shadow-1);
   cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
 }
 .switch:hover {
   border-color: var(--ink-2);
@@ -63,6 +67,7 @@
 }
 .switch:not(.on) {
   background: var(--sunk);
+  box-shadow: none;
 }
 .switch-words {
   display: grid;
@@ -82,7 +87,8 @@
   padding: 16px 18px;
   border-radius: var(--radius-m);
   background: var(--surface);
-  border: 2px solid var(--rule);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
 }
 .slider {
   display: grid;
@@ -116,18 +122,21 @@
   }
 }
 .compare-empty {
-  padding: 18px;
-  border-radius: var(--radius-m);
+  padding: 20px;
+  border-radius: var(--radius-card);
   border: 2px dashed var(--rule);
+  background: rgb(255 255 255 / 0.5);
 }
 .summary {
   padding: 18px 20px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-card);
   background: var(--surface);
-  border: 2px solid var(--rule);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-1);
 }
 .summary:last-child {
   border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink), var(--shadow-2);
 }
 .summary-off {
   font-size: var(--t-0);
@@ -180,8 +189,9 @@
 .table-wrap {
   overflow-x: auto;
   border-radius: var(--radius-m);
-  border: 2px solid var(--rule);
+  border: 1px solid var(--rule);
   background: var(--surface);
+  box-shadow: var(--shadow-1);
 }
 .eval-table {
   width: 100%;
@@ -243,14 +253,31 @@
   padding: 28px;
   background: var(--surface);
   color: var(--ink);
+  box-shadow: var(--shadow-3);
 }
 .enrol::backdrop {
-  background: rgba(20, 32, 54, 0.55);
+  background: rgb(20 32 54 / 0.55);
+  backdrop-filter: blur(2px);
+}
+/* Whose voice is being set up, under the dialog's title. */
+.enrol-profile {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-1);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .enrol {
+    padding: 20px;
+  }
 }
 .enrol-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 .enrol-progress {
@@ -325,4 +352,59 @@
 .settings-note {
   font-size: var(--t-0);
   color: var(--ink-2);
+}
+
+/* Inside the setup dialog: the microphone's state, a way to start it, and any browser refusal. */
+.enrol-mic {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin-top: 12px;
+}
+.enrol-mic p {
+  color: var(--ink-2);
+}
+.enrol-notice.failure {
+  color: var(--stop);
+  font-weight: 700;
+}
+
+/* The setup dialog's Record / Stop button sits in a row with Skip, so it does not span the row. */
+.enrol-actions .record-button {
+  width: auto;
+  flex: 1 1 220px;
+  min-height: 56px;
+}
+.enrol-actions {
+  align-items: center;
+}
+
+.enrol-head-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+/* The × in a dialog's corner: cancel and close. */
+.dialog-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.dialog-close:hover:not(:disabled) {
+  background: var(--sunk);
+  color: var(--ink);
+}
+.dialog-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

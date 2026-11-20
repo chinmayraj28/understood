@@ -35,6 +35,10 @@ export function PhrasebookPanel(props: {
   /** "voice": another voice's phrasebook, used by the latest recording; read only. */
   scope: "yours" | "voice" | "memory";
   voiceLabel?: string;
+  /** The voice shown is another of your profiles, not a TORGO speaker. */
+  voiceIsProfile?: boolean;
+  /** The profile in use. */
+  profileName: string;
   onForget: (id: string) => void;
   onClear: () => void;
   onSetup: () => void;
@@ -49,10 +53,12 @@ export function PhrasebookPanel(props: {
         </h2>
         <p className="panel-note">
           {props.scope === "voice"
-            ? `The phrasebook of ${props.voiceLabel ?? "this voice"}, learned from their own set-up clips. Yours is untouched.`
+            ? props.voiceIsProfile
+              ? `The phrasebook of the profile “${props.voiceLabel ?? "this voice"}”, used by the latest recording. “${props.profileName}” is still the one in use.`
+              : `The phrasebook of ${props.voiceLabel ?? "this voice"}, learned from their own set-up clips. Your profiles are untouched.`
             : props.scope === "memory"
-              ? "Kept for this visit only: this browser blocks local storage."
-              : `Kept only in this browser, with ${props.clipCount} ${props.clipCount === 1 ? "clip" : "clips"} of your voice.`}
+              ? `“${props.profileName}”, kept for this visit only: this browser blocks local storage.`
+              : `“${props.profileName}”, kept only in this browser, with ${props.clipCount} ${props.clipCount === 1 ? "clip" : "clips"} of this voice.`}
         </p>
       </div>
       {sorted.length === 0 ? (

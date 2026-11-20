@@ -15,6 +15,7 @@ export interface VoiceStore {
   saveEntries(entries: PhrasebookEntry[]): Promise<void>;
   loadClips(): Promise<Clip[]>;
   addClip(clip: Clip): Promise<void>;
+  removeClip(id: string): Promise<void>;
   clearAll(): Promise<void>;
 }
 
@@ -39,19 +40,23 @@ export class MemoryStore implements VoiceStore {
   async addClip(clip: Clip) {
     this.clips = [...this.clips.filter((c) => c.id !== clip.id), clip].slice(-40);
   }
+  async removeClip(id: string) {
+    this.clips = this.clips.filter((c) => c.id !== id);
+  }
   async clearAll() {
     this.entries = [];
     this.clips = [];
   }
 }
 
-const DB_NAME = "understood";
+/** The first profile's database. Every other profile has its own (storage/profiles.ts). */
+export const DB_NAME = "understood";
 const DB_VERSION = 1;
 const MAX_CLIPS = 40;
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains("entries")) db.createObjectStore("entries", { keyPath: "id" });
@@ -68,11 +73,11 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-/** Deletes the whole database. Waits up to 3 s if another tab is still holding it open. */
-function deleteDatabase(): Promise<void> {
+/** Deletes a whole database. Waits up to 3 s if another tab is still holding it open. */
+export function deleteDatabase(name: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") return resolve();
-    const request = indexedDB.deleteDatabase(DB_NAME);
+    const request = indexedDB.deleteDatabase(name);
     const timer = setTimeout(resolve, 3000);
     request.onsuccess = () => {
       clearTimeout(timer);
@@ -101,22 +106,31 @@ function getAll<T>(db: IDBDatabase, name: string): Promise<T[]> {
   });
 }
 
-/** IndexedDB, with a memory copy that takes over if the database fails at any point. */
+/** IndexedDB, with a memory copy that takes over if the database fails at any point. One per profile. */
 export class BrowserStore implements VoiceStore {
   private memory = new MemoryStore();
-  private constructor(private db: IDBDatabase | null) {}
+  private constructor(
+    private db: IDBDatabase | null,
+    private readonly name: string,
+  ) {}
 
   get persistent() {
     return this.db !== null;
   }
 
-  static async open(): Promise<BrowserStore> {
+  static async open(name = DB_NAME): Promise<BrowserStore> {
     try {
-      if (typeof indexedDB === "undefined") return new BrowserStore(null);
-      return new BrowserStore(await openDatabase());
+      if (typeof indexedDB === "undefined") return new BrowserStore(null, name);
+      return new BrowserStore(await openDatabase(name), name);
     } catch {
-      return new BrowserStore(null);
+      return new BrowserStore(null, name);
     }
+  }
+
+  /** Lets go of the database, so it can be deleted (a removed profile). */
+  close() {
+    this.db?.close();
+    this.db = null;
   }
 
   private async attempt<T>(work: (db: IDBDatabase) => Promise<T>, fallback: () => Promise<T>): Promise<T> {
@@ -168,6 +182,18 @@ export class BrowserStore implements VoiceStore {
     );
   }
 
+  async removeClip(id: string) {
+    await this.memory.removeClip(id);
+    await this.attempt(
+      async (db) => {
+        const tx = db.transaction("clips", "readwrite");
+        tx.objectStore("clips").delete(id);
+        await done(tx);
+      },
+      async () => {},
+    );
+  }
+
   /**
    * Forgets everything on this device. The whole database is deleted every time, even when an
    * earlier error switched this visit to memory: a failed write must never leave a person's
@@ -177,7 +203,7 @@ export class BrowserStore implements VoiceStore {
     await this.memory.clearAll();
     this.db?.close();
     this.db = null;
-    await deleteDatabase().catch(() => {});
-    this.db = typeof indexedDB === "undefined" ? null : await openDatabase().catch(() => null);
+    await deleteDatabase(this.name).catch(() => {});
+    this.db = typeof indexedDB === "undefined" ? null : await openDatabase(this.name).catch(() => null);
   }
 }
