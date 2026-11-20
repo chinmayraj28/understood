@@ -4,18 +4,18 @@
   "personalised": true,
   "speakers": 11,
   "secondsPerClip": 0.309,
-  "trainingMinutes": 78.0,
+  "trainingMinutes": 78,
   "split": [
     {
       "role": "train",
       "clips": 1393,
-      "minutes": 78.0,
+      "minutes": 78,
       "neverTrained": 0
     },
     {
       "role": "val",
       "clips": 118,
-      "minutes": 6.0,
+      "minutes": 6,
       "neverTrained": 103
     },
     {
@@ -300,5 +300,145 @@
       "untuned": 0.1264,
       "tuned": 0.0345
     }
-  ]
+  ],
+  "loso": {
+    "date": "2026-11-20",
+    "model": "openai/whisper-large-v3-turbo",
+    "speakers": 8,
+    "note": "Trained on every other speaker, both microphones. No per-speaker step.",
+    "rows": [
+      {
+        "key": "all",
+        "label": "All clips",
+        "clips": 940,
+        "untuned": {
+          "wer": 0.464,
+          "low": 0.42,
+          "high": 0.509
+        },
+        "tuned": {
+          "wer": 0.314,
+          "low": 0.281,
+          "high": 0.348
+        }
+      },
+      {
+        "key": "new-prompt",
+        "label": "New voice and new words",
+        "clips": 358,
+        "untuned": {
+          "wer": 0.408,
+          "low": 0.341,
+          "high": 0.482
+        },
+        "tuned": {
+          "wer": 0.337,
+          "low": 0.28,
+          "high": 0.396
+        }
+      },
+      {
+        "key": "sentence",
+        "label": "Sentences",
+        "clips": 242,
+        "untuned": {
+          "wer": 0.311,
+          "low": 0.265,
+          "high": 0.362
+        },
+        "tuned": {
+          "wer": 0.256,
+          "low": 0.213,
+          "high": 0.301
+        }
+      },
+      {
+        "key": "word",
+        "label": "Single words",
+        "clips": 698,
+        "untuned": {
+          "wer": 0.832,
+          "low": 0.771,
+          "high": 0.901
+        },
+        "tuned": {
+          "wer": 0.453,
+          "low": 0.405,
+          "high": 0.504
+        }
+      },
+      {
+        "key": "new-prompt-sentence",
+        "label": "Sentences, new words",
+        "clips": 140,
+        "untuned": {
+          "wer": 0.302,
+          "low": 0.233,
+          "high": 0.379
+        },
+        "tuned": {
+          "wer": 0.272,
+          "low": 0.209,
+          "high": 0.338
+        }
+      },
+      {
+        "key": "new-prompt-word",
+        "label": "Single words, new words",
+        "clips": 218,
+        "untuned": {
+          "wer": 0.862,
+          "low": 0.748,
+          "high": 0.995
+        },
+        "tuned": {
+          "wer": 0.615,
+          "low": 0.514,
+          "high": 0.743
+        }
+      }
+    ],
+    "perSpeaker": [
+      {
+        "speaker": "F01",
+        "untuned": 0.81,
+        "tuned": 0.44
+      },
+      {
+        "speaker": "F03",
+        "untuned": 0.36,
+        "tuned": 0.28
+      },
+      {
+        "speaker": "F04",
+        "untuned": 0.14,
+        "tuned": 0.08
+      },
+      {
+        "speaker": "M01",
+        "untuned": 0.63,
+        "tuned": 0.46
+      },
+      {
+        "speaker": "M02",
+        "untuned": 0.86,
+        "tuned": 0.75
+      },
+      {
+        "speaker": "M03",
+        "untuned": 0.05,
+        "tuned": 0.02
+      },
+      {
+        "speaker": "M04",
+        "untuned": 0.89,
+        "tuned": 0.55
+      },
+      {
+        "speaker": "M05",
+        "untuned": 0.41,
+        "tuned": 0.2
+      }
+    ]
+  }
 }

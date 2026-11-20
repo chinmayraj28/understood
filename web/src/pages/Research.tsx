@@ -1,8 +1,10 @@
-// The research page: what fine-tuning a speech model on the speakers' own recordings did.
+// The research page: does training a speech model on dysarthric speech help on a stranger?
 //
-// Part A, the findings, reads /research/results.json (numbers only), so it works on the hosted
-// site. Part B, the clip tester, needs the local server: TORGO's text and audio never leave this
-// computer, so a hosted copy shows one sentence instead. Every number comes from the data.
+// The findings read /research/results.json (numbers only), so they work on the hosted site. They
+// lead with the leave-one-speaker-out test (`loso`); a results file written before that test has
+// no `loso`, and the page then falls back to the earlier test's headline. The clip tester needs
+// the local server: TORGO's text and audio never leave this computer, so a hosted copy shows one
+// sentence instead. Every number comes from the data.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clipAudioUrl } from "../../shared/dataset";
@@ -10,17 +12,17 @@ import type {
   ResearchClip,
   ResearchClipsResponse,
   ResearchDevRow,
+  ResearchLoso,
+  ResearchRate,
   ResearchResults,
   ResearchRow,
-  ResearchSpeaker,
-  ResearchSplit,
   ResearchStatus,
   ResearchTranscribeRequest,
   ResearchTranscribeResponse,
 } from "../../shared/research";
 import { alignWords, countErrors, type AlignedWord } from "../../shared/wordErrors";
 
-/** Whole numbers in headings, one decimal everywhere else. Values are fractions. */
+/** Whole numbers in headings and per speaker, one decimal in the tables. Values are fractions. */
 const whole = (v: number) => `${Math.round(v * 100)}%`;
 const oneDecimal = (v: number) => `${(v * 100).toFixed(1)}%`;
 const bare = (v: number) => (v * 100).toFixed(1);
@@ -29,35 +31,45 @@ const CONFIDENCE = 95;
 
 const START_COMMAND = "cd train && uv run python serve.py";
 
-const HELD_OUT_ORDER = ["unseen", "dysarthric-unseen", "unseen-word", "unseen-sentence", "all"];
+/** The main table's rows, in this order. The file has two more, kept for completeness. */
+const RESULT_ORDER = ["all", "new-prompt", "sentence", "word"];
 
-const ROLES: { role: ResearchSplit["role"]; name: string; use: string }[] = [
-  { role: "train", name: "Train", use: "The model learns from these" },
-  { role: "val", name: "Validation", use: "Picks when to stop" },
-  { role: "dev", name: "Dev", use: "Picks the model" },
-  { role: "holdout", name: "Held-out", use: "Scored once" },
+/** The earlier test's rows, with plainer names than the file's. */
+const EARLIER_ROWS: { key: string; label: string }[] = [
+  { key: "unseen", label: "All speakers" },
+  { key: "dysarthric-unseen", label: "Speakers with dysarthria" },
+  { key: "unseen-sentence", label: "Sentences" },
+  { key: "unseen-word", label: "Single words" },
 ];
 
-const STAGES: { stage: ResearchDevRow["stage"]; name: string }[] = [
-  { stage: "untuned", name: "Untuned" },
-  { stage: "tuned", name: "Tuned, all speakers" },
-  { stage: "personalised", name: "Tuned per speaker" },
-];
+const COUNTS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+/** Small counts as words ("eight"), larger ones as digits. */
+const say = (n: number) => COUNTS[n] ?? n.toLocaleString();
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function Research() {
-  const results = useResearchResults();
+  return <ResearchView results={useResearchResults()} />;
+}
+
+/** The page for given results: null while loading, "failed" when the file could not be read. */
+export function ResearchView({ results }: { results: ResearchResults | null | "failed" }) {
   const data = results === "failed" ? null : results;
+  const loso = data?.loso;
 
   return (
     <main id="main" className="research">
-      <Finding results={results} />
-      {/* The tester comes second: in a live demo it is one scroll away from the headline. */}
+      <Hero results={results} />
+      {loso && (
+        <>
+          <ResultSection loso={loso} />
+          <SpeakersSection loso={loso} />
+          <MethodSection loso={loso} />
+        </>
+      )}
       <Tester />
       {data && (
         <>
-          <SplitSection results={data} />
-          <ModelsSection rows={data.dev} />
-          <SpeakersSection speakers={data.perSpeaker} />
+          <EarlierSection rows={data.heldOut} />
           <LimitsSection results={data} />
         </>
       )}
@@ -65,7 +77,7 @@ export function Research() {
   );
 }
 
-/* ───────────── Part A: the findings ───────────── */
+/* ───────────── The findings ───────────── */
 
 function useResearchResults(): ResearchResults | null | "failed" {
   const [data, setData] = useState<ResearchResults | null | "failed">(null);
@@ -75,7 +87,9 @@ function useResearchResults(): ResearchResults | null | "failed" {
       .then((r) => (r.ok ? (r.json() as Promise<ResearchResults>) : Promise.reject(new Error(String(r.status)))))
       .then((body) => {
         if (!Array.isArray(body?.heldOut)) throw new Error("not the results file");
-        setData(body);
+        // An older file has no leave-one-speaker-out test; a broken one is treated the same way.
+        const loso = body.loso && Array.isArray(body.loso.rows) && Array.isArray(body.loso.perSpeaker) ? body.loso : undefined;
+        setData({ ...body, loso });
       })
       .catch(() => {
         if (!controller.signal.aborted) setData("failed");
@@ -85,249 +99,256 @@ function useResearchResults(): ResearchResults | null | "failed" {
   return data;
 }
 
-/** The chosen model's short name ("Whisper large-v3-turbo"), from the dev rows when they name it. */
-function modelName(results: ResearchResults): string {
-  const id = results.model.toLowerCase();
-  return results.dev.find((row) => id.includes(row.model.toLowerCase()))?.name ?? results.model;
+/** A model's short name ("Whisper large-v3-turbo"), from the dev rows when they name it. */
+function modelName(id: string, dev: ResearchDevRow[]): string {
+  const lower = id.toLowerCase();
+  return dev.find((row) => lower.includes(row.model.toLowerCase()))?.name ?? id;
 }
 
-function Finding({ results }: { results: ResearchResults | null | "failed" }) {
+function Hero({ results }: { results: ResearchResults | null | "failed" }) {
   const data = results === "failed" ? null : results;
+  const fresh = data?.loso?.rows.find((row) => row.key === "all");
   const lead = data?.heldOut.find((row) => row.key === "unseen");
-  const title = lead
-    ? lead.tuned.wer < lead.untuned.wer
-      ? `Training on the voice cut words wrong from ${whole(lead.untuned.wer)} to ${whole(lead.tuned.wer)}`
-      : `Training on the voice did not cut words wrong: ${whole(lead.untuned.wer)} before, ${whole(lead.tuned.wer)} after`
-    : "What training on the voice did";
+
+  let title = "What training on dysarthric speech did";
+  if (fresh) {
+    title =
+      fresh.tuned.wer < fresh.untuned.wer
+        ? `On a person it never heard, training cut words wrong from ${whole(fresh.untuned.wer)} to ${whole(fresh.tuned.wer)}`
+        : `On a person it never heard, training did not cut words wrong: ${whole(fresh.untuned.wer)} before, ${whole(fresh.tuned.wer)} after`;
+  } else if (lead) {
+    title =
+      lead.tuned.wer < lead.untuned.wer
+        ? `Training on the voice cut words wrong from ${whole(lead.untuned.wer)} to ${whole(lead.tuned.wer)}`
+        : `Training on the voice did not cut words wrong: ${whole(lead.untuned.wer)} before, ${whole(lead.tuned.wer)} after`;
+  }
 
   return (
     <section className="research-hero" aria-labelledby="research-title">
-      <div>
-        <h1 id="research-title" tabIndex={-1}>
-          {title}
-        </h1>
-        {data && lead && (
-          <p className="research-lede">
-            {modelName(data)}, tuned on {data.personalised ? "each speaker’s own" : "the speakers’"} recordings. Tested once on{" "}
-            {lead.clips.toLocaleString()} held-out clips whose prompts it never trained on.
-          </p>
-        )}
-        {results === null && <p className="muted research-lede">Loading the results…</p>}
-        {results === "failed" && <p className="muted research-lede">The results could not be loaded.</p>}
-      </div>
-      {data && <HeldOutChart rows={data.heldOut} />}
+      <h1 id="research-title" tabIndex={-1}>
+        {title}
+      </h1>
+      {data?.loso && fresh && (
+        <p className="research-lede">
+          {modelName(data.loso.model, data.dev)}, trained on everyone else and tested on one speaker it had never heard, for each of{" "}
+          {say(data.loso.speakers)} speakers with dysarthria in turn.
+        </p>
+      )}
+      {data && !fresh && lead && (
+        <p className="research-lede">
+          {modelName(data.model, data.dev)}, trained on the speakers&rsquo; recordings and tested on {lead.clips.toLocaleString()} clips whose
+          words it never trained on.
+        </p>
+      )}
+      {results === null && <p className="muted research-lede">Loading the results…</p>}
+      {results === "failed" && <p className="muted research-lede">The results could not be loaded.</p>}
     </section>
   );
 }
 
-function HeldOutChart({ rows }: { rows: ResearchRow[] }) {
-  const shown = HELD_OUT_ORDER.map((key) => rows.find((row) => row.key === key)).filter((row): row is ResearchRow => !!row);
-  if (shown.length === 0) return null;
-  const most = Math.max(...shown.flatMap((row) => [row.untuned.wer, row.tuned.wer]), 0.0001);
+function ResultSection({ loso }: { loso: ResearchLoso }) {
+  const rows = RESULT_ORDER.map((key) => loso.rows.find((row) => row.key === key)).filter((row): row is ResearchRow => !!row);
+  if (rows.length === 0) return null;
   return (
-    <figure className="pair-chart">
-      <figcaption>
-        Share of words wrong, lower is better. Small numbers: the tuned model&rsquo;s {CONFIDENCE}% interval.
-      </figcaption>
-      <ul>
-        {shown.map((row) => (
-          <li key={row.key}>
-            <p className="pair-name">
-              {row.label} <span className="pair-clips">{row.clips.toLocaleString()} clips</span>
-            </p>
-            <div className="pair-line before">
-              <span className="pair-tag">Untuned</span>
-              <Bar value={row.untuned.wer} most={most} />
-              <span className="pair-value num">{oneDecimal(row.untuned.wer)}</span>
-            </div>
-            <div className="pair-line after">
-              <span className="pair-tag">Tuned</span>
-              <Bar value={row.tuned.wer} most={most} />
-              <span className="pair-value num">{oneDecimal(row.tuned.wer)}</span>
-              <span className="pair-ci">
-                <span className="visually-hidden">{CONFIDENCE}% interval </span>
-                {bare(row.tuned.low)}–{bare(row.tuned.high)}
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </figure>
+    <section className="band" aria-labelledby="result-title">
+      <h2 id="result-title">The result</h2>
+      <p className="band-note">Share of words wrong on speakers the model never heard. Lower is better.</p>
+      <RateTable rows={rows} labelledBy="result-title" head="Which clips" ranges />
+      <p className="rate-note">Small numbers show the likely range ({CONFIDENCE}% confidence).</p>
+    </section>
   );
 }
 
-function Bar({ value, most }: { value: number; most: number }) {
+/** Words wrong, untuned beside trained. The trained column carries the emphasis. */
+function RateTable({ rows, labelledBy, head, ranges = false }: { rows: ResearchRow[]; labelledBy: string; head: string; ranges?: boolean }) {
+  const most = Math.max(...rows.flatMap((row) => [row.untuned.wer, row.tuned.wer]), 0.0001);
   return (
-    <span className="pair-bar" aria-hidden="true">
-      <span style={{ width: `${Math.min(100, (value / most) * 100)}%` }} />
+    <div className="rate-wrap">
+      <table className="rate-table" aria-labelledby={labelledBy}>
+        <thead>
+          <tr>
+            <th scope="col">{head}</th>
+            <th scope="col" className="rate-clips">
+              Clips
+            </th>
+            <th scope="col" className="rate-before">
+              <Key kind="before" />
+              Untuned
+            </th>
+            <th scope="col" className="rate-after">
+              <Key kind="after" />
+              Trained
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <th scope="row">
+                <span className="rate-label">{row.label}</span>
+                <span className="rate-clips-inline">
+                  {row.clips.toLocaleString()} clips
+                </span>
+                <Bars before={row.untuned.wer} after={row.tuned.wer} most={most} />
+              </th>
+              <td className="rate-clips num">{row.clips.toLocaleString()}</td>
+              <td className="rate-before">
+                <Rate rate={row.untuned} range={ranges} />
+              </td>
+              <td className="rate-after">
+                <Rate rate={row.tuned} range={ranges} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Rate({ rate, range }: { rate: ResearchRate; range: boolean }) {
+  return (
+    <>
+      <span className="rate-value num">{oneDecimal(rate.wer)}</span>
+      {range && (
+        <span className="rate-range">
+          <span className="visually-hidden">likely between </span>
+          {bare(rate.low)}
+          <span aria-hidden="true">–</span>
+          <span className="visually-hidden"> and </span>
+          {bare(rate.high)}
+        </span>
+      )}
+    </>
+  );
+}
+
+function Key({ kind }: { kind: "before" | "after" }) {
+  return <span className={`rate-key ${kind}`} aria-hidden="true" />;
+}
+
+/** Two thin bars on one scale. Decoration only: the numbers sit in their own cells. */
+function Bars({ before, after, most }: { before: number; after: number; most: number }) {
+  return (
+    <span className="rate-bars" aria-hidden="true">
+      <span className="rate-bar before">
+        <span style={{ width: `${Math.min(100, (before / most) * 100)}%` }} />
+      </span>
+      <span className="rate-bar after">
+        <span style={{ width: `${Math.min(100, (after / most) * 100)}%` }} />
+      </span>
     </span>
   );
 }
 
-function SplitSection({ results }: { results: ResearchResults }) {
-  const parts = ROLES.map((r) => ({ ...r, split: results.split.find((s) => s.role === r.role) })).filter(
-    (p): p is (typeof ROLES)[number] & { split: ResearchSplit } => !!p.split,
-  );
-  if (parts.length === 0) return null;
-  const holdout = parts.find((p) => p.role === "holdout")?.split;
+function SpeakersSection({ loso }: { loso: ResearchLoso }) {
+  if (loso.perSpeaker.length === 0) return null;
+  const speakers = [...loso.perSpeaker].sort((a, b) => a.speaker.localeCompare(b.speaker));
+  const most = Math.max(...speakers.flatMap((s) => [s.untuned, s.tuned]), 0.0001);
   return (
-    <section className="band" aria-labelledby="split-title">
-      <h2 id="split-title">How the data was split</h2>
-      <div className="split-bar" aria-hidden="true">
-        {parts.map((p) => (
-          <span key={p.role} className={`split-part role-${p.role}`} style={{ flexGrow: p.split.clips }} />
-        ))}
-      </div>
-      <ul className="split-legend">
-        {parts.map((p) => (
-          <li key={p.role}>
-            <span className={`split-swatch role-${p.role}`} aria-hidden="true" />
-            <span>
-              <strong>{p.name}</strong> <span className="num">{p.split.clips.toLocaleString()}</span> clips
-              <span className="split-use">{p.use}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="band-note split-note">
-        Speakers read the same prompts, so a model can learn the prompts instead of the voice. The honest number counts only clips whose
-        prompt no speaker said in training
-        {holdout ? (
-          <>
-            : {holdout.neverTrained.toLocaleString()} of the {holdout.clips.toLocaleString()} held-out clips.
-          </>
-        ) : (
-          "."
-        )}
-      </p>
-    </section>
-  );
-}
-
-function ModelsSection({ rows }: { rows: ResearchDevRow[] }) {
-  if (rows.length === 0) return null;
-  const models = [...new Set(rows.map((row) => row.model))];
-  const best = rows.reduce((a, b) => (b.unseen < a.unseen ? b : a));
-  return (
-    <section className="band" aria-labelledby="models-title">
-      <h2 id="models-title">{best.name} did best on the dev clips</h2>
-      <p className="band-note">The model was chosen here, before the held-out clips were scored. Share of words wrong, lower is better.</p>
-      <div className="table-wrap dev-wrap" role="region" aria-label="Each model on the dev clips" tabIndex={0}>
-        <table className="dev-table">
+    <section className="band" aria-labelledby="speakers-title">
+      <h2 id="speakers-title">Speaker by speaker</h2>
+      <p className="band-note">Each speaker was scored by a model that had never heard them.</p>
+      <div className="rate-wrap narrow">
+        <table className="rate-table" aria-labelledby="speakers-title">
           <thead>
             <tr>
-              <th scope="col">Model</th>
-              <th scope="col">Stage</th>
-              <th scope="col">Never trained on</th>
-              <th scope="col">All</th>
-              <th scope="col">Single words</th>
-              <th scope="col">Sentences</th>
+              <th scope="col">Speaker</th>
+              <th scope="col" className="rate-before">
+                <Key kind="before" />
+                Untuned
+              </th>
+              <th scope="col" className="rate-after">
+                <Key kind="after" />
+                Trained
+              </th>
             </tr>
           </thead>
-          {models.map((model) => {
-            const group = STAGES.map((s) => ({ ...s, row: rows.find((r) => r.model === model && r.stage === s.stage) })).filter(
-              (s): s is (typeof STAGES)[number] & { row: ResearchDevRow } => !!s.row,
-            );
-            return (
-              <tbody key={model}>
-                {group.map((s, i) => (
-                  <tr key={s.stage}>
-                    {i === 0 && (
-                      <th scope="rowgroup" rowSpan={group.length} className="dev-model">
-                        {s.row.name}
-                      </th>
-                    )}
-                    <th scope="row" className="dev-stage">
-                      {s.name}
-                    </th>
-                    <td className="num">
-                      {s.row === best ? (
-                        <mark className="dev-best">
-                          {oneDecimal(s.row.unseen)}
-                          <span className="visually-hidden"> (lowest)</span>
-                        </mark>
-                      ) : (
-                        oneDecimal(s.row.unseen)
-                      )}
-                    </td>
-                    <td className="num">{oneDecimal(s.row.all)}</td>
-                    <td className="num">{oneDecimal(s.row.words)}</td>
-                    <td className="num">{oneDecimal(s.row.sentences)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            );
-          })}
+          <tbody>
+            {speakers.map((s) => (
+              <tr key={s.speaker}>
+                <th scope="row">
+                  <span className="rate-label">{s.speaker}</span>
+                  <Bars before={s.untuned} after={s.tuned} most={most} />
+                </th>
+                <td className="rate-before">
+                  <span className="rate-value num">{whole(s.untuned)}</span>
+                </td>
+                <td className="rate-after">
+                  <span className="rate-value num">{whole(s.tuned)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </section>
   );
 }
 
-function SpeakersSection({ speakers }: { speakers: ResearchSpeaker[] }) {
-  if (speakers.length === 0) return null;
-  // Speakers with dysarthria first, each group in the file's order.
-  const ordered = [...speakers.filter((s) => s.dysarthric), ...speakers.filter((s) => !s.dysarthric)];
-  const most = Math.max(...speakers.flatMap((s) => [s.untuned, s.tuned]), 0.0001);
-  const dysarthric = speakers.filter((s) => s.dysarthric);
-  const worst = dysarthric.length ? dysarthric.reduce((a, b) => (b.tuned > a.tuned ? b : a)) : null;
+function MethodSection({ loso }: { loso: ResearchLoso }) {
   return (
-    <section className="band" aria-labelledby="speakers-title">
-      <h2 id="speakers-title">Speaker by speaker</h2>
-      <p className="band-note">
-        The most severe speakers are still often misheard
-        {worst ? (
-          <>
-            : the tuned model still gets {oneDecimal(worst.tuned)} of {worst.speaker}&rsquo;s words wrong.
-          </>
-        ) : (
-          "."
-        )}
+    <section className="band" aria-labelledby="method-title">
+      <h2 id="method-title">How it was tested</h2>
+      <ol className="method-steps">
+        <li>
+          <strong>Train</strong>
+          <span>on everyone except one speaker with dysarthria.</span>
+        </li>
+        <li>
+          <strong>Test</strong>
+          <span>on that speaker, whose voice the model has never heard.</span>
+        </li>
+        <li>
+          <strong>Repeat</strong>
+          <span>for all {say(loso.speakers)} speakers, and add up the results.</span>
+        </li>
+      </ol>
+      <p className="method-data">
+        The recordings are TORGO: {say(loso.speakers)} speakers with dysarthria and three without, reading words and sentences aloud. About two
+        hours of training audio, including a second microphone.
       </p>
-      <p className="speaker-key" aria-hidden="true">
-        <span className="key before" /> Untuned <span className="key after" /> Tuned
-      </p>
-      <ul className="speaker-grid">
-        {ordered.map((s) => (
-          <li key={s.speaker} className={s.dysarthric ? "" : "control"}>
-            <p className="speaker-name">
-              <strong>{s.speaker}</strong> <span>{s.dysarthric ? "dysarthria" : "no dysarthria"}</span>
-            </p>
-            <div className="speaker-bars" aria-hidden="true">
-              <span className="pair-line before">
-                <Bar value={s.untuned} most={most} />
-              </span>
-              <span className="pair-line after">
-                <Bar value={s.tuned} most={most} />
-              </span>
-            </div>
-            <p className="speaker-values num">
-              <span className="visually-hidden">Untuned </span>
-              {oneDecimal(s.untuned)} <span aria-hidden="true">→</span>
-              <span className="visually-hidden">, tuned</span> {oneDecimal(s.tuned)}
-            </p>
-          </li>
-        ))}
-      </ul>
+    </section>
+  );
+}
+
+function EarlierSection({ rows }: { rows: ResearchRow[] }) {
+  const shown = EARLIER_ROWS.flatMap(({ key, label }) => {
+    const row = rows.find((r) => r.key === key);
+    return row ? [{ ...row, label }] : [];
+  });
+  if (shown.length === 0) return null;
+  return (
+    <section className="band" aria-labelledby="earlier-title">
+      <h2 id="earlier-title">When the model has heard the speaker</h2>
+      <p className="band-note">The earlier, easier test: new words and sentences from speakers it trained on.</p>
+      <RateTable rows={shown} labelledBy="earlier-title" head="Which clips" />
     </section>
   );
 }
 
 function LimitsSection({ results }: { results: ResearchResults }) {
+  const speakers = results.loso?.speakers ?? results.perSpeaker.filter((s) => s.dysarthric).length;
+  const newWords = results.loso?.rows.find((row) => row.key === "new-prompt");
   return (
     <section className="band" aria-labelledby="limits-title">
       <h2 id="limits-title">What this does not show</h2>
       <ul className="limits">
-        <li>The model alone, not the full pipeline.</li>
-        <li>One run, with one seed.</li>
-        <li>{results.speakers} speakers, from one dataset.</li>
-        <li>The models overfit quickly, so when to stop matters.</li>
+        <li>
+          {capital(say(speakers))} speakers is far too few, and the most severe still have about half their words wrong.
+        </li>
+        {newWords && newWords.tuned.wer < newWords.untuned.wer && (
+          <li>
+            When the words are new too, the gain is smaller: from {whole(newWords.untuned.wer)} to {whole(newWords.tuned.wer)}.
+          </li>
+        )}
+        <li>TORGO is people reading aloud, not everyday conversation.</li>
       </ul>
     </section>
   );
 }
 
-/* ───────────── Part B: the clip tester (local only) ───────────── */
+/* ───────────── The clip tester (local only) ───────────── */
 
 type ClipsLoad = { status: "loading" } | { status: "ready"; clips: ResearchClip[] } | { status: "local-only" } | { status: "failed" };
 type StatusLoad = { checking: true } | { checking: false; status: ResearchStatus | null };
@@ -398,6 +419,7 @@ function Tester() {
   return (
     <section className="band tester" aria-labelledby="tester-title">
       <h2 id="tester-title">Try a clip it never trained on</h2>
+      <p className="band-note">This model comes from the earlier test: it has heard these speakers, but never these words.</p>
       {load.status === "loading" && <p className="muted tester-quiet">Looking for the clips…</p>}
       {load.status === "local-only" && <p className="muted tester-quiet">{LOCAL_ONLY}</p>}
       {load.status === "failed" && <p className="muted tester-quiet">The clips could not be loaded. Is the server running?</p>}

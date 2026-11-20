@@ -4,8 +4,9 @@
 // repair and the decider run, and the page's final text is scored against the prompt with the
 // evaluation's word error rate.
 //
-//   npx tsx scripts/evalTranscription.ts --split dev --tag baseline [--per-speaker 10] [--speakers F01,M05]
+//   npx tsx scripts/evalTranscription.ts --split dev --tag baseline [--per-speaker 10] [--speakers F01,M05] [--stranger]
 //
+// --stranger hears every clip as "Nobody in particular": nothing is set up from the speaker.
 // Test clips are split once, by a hash of the clip id, into "dev" (used while improving the
 // pipeline) and "holdout" (run only at the end, to report). Recogniser answers are cached on disk
 // (EVAL_CACHE, default the system temp folder), so changing the repair or the combination does
@@ -26,6 +27,9 @@ import { TRANSCRIBE_LIMITS, understandTurn, type UnderstandDeps } from "../serve
 import { bestText, HEARERS, newTurn, reduceTurn } from "../src/model/turn";
 import { setUpSpeaker, type Voice } from "../src/model/voices";
 
+/** Nothing known about the speaker: no phrasebook, no example clips, no known phrases. */
+const NOBODY: Voice = { id: "nobody", label: "Nobody in particular", phrasebook: [], examples: [], keyterms: [], setupClipIds: [], setupPrompts: [] };
+
 const repo = (relative: string) => fileURLToPath(new URL(`../../${relative}`, import.meta.url));
 const dataDir = process.env.DATASET_DIR || repo("eval/data/torgo");
 
@@ -41,6 +45,8 @@ const perSpeaker = Number(args.get("per-speaker") ?? 10);
 const onlySpeakers = args.get("speakers")?.split(",");
 const concurrency = Number(args.get("concurrency") ?? 4);
 const noRealtime = args.has("no-realtime");
+/** A speaker the pipeline knows nothing about: no set-up clips, so no phrasebook, no example clips for Gemini, no known phrases. */
+const stranger = args.has("stranger");
 /** Skip this many clips per speaker first: a fresh sample of the same split. */
 const skip = Number(args.get("skip") ?? 0);
 if (args.has("gemini4-seconds")) TRANSCRIBE_LIMITS.secondListenerSeconds = Number(args.get("gemini4-seconds"));
@@ -215,6 +221,10 @@ async function main() {
   const voices = new Map<string, Voice>();
   for (const speaker of [...new Set(clips.map((c) => c.speaker))]) {
     const description = manifest.speakers.find((s) => s.id === speaker);
+    if (stranger) {
+      voices.set(speaker, NOBODY);
+      continue;
+    }
     voices.set(
       speaker,
       await setUpSpeaker(index, speaker, `${speaker} (${description?.severity ?? ""})`, {

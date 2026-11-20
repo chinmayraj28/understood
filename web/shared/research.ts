@@ -1,4 +1,5 @@
-// The Research page's data: what fine-tuning a speech model on the speakers' own recordings did.
+// The Research page's data: what training a speech model on recordings of dysarthric speech did,
+// on speakers it never heard (the leave-one-speaker-out test) and on speakers it trained on.
 //
 // Two sources, kept apart on purpose:
 //   - /research/results.json (in public/): numbers only. Safe to publish, so the findings show on
@@ -56,8 +57,34 @@ export interface ResearchSplit {
   neverTrained: number;
 }
 
+/** One speaker in the leave-one-speaker-out test, scored by a model that never heard them. */
+export interface ResearchLosoSpeaker {
+  speaker: string;
+  /** Share of words wrong. Known to whole percents only (0.44 is 44%). */
+  untuned: number;
+  tuned: number;
+}
+
+/**
+ * The leave-one-speaker-out test: for each speaker with dysarthria, a model trained on every
+ * other speaker, then tested on that one speaker, whom it had never heard.
+ */
+export interface ResearchLoso {
+  date: string;
+  /** The model's Hugging Face id. */
+  model: string;
+  /** How many speakers were left out in turn. */
+  speakers: number;
+  note: string;
+  /** "all", "new-prompt", "sentence", "word", "new-prompt-sentence", "new-prompt-word". */
+  rows: ResearchRow[];
+  perSpeaker: ResearchLosoSpeaker[];
+}
+
 /** /research/results.json */
 export interface ResearchResults {
+  /** The leave-one-speaker-out test. Missing from results files written before 20 Nov 2026. */
+  loso?: ResearchLoso;
   date: string;
   /** The chosen model's Hugging Face id. */
   model: string;
