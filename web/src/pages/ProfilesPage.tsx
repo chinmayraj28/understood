@@ -225,6 +225,8 @@ function ProfileDialog({ mode, session, onDone }: { mode: DialogMode; session: S
 
   useEffect(() => {
     dialog.current?.showModal();
+    // The dialog would focus its first button (the ×); the name is what comes first.
+    dialog.current?.querySelector<HTMLInputElement>(".profile-form input")?.focus();
   }, []);
 
   // Recording more for an existing profile: use it, and start at once (this runs from the click).
